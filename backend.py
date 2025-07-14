@@ -41,13 +41,15 @@ db_url = os.getenv('DATABASE_URL')  # e.g. 'postgresql+asyncpg://user:pass@host/
 engine = create_async_engine(db_url, echo=False)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-# Initialize Firebase Admin
-firebase_creds = credentials.Certificate({
-    'project_id': os.getenv('FIREBASE_PROJECT_ID'),
-    'client_email': os.getenv('FIREBASE_CLIENT_EMAIL'),
-    'private_key': os.getenv('FIREBASE_PRIVATE_KEY').replace('\\n', '\n')
-})
-firebase_admin.initialize_app(firebase_creds)
+# Initialize Firebase Admin using full service account JSON
+def init_firebase():
+    sa_json = os.getenv('FIREBASE_SERVICE_ACCOUNT_JSON')
+    if not sa_json:
+        raise RuntimeError('Missing FIREBASE_SERVICE_ACCOUNT_JSON environment variable')
+    service_account_info = json.loads(sa_json)
+    firebase_admin.initialize_app(credentials.Certificate(service_account_info))
+
+init_firebase()
 
 # FastAPI setup
 app = FastAPI()
