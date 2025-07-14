@@ -76,6 +76,7 @@ Analyze the given scene and output:
 - Pacing & emotional engagement
 - Character stakes, inner emotional beats & memorability cues
 - Dialogue effectiveness, underlying subtext & tonal consistency
+- Character Arc & Motivation Mapping: identify shifts in desire, need, and fear across the scene
 - Director-level notes on shot variety, blocking, and visual experimentation
 - Cinematography ideas to amplify theme, mood, and visual grammar
 - Visual cues and camerawork nudges to heighten impact
