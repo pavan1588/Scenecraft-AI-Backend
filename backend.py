@@ -1,26 +1,30 @@
+import os
+import re
+import time
+import httpx
+
 from fastapi import FastAPI, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import os, re, time, httpx
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 from starlette.responses import HTMLResponse
 
 app = FastAPI()
 
-# 1) CORS
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://scenecraft-ai.com",
         "https://www.scenecraft-ai.com",
-        # add your Render preview URL here if testing on render
+        # add your Render preview URL here if needed
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 2) Rate limiting
+# Rate‐limit per IP
 RATE_LIMIT: dict[str, list[float]] = {}
 WINDOW = 60
 MAX_CALLS = 10
@@ -28,13 +32,14 @@ MAX_CALLS = 10
 def rate_limiter(ip: str) -> bool:
     now = time.time()
     calls = RATE_LIMIT.setdefault(ip, [])
+    # purge
     RATE_LIMIT[ip] = [t for t in calls if now - t < WINDOW]
     if len(RATE_LIMIT[ip]) >= MAX_CALLS:
         return False
     RATE_LIMIT[ip].append(now)
     return True
 
-# 3) Scene cleaning
+# Clean scene input
 COMMANDS = [
     r"rewrite(?:\s+scene)?", r"regenerate(?:\s+scene)?", r"generate(?:\s+scene)?",
     r"compose(?:\s+scene)?", r"fix(?:\s+scene)?", r"improve(?:\s+scene)?",
@@ -58,13 +63,8 @@ def is_valid_scene(text: str) -> bool:
 class SceneRequest(BaseModel):
     scene: str
 
-# 4) Public /analyze endpoint—NO Authorization header
 @app.post("/analyze")
-async def analyze(
-    request: Request,
-    data: SceneRequest,
-    x_user_agreement: str = Header(None),
-):
+async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
     ip = request.client.host
     if not rate_limiter(ip):
         raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "Rate limit exceeded.")
@@ -88,8 +88,7 @@ You are SceneCraft AI, a visionary cinematic consultant. After reading the scene
 • Tone and tonal-shift suggestions for dynamic emotional flow  
 • One concise “what if” idea to spark creative exploration  
 
-Finally, include a Suggestions section with next-step experiments 
-(e.g. non-linear edits, color motif play, subtext through silence, dynamic camera movement, etc.).
+Finally, include a Suggestions section with next-step experiments.
 
 Scene:
 {cleaned}
@@ -123,26 +122,23 @@ Scene:
     except Exception as e:
         raise HTTPException(500, str(e))
 
-# 5) In-app Terms page
 @app.get("/terms", response_class=HTMLResponse)
 def terms():
-    return HTMLResponse("""<!DOCTYPE html>
+    return HTMLResponse(
+        """<!DOCTYPE html>
 <html><head><title>Terms & Conditions</title></head><body style="font-family:sans-serif;padding:2rem;">
   <h2>SceneCraft AI – Terms & Conditions</h2>
-  <h3>User Agreement</h3>
-  <p>You confirm you own or have rights to any content you submit.</p>
-  <h3>Disclaimer</h3>
-  <p>Analysis is for creative guidance only; you are responsible for usage.</p>
-  <h3>Usage Policy</h3>
-  <ul>
-    <li>Submit only original scenes or authorized excerpts.</li>
-    <li>No random text or rewrite prompts.</li>
-    <li>All feedback is creative, not legal advice.</li>
+  <h3>User Agreement</h3><p>You confirm you own or have rights to any content you submit.</p>
+  <h3>Disclaimer</h3><p>Creative guidance only.</p>
+  <h3>Usage Policy</h3><ul>
+    <li>Original scenes/excerpts only</li>
+    <li>No random text or rewrite prompts</li>
+    <li>Not legal advice</li>
   </ul>
-  <h3>Copyright</h3>
-  <p>You retain all rights; SceneCraft AI does not store or certify ownership.</p>
+  <h3>Copyright</h3><p>You retain all rights; SceneCraft AI does not store content.</p>
   <hr><p>&copy; SceneCraft AI 2025</p>
-</body></html>""")
+</body></html>"""
+    )
 
 @app.get("/")
 def root():
