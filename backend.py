@@ -7,43 +7,41 @@ from starlette.responses import HTMLResponse
 
 app = FastAPI()
 
-# CORS: allow your frontend domains
+# 1) CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://scenecraft-ai.com",
         "https://www.scenecraft-ai.com",
-        # add your Render preview URL if needed
+        # add your Render preview URL here if testing on render
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# In-memory rate limiting by IP
+# 2) Rate limiting
 RATE_LIMIT: dict[str, list[float]] = {}
-WINDOW = 60  # seconds
+WINDOW = 60
 MAX_CALLS = 10
 
 def rate_limiter(ip: str) -> bool:
     now = time.time()
     calls = RATE_LIMIT.setdefault(ip, [])
-    # purge calls older than WINDOW
     RATE_LIMIT[ip] = [t for t in calls if now - t < WINDOW]
     if len(RATE_LIMIT[ip]) >= MAX_CALLS:
         return False
     RATE_LIMIT[ip].append(now)
     return True
 
-# Patterns to strip out directive lines
+# 3) Scene cleaning
 COMMANDS = [
     r"rewrite(?:\s+scene)?", r"regenerate(?:\s+scene)?", r"generate(?:\s+scene)?",
     r"compose(?:\s+scene)?", r"fix(?:\s+scene)?", r"improve(?:\s+scene)?",
     r"polish(?:\s+scene)?", r"reword(?:\s+scene)?", r"make(?:\s+scene)?"
 ]
 STRIP_PATTERN = re.compile(
-    rf"^\s*(?:please\s+)?(?:{'|'.join(COMMANDS)})\s*$",
-    re.IGNORECASE
+    rf"^\s*(?:please\s+)?(?:{'|'.join(COMMANDS)})\s*$", re.IGNORECASE
 )
 
 def clean_scene(text: str) -> str:
@@ -60,11 +58,16 @@ def is_valid_scene(text: str) -> bool:
 class SceneRequest(BaseModel):
     scene: str
 
+# 4) Public /analyze endpoint—NO Authorization header
 @app.post("/analyze")
-async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
+async def analyze(
+    request: Request,
+    data: SceneRequest,
+    x_user_agreement: str = Header(None),
+):
     ip = request.client.host
     if not rate_limiter(ip):
-        raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "Rate limit exceeded. Try again later.")
+        raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "Rate limit exceeded.")
     if not x_user_agreement or x_user_agreement.lower() != "true":
         raise HTTPException(400, "You must accept the Terms & Conditions (x-user-agreement header).")
 
@@ -72,7 +75,6 @@ async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = 
     if not is_valid_scene(data.scene):
         raise HTTPException(400, "Scene too short—please submit at least 30 characters.")
 
-    # Your enhanced prompt stays the same:
     prompt = f"""
 You are SceneCraft AI, a visionary cinematic consultant. After reading the scene, provide:
 
@@ -121,19 +123,24 @@ Scene:
     except Exception as e:
         raise HTTPException(500, str(e))
 
+# 5) In-app Terms page
 @app.get("/terms", response_class=HTMLResponse)
 def terms():
     return HTMLResponse("""<!DOCTYPE html>
 <html><head><title>Terms & Conditions</title></head><body style="font-family:sans-serif;padding:2rem;">
   <h2>SceneCraft AI – Terms & Conditions</h2>
-  <h3>User Agreement</h3><p>You confirm you own or have rights to any content you submit.</p>
-  <h3>Disclaimer</h3><p>Analysis is for creative guidance only; you are responsible for usage.</p>
-  <h3>Usage Policy</h3><ul>
+  <h3>User Agreement</h3>
+  <p>You confirm you own or have rights to any content you submit.</p>
+  <h3>Disclaimer</h3>
+  <p>Analysis is for creative guidance only; you are responsible for usage.</p>
+  <h3>Usage Policy</h3>
+  <ul>
     <li>Submit only original scenes or authorized excerpts.</li>
     <li>No random text or rewrite prompts.</li>
     <li>All feedback is creative, not legal advice.</li>
   </ul>
-  <h3>Copyright</h3><p>You retain all rights; SceneCraft AI does not store or certify ownership.</p>
+  <h3>Copyright</h3>
+  <p>You retain all rights; SceneCraft AI does not store or certify ownership.</p>
   <hr><p>&copy; SceneCraft AI 2025</p>
 </body></html>""")
 
