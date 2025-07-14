@@ -1,114 +1,86 @@
-from __future__ import annotations
-import os
-import re
-import time
-import json
 from fastapi import FastAPI, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from starlette.responses import HTMLResponse
+import os, re, time, httpx
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
-import httpx
+from starlette.responses import HTMLResponse
 
 app = FastAPI()
 
-# CORS: allow your frontend
+# CORS: allow your frontend domains
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://scenecraft-ai.com",
-        "https://www.scenecraft-ai.com"
+        "https://www.scenecraft-ai.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Simple in‐memory rate limiting by IP
-RATE_LIMIT: dict[str, list[float]] = {}
-RATE_WINDOW = 60  # seconds
-RATE_CALLS = 10   # calls per window
+# In-memory rate limiting per IP
+RATE_LIMIT = {}
+WINDOW = 60  # seconds
+MAX_CALLS = 10
 
-def rate_limiter(ip: str, window: int = RATE_WINDOW, limit: int = RATE_CALLS) -> bool:
+def rate_limiter(ip: str) -> bool:
     now = time.time()
-    rec = RATE_LIMIT.setdefault(ip, [])
-    # drop old timestamps
-    RATE_LIMIT[ip] = [t for t in rec if now - t < window]
-    if len(RATE_LIMIT[ip]) >= limit:
+    calls = RATE_LIMIT.setdefault(ip, [])
+    # purge old
+    RATE_LIMIT[ip] = [t for t in calls if now - t < WINDOW]
+    if len(RATE_LIMIT[ip]) >= MAX_CALLS:
         return False
     RATE_LIMIT[ip].append(now)
     return True
 
-# Scene‐cleaning patterns
-COMMANDS = [
-    r"rewrite(?:\s+scene)?",
-    r"regenerate(?:\s+scene)?",
-    r"generate(?:\s+scene)?",
-    r"compose(?:\s+scene)?",
-    r"fix(?:\s+scene)?",
-    r"improve(?:\s+scene)?",
-    r"polish(?:\s+scene)?",
-    r"reword(?:\s+scene)?",
-    r"make(?:\s+scene)?"
-]
-_STRIP_PATTERN = re.compile(
-    rf"^\s*(?:please\s+)?(?:{'|'.join(COMMANDS)})\s*$",
-    flags=re.IGNORECASE
-)
+# Clean-up patterns for directive lines
+COMMANDS = [r"rewrite(?:\s+scene)?", r"regenerate(?:\s+scene)?", r"generate(?:\s+scene)?",
+            r"compose(?:\s+scene)?", r"fix(?:\s+scene)?", r"improve(?:\s+scene)?",
+            r"polish(?:\s+scene)?", r"reword(?:\s+scene)?", r"make(?:\s+scene)?"]
+STRIP_PATTERN = re.compile(rf"^\s*(?:please\s+)?(?:{'|'.join(COMMANDS)})\s*$", re.IGNORECASE)
 
-def clean_scene_input(text: str) -> str:
+def clean_scene(text: str) -> str:
     lines = text.splitlines()
-    while lines and _STRIP_PATTERN.match(lines[0]):
+    while lines and STRIP_PATTERN.match(lines[0]):
         lines.pop(0)
-    while lines and _STRIP_PATTERN.match(lines[-1]):
+    while lines and STRIP_PATTERN.match(lines[-1]):
         lines.pop(-1)
     return "\n".join(lines).strip()
 
 def is_valid_scene(text: str) -> bool:
-    cleaned = clean_scene_input(text)
-    return len(cleaned) >= 30
+    return len(clean_scene(text)) >= 30
 
 class SceneRequest(BaseModel):
     scene: str
 
 @app.post("/analyze")
-async def analyze_scene(
-    request: Request,
-    data: SceneRequest,
-    x_user_agreement: str = Header(None),
-):
+async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
     ip = request.client.host
-    # rate limit
     if not rate_limiter(ip):
-        raise HTTPException(
-            status_code=HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded. Try again later."
-        )
-    # must accept terms
+        raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "Rate limit exceeded. Try again later.")
     if not x_user_agreement or x_user_agreement.lower() != "true":
-        raise HTTPException(
-            status_code=400,
-            detail="You must accept the Terms & Conditions (x-user-agreement header = true)."
-        )
-    # clean & validate
-    cleaned = clean_scene_input(data.scene)
+        raise HTTPException(400, "You must accept the Terms & Conditions (x-user-agreement header).")
+
+    cleaned = clean_scene(data.scene)
     if not is_valid_scene(data.scene):
-        raise HTTPException(
-            status_code=400,
-            detail="Scene too short or invalid. Submit at least 30 characters."
-        )
+        raise HTTPException(400, "Scene too short—please submit at least 30 characters.")
 
-    # choose prompt
+    # Enhanced prompt with memorability cues, director-level notes, experimentation ideas, etc.
     prompt = f"""
-You are SceneCraft AI, a supportive cinematic consultant. Read the scene below and provide deep, focused insights into its core strengths and areas for deeper resonance:
-- How pacing governs emotional engagement
-- The protagonist's driving stakes and inner emotional beats
-- Dialogue effectiveness and underlying subtext
-- How cinematography choices might amplify thematic impact
-- Parallels to similar impactful scenes in recent Hindi, English, and global cinema
-- One concise "what if" idea to spark creative exploration
+You are SceneCraft AI, a visionary cinematic consultant. After reading the scene, provide:
 
-Finally, include a clear Suggestions section with actionable steps to elevate the scene. Do not rewrite or expand any part of the scene.
+• Pacing & emotional engagement  
+• Character stakes, inner emotional beats & memorability cues  
+• Dialogue effectiveness, underlying subtext & tonal consistency  
+• Director-level notes on shot variety, blocking, and visual experimentation  
+• Cinematography ideas to amplify theme, mood, and visual grammar  
+• Visual cues and camerawork nudges to heighten impact  
+• Parallels to impactful moments in global cinema with movie references  
+• Tone and tonal-shift suggestions for dynamic emotional flow  
+• One concise “what if” idea to spark creative exploration  
+
+Finally, include a Suggestions section with next-step experiments (e.g. non-linear edits, color motif play, subtext through silence, dynamic camera movement, etc.).
 
 Scene:
 {cleaned}
@@ -116,7 +88,7 @@ Scene:
 
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
-        raise HTTPException(500, detail="Missing OpenRouter API key")
+        raise HTTPException(500, "Missing OpenRouter API key")
 
     payload = {
         "model": "mistralai/mistral-7b-instruct",
@@ -136,43 +108,35 @@ Scene:
             )
             resp.raise_for_status()
             result = resp.json()
-            content = result["choices"][0]["message"]["content"].strip()
-            # rudimentary check to avoid narrative generation
-            if re.search(r"\bINT\.|\bEXT\.|CUT TO:|^[A-Z]{2,}:", content, flags=re.MULTILINE):
-                raise HTTPException(400, detail="Output rejected: narrative content detected.")
-            return {"analysis": content}
+            analysis = result["choices"][0]["message"]["content"].strip()
+            return {"analysis": analysis}
     except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+        raise HTTPException(e.response.status_code, e.response.text)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(500, str(e))
 
 @app.get("/terms", response_class=HTMLResponse)
 def terms():
-    # your existing detailed terms & conditions HTML
-    html = """
-<!DOCTYPE html>
-<html>
-  <head><title>SceneCraft – Legal Terms & Usage Policy</title></head>
-  <body style='font-family: sans-serif; padding: 2rem; max-width: 700px; margin: auto;'>
-    <h2>SceneCraft – Terms of Use</h2>
-    <h3>User Agreement</h3>
-    <p>By using SceneCraft, you agree to submit only content you own or are authorized to analyze.</p>
-    <h3>Disclaimer</h3>
-    <p>SceneCraft analyzes scenes using cinematic principles. You remain responsible for submitted content.</p>
-    <h3>Usage Policy</h3>
-    <ul>
-      <li>Submit only your original scenes or excerpts you’re authorized to use.</li>
-      <li>Do not submit random text or prompts.</li>
-      <li>Analysis is creative insight, not legal advice.</li>
-    </ul>
-    <h3>Copyright Responsibility</h3>
-    <p>You are fully responsible for the originality and rights of submitted content. SceneCraft does not store your scenes.</p>
-    <hr>
-    <p>© SceneCraft 2025. All rights reserved.</p>
-  </body>
-</html>
+    return HTMLResponse(
 """
-    return HTMLResponse(content=html)
+<!DOCTYPE html><html><head><title>Terms & Conditions</title></head><body style="font-family:sans-serif; padding:2rem;">
+  <h2>SceneCraft AI – Terms & Conditions</h2>
+  <h3>User Agreement</h3>
+  <p>By using this service, you confirm you own or have rights to any content you submit.</p>
+  <h3>Disclaimer</h3>
+  <p>Analysis is provided for creative guidance. You remain responsible for all content and usage.</p>
+  <h3>Usage Policy</h3>
+  <ul>
+    <li>Submit only original scenes or authorized excerpts.</li>
+    <li>No random text or rewrite prompts.</li>
+    <li>All feedback is creative, not legal advice.</li>
+  </ul>
+  <h3>Copyright Responsibility</h3>
+  <p>You retain all rights to your submissions; SceneCraft AI does not store or certify ownership.</p>
+  <hr><p>&copy; SceneCraft AI 2025.</p>
+</body></html>
+"""
+    )
 
 @app.get("/")
 def root():
