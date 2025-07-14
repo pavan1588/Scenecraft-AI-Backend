@@ -55,7 +55,7 @@ init_firebase()
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv('www.scenecraft-ai.com')],
+    allow_origins=[os.getenv('scenecraft-ai.com')],
     allow_credentials=True,
     allow_methods=['*'],
     allow_headers=['*'],
