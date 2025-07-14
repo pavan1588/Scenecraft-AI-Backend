@@ -1,10 +1,7 @@
 from fastapi import FastAPI, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import os
-import re
-import time
-import httpx
+import os, re, time, httpx
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 from starlette.responses import HTMLResponse
 
@@ -68,7 +65,7 @@ async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = 
     if not rate_limiter(ip):
         raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "Rate limit exceeded. Try again later.")
     if not x_user_agreement or x_user_agreement.lower() != "true":
-        raise HTTPException(400, "You must accept the Terms & Conditions (x-user-agreement header).")
+        raise HTTPException(400, "Please accept the Terms & Conditions (x-user-agreement header).")
 
     cleaned = clean_scene(data.scene)
     if not is_valid_scene(data.scene):
