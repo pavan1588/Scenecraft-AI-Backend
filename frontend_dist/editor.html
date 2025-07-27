@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>SceneCraft AI – Editor</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>SceneCraft AI – Scene Editor</title>
   <style>
     body { margin:0; font-family:Arial,sans-serif; background:#000; color:#fff; }
     header { background:#11182a; padding:1em; display:flex; justify-content:space-between; align-items:center; }
@@ -15,7 +14,19 @@
     button { margin-top:1em; width:100%; padding:0.75em; background:#fdd835; color:#000; border:none; font-weight:bold; border-radius:5px; cursor:pointer; }
     #editOutput { margin-top:2em; background:#1a1a2e; padding:1em; border-radius:5px; display:none; }
     #editResult p { margin-bottom:1em; }
+    #denied { color:red; text-align:center; padding:2em; display:none; }
   </style>
+  <script>
+    // always prompt on load
+    const PASSWORD = "SCENECRAFT-2024";
+    const p = prompt("Enter site password:");
+    if (p !== PASSWORD) {
+      document.addEventListener("DOMContentLoaded", ()=>{
+        document.body.innerHTML = '<div id="denied"><h1>Access Denied</h1><p>Incorrect password.</p></div>';
+      });
+      throw new Error("Access denied");
+    }
+  </script>
 </head>
 <body>
   <header>
@@ -28,34 +39,34 @@
 
   <div class="container">
     <h1 style="color:#fdd835;">Scene Editor</h1>
-    <textarea id="sceneInputEditor" placeholder="Paste your scene (max 2 pages)…"></textarea>
+    <textarea id="sceneInputEditor" placeholder="Paste your scene here…"></textarea>
 
     <div class="controls">
       <input type="file" id="sceneFileEditor" accept=".txt,.pdf"/>
       <label>
         <input type="checkbox" id="agreeChkEditor"/> I agree to
-        <a href="terms" target="_blank" style="color:#fdd835; text-decoration:underline;">Terms & Conditions</a>
+        <a href="terms" style="color:#fdd835; text-decoration:underline;">Terms & Conditions</a>
       </label>
     </div>
 
     <button id="editBtn">Edit Scene</button>
 
     <div id="editOutput">
-      <h2 style="color:#fdd835;">Rewrite Suggestions</h2>
+      <h2 style="color:#fdd835;">Rewrite Suggestions</h2>
       <div id="editResult"></div>
     </div>
   </div>
 
   <script>
-    const editBtn       = document.getElementById('editBtn');
-    const sceneInputEd   = document.getElementById('sceneInputEditor');
-    const sceneFileEd    = document.getElementById('sceneFileEditor');
-    const agreeChkEd     = document.getElementById('agreeChkEditor');
-    const editOutput     = document.getElementById('editOutput');
-    const editResultBox  = document.getElementById('editResult');
+    const editBtn      = document.getElementById('editBtn'),
+          sceneInputEd = document.getElementById('sceneInputEditor'),
+          sceneFileEd  = document.getElementById('sceneFileEditor'),
+          agreeChkEd   = document.getElementById('agreeChkEditor'),
+          editOutput   = document.getElementById('editOutput'),
+          editResult   = document.getElementById('editResult');
 
     editBtn.onclick = () => {
-      if (!agreeChkEd.checked) return alert('Please accept the Terms & Conditions.');
+      if (!agreeChkEd.checked) return alert('Please accept the Terms & Conditions.');
       if (!sceneInputEd.value.trim() && sceneFileEd.files.length) {
         return sceneFileEd.files[0].text().then(txt => doEdit(txt.trim()));
       }
@@ -64,7 +75,7 @@
 
     function doEdit(scene) {
       if (scene.length < 10) { alert('Enter at least 10 characters.'); return; }
-      editResultBox.textContent = 'Editing…';
+      editResult.textContent = 'Editing…';
       editOutput.style.display = 'block';
 
       fetch('/editor/analyze', {
@@ -76,40 +87,20 @@
         body: JSON.stringify({ scene })
       })
       .then(async res => {
-        if (!res.ok) {
-          const txt = await res.text();
-          throw new Error(`HTTP ${res.status}: ${res.statusText}\n${txt}`);
-        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
       .then(data => {
-        if (!data.analysis && !data.cleaned_scene) {
-          throw new Error('Missing fields in response');
-        }
-        renderEdit(data);
+        editResult.innerHTML = '';
+        (data.analysis||'').split('\n\n').forEach(p => {
+          const el = document.createElement('p');
+          el.textContent = p;
+          editResult.appendChild(el);
+        });
       })
       .catch(err => {
-        editResultBox.innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
+        editResult.innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
       });
-    }
-
-    function renderEdit({ cleaned_scene, analysis }) {
-      editResultBox.innerHTML = '';
-      if (cleaned_scene) {
-        const pre = document.createElement('pre');
-        pre.style.background = '#1a1a2e';
-        pre.style.padding    = '1em';
-        pre.style.borderRadius = '5px';
-        pre.textContent      = cleaned_scene;
-        editResultBox.appendChild(pre);
-      }
-      if (analysis) {
-        analysis.split('\n\n').forEach(p => {
-          const pEl = document.createElement('p');
-          pEl.textContent = p;
-          editResultBox.appendChild(pEl);
-        });
-      }
     }
   </script>
 </body>
