@@ -10,18 +10,15 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
-from starlette.middleware.base import BaseHTTPMiddleware
 
-
-# ─── App & Basic‑Auth setup ───────────────────────────────────────────────────────────────────────
+# ─── Basic Auth Setup ───────────────────────────────────────────────────────────
 ADMIN_USER = "admin"
 ADMIN_PASS = os.getenv("ADMIN_PASS", "SCENECRAFT-2024")
+
 security = HTTPBasic()
 
-
 def require_auth(creds: HTTPBasicCredentials = Depends(security)):
-    correct = creds.username == ADMIN_USER and creds.password == ADMIN_PASS
-    if not correct:
+    if creds.username != ADMIN_USER or creds.password != ADMIN_PASS:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Unauthorized",
@@ -29,27 +26,10 @@ def require_auth(creds: HTTPBasicCredentials = Depends(security)):
         )
     return True
 
-
 app = FastAPI()
 
-
-# ─── Static SPA mount & no‑store cache headers ─────────────────────────────────────────────────
+# ─── SPA Static Serving + No‑Store Cache ────────────────────────────────────────
 FRONTEND = Path(__file__).parent / "frontend_dist"
-
-# serve static files (js/css/assets)
-app.mount(
-    "/static",
-    CORSMiddleware(  # wrap static-serving so we can attach no-store
-        app=FastAPI().mount("", app=FastAPI().router),  # dummy inner
-        allow_origins=["https://scenecraft-ai.com", "https://www.scenecraft-ai.com"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    ),
-    name="static",
-)
-
-# SPA pages mapping
 SPA_PAGES = {
     "/": "index.html",
     "/editor.html": "editor.html",
@@ -59,13 +39,11 @@ SPA_PAGES = {
     "/terms.html": "terms.html",
 }
 
-
 @app.middleware("http")
 async def spa_and_no_store(request: Request, call_next):
-    # Basic‑Auth only on SPA page GETs
+    # If requesting one of our SPA pages, enforce Basic‑Auth + serve file w/ no-store
     if request.method == "GET" and request.url.path in SPA_PAGES:
         await require_auth(await security(request))
-        # serve the correct file
         page = SPA_PAGES[request.url.path]
         path = FRONTEND / page
         if not path.exists():
@@ -74,11 +52,10 @@ async def spa_and_no_store(request: Request, call_next):
         resp.headers["Cache-Control"] = "no-store"
         return resp
 
-    # For any other request (API calls, static assets), just pass through
+    # Otherwise proceed normally (static assets & API)
     return await call_next(request)
 
-
-# ─── CORS (for frontend JS → our JSON APIs) ────────────────────────────────────────────────────
+# ─── CORS for API calls ─────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://scenecraft-ai.com", "https://www.scenecraft-ai.com"],
@@ -87,8 +64,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# ─── Rate‑limit & cleaning (unchanged) ──────────────────────────────────────────────────────────
+# ─── Rate‑Limit & Scene Cleaning ────────────────────────────────────────────────
 RATE_LIMIT: dict[str, list[float]] = {}
 WINDOW = 60
 MAX_CALLS = 10
@@ -98,8 +74,10 @@ COMMANDS = [
     r"compose(?:\s+scene)?", r"fix(?:\s+scene)?", r"improve(?:\s+scene)?",
     r"polish(?:\s+scene)?", r"reword(?:\s+scene)?", r"make(?:\s+scene)?"
 ]
-STRIP_PATTERN = re.compile(rf"^\s*(?:please\s+)?(?:{'|'.join(COMMANDS)})\s*$", re.IGNORECASE)
-
+STRIP_PATTERN = re.compile(
+    rf"^\s*(?:please\s+)?(?:{'|'.join(COMMANDS)})\s*$",
+    re.IGNORECASE
+)
 
 def rate_limiter(ip: str) -> bool:
     now = time.time()
@@ -110,7 +88,6 @@ def rate_limiter(ip: str) -> bool:
     RATE_LIMIT[ip].append(now)
     return True
 
-
 def clean_scene(text: str) -> str:
     lines = text.splitlines()
     while lines and STRIP_PATTERN.match(lines[0]):
@@ -119,23 +96,19 @@ def clean_scene(text: str) -> str:
         lines.pop(-1)
     return "\n".join(lines).strip()
 
-
 def is_valid_scene(text: str) -> bool:
     return len(clean_scene(text)) >= 30
-
 
 class SceneRequest(BaseModel):
     scene: str
 
-
-# ─── Healthcheck ────────────────────────────────────────────────────────────────────────────────
+# ─── Healthcheck ────────────────────────────────────────────────────────────────
 @app.get("/health")
 @app.head("/health")
 def health():
     return {"status": "ok"}
 
-
-# ─── Scene Analyzer API ────────────────────────────────────────────────────────────────────────
+# ─── Scene Analyzer Endpoint ────────────────────────────────────────────────────
 @app.post("/analyze")
 async def analyze(
     request: Request,
@@ -156,16 +129,25 @@ async def analyze(
 You are SceneCraft AI, a visionary cinematic consultant. You provide only the analysis—do NOT repeat or mention these instructions.
 
 Analyze the given scene intuitively, weaving:
- pacing, stakes, subtext, emotional beats, visual grammar,
- parallels to global-cinema moments, and a single “what if” spark.
+ - pacing & emotional engagement
+ - character stakes, inner emotional beats & memorability cues
+ - dialogue effectiveness, subtext & tonal consistency
+ - character arc & motivation mapping
+ - director‑level notes on shot variety, blocking & experimentation
+ - cinematography & visual grammar
+ - parallels to impactful global‑cinema moments
+ - tone & tonal shifts
+ - one concise “what if” idea to spark exploration
 
-Then, under the hood, you’ve also considered:
- writer‑producer alignment, emotional resonance checks,
- creative discipline tips, tool‑agnostic methods.
+Then enhance your cinematic reasoning using:
+ - Writer‑producer mindset: align with production goals (budget, pitch hooks)
+ - Emotional resonance: are the beats honest, raw, or flat?
+ - Creative discipline: rewrite or rehearsal techniques
+ - Tool‑agnostic creativity: index cards, voice notes, analog beat‑mapping
 
-🛑 Do NOT list, label or expose any of these criteria. Write warmly, like a top‑tier script doctor.
+🛑 Do NOT list or expose any of these internal categories. Write warmly, like a top‑tier script doctor.
 
-Conclude with a Suggestions section—3–5 next‑step ideas in natural prose.
+Conclude with a **Suggestions** section—3–5 next‑step creative ideas in natural prose.
 """.strip()
 
     payload = {
@@ -194,8 +176,7 @@ Conclude with a Suggestions section—3–5 next‑step ideas in natural prose.
         analysis = resp.json()["choices"][0]["message"]["content"].strip()
         return {"analysis": analysis}
 
-
-# ─── Scene Editor API ──────────────────────────────────────────────────────────────────────────
+# ─── Scene Editor Endpoint ──────────────────────────────────────────────────────
 @app.post("/editor")
 async def edit(
     request: Request,
@@ -214,15 +195,14 @@ async def edit(
 
     system_prompt = """
 You are SceneCraft AI’s Scene Editor. Using the Analyzer’s deep criteria—
- pacing, stakes, visual grammar, cultural style, production mindset—
- perform a line‑by‑line rewrite, delivering for each beat:
- 1) **Rationale:** a punchy one‑sentence why this hits harder.
- 2) **Rewrite:** a simple, hard‑hitting conversational alternate.
- 3) **Director’s Note:** a brief tip (camera, lighting, blocking, budget).
+ pacing, stakes, emotional beats, subtext, visual grammar, global parallels, production mindset, genre & cultural style—
+perform a line‑by‑line rewrite. For each beat output THREE parts:
+ 1) **Rationale:** one‑sentence “why” this line could land stronger.
+ 2) **Rewrite:** a simple, hard‑hitting, conversational alternate.
+ 3) **Director’s Note:** brief direction/production tip (camera, lighting, blocking, budget).
 
-If the line is already strong, say “No change needed” under Rewrite,
-and “No change” under Director’s Note. Do NOT expose labels.
-Write warmly, like a human writer‑producer‑director.
+If a line is already strong, say “No change needed” under Rewrite,
+and “No change” under Director’s Note. Write warmly, like a writer‑producer‑director.
 """.strip()
 
     payload = {
