@@ -1,6 +1,6 @@
 import os, re, time, httpx
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, Request, Depends, Header, status
+from fastapi import FastAPI, Request, HTTPException, Depends, Header, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,7 +13,6 @@ app = FastAPI()
 security = HTTPBasic()
 
 ADMIN_USER = "admin"
-# set ADMIN_PASS in your Render env to SCENECRAFT‑2024
 ADMIN_PASS = os.getenv("ADMIN_PASS", "SCENECRAFT-2024")
 
 def require_auth(creds: HTTPBasicCredentials = Depends(security)):
@@ -25,19 +24,7 @@ def require_auth(creds: HTTPBasicCredentials = Depends(security)):
         )
     return True
 
-# ─── 2) Mount your SPA assets directly from frontend_dist ────────────────────
-FRONTEND = Path(__file__).parent / "frontend_dist"
-if not FRONTEND.exists():
-    raise RuntimeError(f"Front‑end build not found at {FRONTEND}")
-
-# serve all files (index.html, editor.html, how‑it‑works.html, etc.)
-app.mount(
-    "/", 
-    StaticFiles(directory=str(FRONTEND), html=True), 
-    name="spa"
-)
-
-# ─── 3) CORS (your front‑end JS → JSON APIs) ─────────────────────────────────
+# ─── 2) CORS (your front‑end JS → API calls) ─────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -49,13 +36,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ─── 4) Healthcheck (no auth) ────────────────────────────────────────────────
-@app.get("/health", dependencies=[])
-@app.head("/health", dependencies=[])
+# ─── 3) Healthcheck (no auth) ────────────────────────────────────────────────
+@app.get("/health")
+@app.head("/health")
 def health():
     return {"status": "ok"}
 
-# ─── 5) Rate‑limit & cleaning logic (unchanged) ───────────────────────────────
+# ─── 4) Rate‑limit & cleaning logic (unchanged) ───────────────────────────────
 RATE_LIMIT: dict[str, list[float]] = {}
 WINDOW = 60
 MAX_CALLS = 10
@@ -93,7 +80,7 @@ def is_valid_scene(text: str) -> bool:
 class SceneRequest(BaseModel):
     scene: str
 
-# ─── 6) Scene Analyzer API ──────────────────────────────────────────────────
+# ─── 5) Scene Analyzer API ──────────────────────────────────────────────────
 @app.post("/analyze")
 async def analyze(
     request: Request,
@@ -170,7 +157,7 @@ Conclude with a **Suggestions** section that gives 3–5 specific next-step crea
     except Exception as e:
         raise HTTPException(500, str(e))
 
-# ─── 7) Scene Editor API ────────────────────────────────────────────────────
+# ─── 6) Scene Editor API ────────────────────────────────────────────────────
 @app.post("/editor")
 async def editor(
     request: Request,
@@ -231,3 +218,13 @@ Write in warm, conversational prose reflecting diverse global voices and eras.
         raise HTTPException(e.response.status_code, e.response.text)
     except Exception as e:
         raise HTTPException(500, str(e))
+
+
+# ─── 7) Now that ALL of your JSON routes are declared, mount the SPA ───────────
+FRONTEND = Path(__file__).parent / "frontend_dist"
+app.mount(
+    "/", 
+    StaticFiles(directory=str(FRONTEND), html=True),
+    name="spa",
+    dependencies=[Depends(require_auth)]
+)
