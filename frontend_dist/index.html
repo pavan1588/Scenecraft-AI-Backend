@@ -1,110 +1,104 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>SceneCraft AI</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>SceneCraft AI – Scene Analyzer</title>
   <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background-color: #000;
-      color: #fff;
-    }
-    header {
-      background-color: #11182a;
-      padding: 1em;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    nav a {
-      margin: 0 1em;
-      color: #fdd835;
-      text-decoration: none;
-      font-weight: bold;
-    }
-    .nav-tabs a {
-      color: red;
-    }
-    .content {
-      padding: 2em;
-      text-align: center;
-    }
-    .key-features {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 1em;
-      margin-top: 2em;
-    }
-    .feature-box {
-      background: #1a1a2e;
-      padding: 1.5em;
-      width: 280px;
-      border-radius: 8px;
-    }
-    .feature-box h3 {
-      color: #fdd835;
-    }
-    #access-denied {
-      display: none;
-      color: red;
-      text-align: center;
-      margin-top: 4em;
-    }
+    body { margin:0; font-family:Arial,sans-serif; background:#000; color:#fff; }
+    header { background:#11182a; padding:1em; display:flex; justify-content:space-between; align-items:center; }
+    header nav a { margin:0 1em; color:#fdd835; text-decoration:none; font-weight:bold; }
+    .container { padding:2em; max-width:800px; margin:0 auto; }
+    textarea { width:100%; height:200px; background:#1a1a2e; color:#fff; border:none; padding:1em; border-radius:5px; }
+    .controls { margin-top:1em; display:flex; align-items:center; gap:1em; }
+    .controls input[type=file] { color:#ccc; }
+    .controls label { color:#ccc; font-size:0.9em; }
+    button { margin-top:1em; width:100%; padding:0.75em; background:#fdd835; color:#000; border:none; font-weight:bold; border-radius:5px; cursor:pointer; }
+    #output { margin-top:2em; background:#1a1a2e; padding:1em; border-radius:5px; display:none; }
+    #output p { margin-bottom:1em; }
   </style>
-  <script>
-    const correctPassword = "SCENECRAFT-2024";
-    const isAuthed = sessionStorage.getItem("scene_access_granted");
-
-    if (!isAuthed) {
-      const pass = prompt("This site is protected. Please enter the password:");
-      if (pass === correctPassword) {
-        sessionStorage.setItem("scene_access_granted", "true");
-      } else {
-        document.addEventListener("DOMContentLoaded", () => {
-          document.body.innerHTML = '<div id="access-denied"><h1>Access Denied</h1><p>This site is protected. Reload and enter the correct password.</p></div>';
-        });
-      }
-    }
-  </script>
 </head>
 <body>
   <header>
-    <div style="color: #fdd835; font-size: 1.5em;">SceneCraft AI</div>
-    <nav class="nav-tabs">
-      <a href="#">Scene Analyzer</a>
+    <div style="font-size:1.5em; color:#fdd835;">SceneCraft AI</div>
+    <nav>
+      <a href="/">Scene Analyzer</a>
       <a href="editor.html">Scene Editor</a>
-      <a href="#">Full Script Writer</a>
-      <a href="#">How it Works</a>
-      <a href="#">Pricing</a>
-      <button style="background-color: #fdd835; padding: 0.5em 1em; border: none; border-radius: 5px; margin-left: 1em;">Log In / Sign Up</button>
     </nav>
   </header>
 
-  <div class="content">
-    <h1>Welcome to SceneCraft AI</h1>
-    <p>SceneCraft AI is your cinematic storytelling partner—melding AI expertise with filmmaker craft to deliver instant, actionable feedback and development assistance on your scenes.</p>
-    <h2>Key Features</h2>
-    <div class="key-features">
-      <div class="feature-box">
-        <h3>Scene Analyzer</h3>
-        <p>Deep insights on pacing, character stakes, dialogue subtext, and visual grammar.</p>
-      </div>
-      <div class="feature-box">
-        <h3>Scene Editor</h3>
-        <p>AI-assisted rewriting and enhancement suggestions.</p>
-      </div>
-      <div class="feature-box" style="opacity: 0.5;">
-        <h3>Full Script Writer</h3>
-        <p>(Coming Soon) Craft complete screenplays with structure and style guidance.</p>
-      </div>
-      <div class="feature-box" style="opacity: 0.5;">
-        <h3>Collaborative Dashboard</h3>
-        <p>Save, compare, and export your analyses in one intuitive interface.</p>
-      </div>
+  <div class="container">
+    <h1 style="color:#fdd835;">Scene Analyzer</h1>
+    <textarea id="sceneInput" placeholder="Paste your scene here…"></textarea>
+
+    <div class="controls">
+      <input type="file" id="sceneFile" accept=".txt,.pdf"/>
+      <label>
+        <input type="checkbox" id="agreeChk"/> I agree to
+        <a href="/terms" target="_blank" style="color:#fdd835; text-decoration:underline;">Terms & Conditions</a>
+      </label>
+    </div>
+
+    <button id="analyzeBtn">Analyze Scene</button>
+
+    <div id="output">
+      <h2 style="color:#fdd835;">Analysis & Suggestions</h2>
+      <div id="analysisResult"></div>
     </div>
   </div>
+
+  <script>
+    document.getElementById('analyzeBtn').onclick = () => {
+      const agree = document.getElementById('agreeChk').checked;
+      const txtArea = document.getElementById('sceneInput');
+      const fileIn  = document.getElementById('sceneFile');
+
+      if (!agree) {
+        alert('Please accept the Terms & Conditions.');
+        return;
+      }
+      if (!txtArea.value.trim() && fileIn.files.length) {
+        return fileIn.files[0].text().then(t => runAnalysis(t.trim()));
+      }
+      runAnalysis(txtArea.value.trim());
+    };
+
+    function runAnalysis(scene) {
+      if (scene.length < 10) {
+        alert('Enter at least 10 characters.');
+        return;
+      }
+
+      const out = document.getElementById('output');
+      const res = document.getElementById('analysisResult');
+      res.innerText = 'Analyzing…';
+      out.style.display = 'block';
+
+      fetch('/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type':'application/json',
+          'x-user-agreement':'true'
+        },
+        body: JSON.stringify({ scene })
+      })
+      .then(r => r.json())
+      .then(d => {
+        const text = d.analysis || d.error || 'No response.';
+        render(text);
+      })
+      .catch(e => render('Network error: ' + e.message));
+    }
+
+    function render(text) {
+      const res = document.getElementById('analysisResult');
+      res.innerHTML = '';
+      text.split('\n\n').forEach(p => {
+        const pEl = document.createElement('p');
+        pEl.textContent = p;
+        res.appendChild(pEl);
+      });
+    }
+  </script>
 </body>
 </html>
