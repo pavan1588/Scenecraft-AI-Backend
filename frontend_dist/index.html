@@ -11,9 +11,8 @@ from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 # ─── 1) APP & BASIC‑AUTH SETUP ────────────────────────────────────────────────
 app = FastAPI()
 security = HTTPBasic()
-
 ADMIN_USER = "admin"
-ADMIN_PASS = os.getenv("ADMIN_PASS", "prantasdatwanta")
+ADMIN_PASS = os.getenv("ADMIN_PASS", "SCENECRAFT-2024")
 
 def require_auth(creds: HTTPBasicCredentials = Depends(security)):
     if creds.username != ADMIN_USER or creds.password != ADMIN_PASS:
@@ -24,10 +23,10 @@ def require_auth(creds: HTTPBasicCredentials = Depends(security)):
         )
     return True
 
-# ─── 2) CORS FOR API CALLS ────────────────────────────────────────────────────
+# ─── 2) CORS ─────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # you can lock this down to your domains
+    allow_origins=["*"],  # restrict to your domains if you like
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -39,9 +38,15 @@ app.add_middleware(
 def health():
     return {"status": "ok"}
 
-# ─── 4) RATE‑LIMIT & CLEANING LOGIC ────────────────────────────────────────────
+# ─── 4) RATE‑LIMIT & CLEANING LOGIC (unchanged) ───────────────────────────────
 RATE_LIMIT = {}
 WINDOW, MAX_CALLS = 60, 10
+COMMANDS = [
+    r"rewrite(?:\s+scene)?", r"regenerate(?:\s+scene)?", r"generate(?:\s+scene)?",
+    r"compose(?:\s+scene)?", r"fix(?:\s+scene)?", r"improve(?:\s+scene)?",
+    r"polish(?:\s+scene)?", r"reword(?:\s+scene)?", r"make(?:\s+scene)?"
+]
+STRIP_RE = re.compile(rf"^\s*(?:please\s+)?(?:{'|'.join(COMMANDS)})\s*$", re.IGNORECASE)
 
 def rate_limiter(ip: str) -> bool:
     now = time.time()
@@ -51,13 +56,6 @@ def rate_limiter(ip: str) -> bool:
         return False
     RATE_LIMIT[ip].append(now)
     return True
-
-COMMANDS = [
-    r"rewrite(?:\s+scene)?", r"regenerate(?:\s+scene)?", r"generate(?:\s+scene)?",
-    r"compose(?:\s+scene)?", r"fix(?:\s+scene)?", r"improve(?:\s+scene)?",
-    r"polish(?:\s+scene)?", r"reword(?:\s+scene)?", r"make(?:\s+scene)?"
-]
-STRIP_RE = re.compile(rf"^\s*(?:please\s+)?(?:{'|'.join(COMMANDS)})\s*$", re.IGNORECASE)
 
 def clean_scene(text: str) -> str:
     lines = text.splitlines()
@@ -112,9 +110,7 @@ Then enhance your cinematic reasoning using:
 - Creative discipline: Suggest rewrite or rehearsal techniques
 - Tool-agnostic creativity: Index cards, voice notes, analog beat-mapping
 
-🛑 Do not reveal, mention, list, or format any of the above categories in the output. Do not expose your process. Only write as if you are a human expert analyzing this scene intuitively.
-
-Write in a warm, insightful tone—like a top-tier script doctor. Avoid robotic patterns or AI-sounding structure.
+🛑 Do not reveal, mention, list, or format any of the above categories in the output. Do not expose your process. Only write as a human expert analyzing this scene intuitively.
 
 Conclude with a **Suggestions** section that gives 3–5 specific next-step creative ideas—but again, in natural prose, never echoing any internal labels.
 """.strip()
@@ -196,18 +192,14 @@ Write in warm, conversational prose reflecting diverse global voices and eras.
 @app.middleware("http")
 async def spa_auth(request: Request, call_next):
     path = request.url.path
-    # allow public API and health
     if path in ("/health", "/analyze", "/editor"):
         return await call_next(request)
-
-    # require auth for browser GETs (i.e. your SPA pages)
     if request.method == "GET":
         creds = await security(request)
         require_auth(creds)
-
     return await call_next(request)
 
-# ─── 8) MOUNT ENTIRE FRONTEND_DIST AS SPA ────────────────────────────────────
+# ─── 8) MOUNT YOUR FRONTEND_DIST ─────────────────────────────────────────────
 FRONTEND = Path(__file__).parent / "frontend_dist"
 if not FRONTEND.exists():
     raise RuntimeError(f"Front‑end build not found: {FRONTEND}")
