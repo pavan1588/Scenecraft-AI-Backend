@@ -53,32 +53,50 @@ app.add_middleware(
 BASE = Path(__file__).parent.resolve()
 FRONTEND = BASE / "frontend_dist"
 
+# Mount CSS/JS/assets under /static
 app.mount("/static", StaticFiles(directory=str(FRONTEND)), name="static")
 
 @app.get("/", dependencies=[Depends(verify_user)])
 def serve_index():
-    index_path = FRONTEND / "index.html"
-    if not index_path.is_file():
+    f = FRONTEND / "index.html"
+    if not f.is_file():
         raise HTTPException(500, "index.html not found")
-    return FileResponse(str(index_path))
+    return FileResponse(str(f))
 
 @app.get("/editor.html", dependencies=[Depends(verify_user)])
 def serve_editor():
-    editor_path = FRONTEND / "editor.html"
-    if not editor_path.is_file():
+    f = FRONTEND / "editor.html"
+    if not f.is_file():
         raise HTTPException(500, "editor.html not found")
-    return FileResponse(str(editor_path))
+    return FileResponse(str(f))
+
+# Stub routes for your extra tabs (you can replace these with real HTML later)
+@app.get("/brief", dependencies=[Depends(verify_user)], response_class=HTMLResponse)
+def brief():
+    return "<h1>SceneCraft AI — Brief</h1><p>Coming soon…</p>"
+
+@app.get("/fullscript", dependencies=[Depends(verify_user)], response_class=HTMLResponse)
+def full_script():
+    return "<h1>SceneCraft AI — Full Script Writer</h1><p>Coming soon…</p>"
+
+@app.get("/how", dependencies=[Depends(verify_user)], response_class=HTMLResponse)
+def how_it_works():
+    return "<h1>How it Works</h1><p>Coming soon…</p>"
+
+@app.get("/pricing", dependencies=[Depends(verify_user)], response_class=HTMLResponse)
+def pricing():
+    return "<h1>Pricing</h1><p>Coming soon…</p>"
 
 @app.get("/{path:path}", dependencies=[Depends(verify_user)])
 def serve_spa(path: str):
     candidate = FRONTEND / path
     if candidate.is_file():
         return FileResponse(str(candidate))
-    # fallback to index.html for SPA routing
-    index_path = FRONTEND / "index.html"
-    if not index_path.is_file():
+    # fallback to index.html
+    idx = FRONTEND / "index.html"
+    if not idx.is_file():
         raise HTTPException(500, "index.html not found")
-    return FileResponse(str(index_path))
+    return FileResponse(str(idx))
 
 # ---- RATE LIMITING & SCENE LOGIC ----
 RATE_LIMIT: dict[str, list[float]] = {}
@@ -197,6 +215,16 @@ Conclude with a **Suggestions** section that gives 3–5 specific next-step crea
         raise HTTPException(e.response.status_code, e.response.text)
     except Exception as e:
         raise HTTPException(500, str(e))
+
+# ---- EDITOR ENDPOINT (aliases analyze) ----
+@app.post("/editor/analyze", dependencies=[Depends(verify_user)])
+async def editor_analyze(
+    request: Request,
+    data: SceneRequest,
+    x_user_agreement: str = Header(None)
+):
+    # simply reuse the same analyze logic
+    return await analyze(request, data, x_user_agreement)
 
 # ---- TERMS & CONDITIONS PAGE ----
 @app.get("/terms", dependencies=[Depends(verify_user)], response_class=HTMLResponse)
