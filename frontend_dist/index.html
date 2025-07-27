@@ -5,10 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>SceneCraft AI</title>
   <style>
-    /* 1) Hide everything by default */
-    body { display: none; margin:0; font-family:Arial,sans-serif; background:#000; color:#fff; }
-    #denied { display: none; color:red; text-align:center; padding:2em; }
-    /* your normal styles */
+    body { margin:0; font-family:Arial,sans-serif; background:#000; color:#fff; }
     header { background:#11182a; padding:1em; display:flex; justify-content:space-between; align-items:center; }
     header nav a { margin:0 1em; color:#fdd835; text-decoration:none; font-weight:bold; }
     .container { padding:2em; max-width:800px; margin:0 auto; }
@@ -18,22 +15,6 @@
     #output { margin-top:2em; background:#1a1a2e; padding:1em; border-radius:5px; display:none; }
     #output p { margin-bottom:1em; }
   </style>
-
-  <script>
-    // 2) Prompt immediately, before anything renders
-    (function(){
-      const PASSWORD = "SCENECRAFT-2024";
-      const entry = prompt("Enter site password:");
-      if (entry === PASSWORD) {
-        // 3) On correct, un-hide the body so all your HTML shows
-        document.documentElement.style.display = "block"; // show everything
-      } else {
-        // 4) On wrong, clear and show denied message
-        document.documentElement.style.display = "block";
-        document.body.innerHTML = '<div id="denied"><h1>Access Denied</h1><p>Incorrect password.</p></div>';
-      }
-    })();
-  </script>
 </head>
 <body>
   <header>
@@ -47,17 +28,14 @@
   <div class="container">
     <h1 style="color:#fdd835;">Scene Analyzer</h1>
     <textarea id="sceneInput" placeholder="Paste your scene here…"></textarea>
-
     <div class="controls">
       <input type="file" id="sceneFile" accept=".txt,.pdf"/>
       <label>
-        <input type="checkbox" id="agreeChk"/> I agree to
-        <a href="terms" style="color:#fdd835; text-decoration:underline;">Terms & Conditions</a>
+        <input type="checkbox" id="agreeChk"/> I agree to 
+        <a href="terms" style="color:#fdd835;text-decoration:underline;">Terms & Conditions</a>
       </label>
     </div>
-
     <button id="analyzeBtn">Analyze Scene</button>
-
     <div id="output">
       <h2 style="color:#fdd835;">Analysis & Suggestions</h2>
       <div id="analysisResult"></div>
@@ -65,7 +43,24 @@
   </div>
 
   <script>
-    // existing analyze logic (unchanged)
+    // on every page load...
+    window.onload = () => {
+      const PASSWORD = "SCENECRAFT-2024";
+      const entry = prompt("Enter site password:");
+      if (entry !== PASSWORD) {
+        document.body.innerHTML = `
+          <div style="color:red; text-align:center; padding:3em;">
+            <h1>Access Denied</h1>
+            <p>Incorrect password.</p>
+          </div>`;
+        return;
+      }
+      // else fall through and let the rest of the page work
+    };
+  </script>
+
+  <script>
+    // your existing analyze logic
     const analyzeBtn = document.getElementById('analyzeBtn'),
           sceneInput = document.getElementById('sceneInput'),
           sceneFile  = document.getElementById('sceneFile'),
