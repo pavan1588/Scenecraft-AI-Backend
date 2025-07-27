@@ -1,53 +1,66 @@
-import os
-import re
-import time
-import httpx
-
+import os, re, time, httpx
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, Request, Header, Depends, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi import FastAPI, Request, HTTPException, Depends, status
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
-# --- App Setup ---
+# -------------------------------------------------------------------
+# 1) Create the app
+# -------------------------------------------------------------------
 app = FastAPI()
 
-# --- Basic Auth ---
+# -------------------------------------------------------------------
+# 2) Mount your built Vue/React/Static files _first_
+# -------------------------------------------------------------------
+FRONTEND = Path(__file__).parent / "frontend_dist"
+app.mount("/", StaticFiles(directory=str(FRONTEND), html=True), name="spa")
+
+
+# -------------------------------------------------------------------
+# 3) Global Basic‑Auth middleware for everything under “/”:
+#    (except the API routes which begin with “/analyze” or “/editor”)
+# -------------------------------------------------------------------
 security = HTTPBasic()
 ADMIN_USER = "admin"
 ADMIN_PASS = os.getenv("ADMIN_PASS", "prantasdatwanta")
 
-def require_auth(creds: HTTPBasicCredentials = Depends(security)):
-    if not (creds.username == ADMIN_USER and creds.password == ADMIN_PASS):
+@app.middleware("http")
+async def password_gate(request: Request, call_next):
+    # Allow health checks and API endpoints through
+    if request.url.path.startswith("/analyze") or request.url.path.startswith("/editor") or request.url.path.startswith("/health"):
+        return await call_next(request)
+
+    # Otherwise require Basic Auth
+    auth = await security(request)
+    if auth.username != ADMIN_USER or auth.password != ADMIN_PASS:
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
-            "Unauthorized",
+            detail="Unauthorized",
             headers={"WWW-Authenticate": "Basic"},
         )
-    return True
 
-# --- CORS ---
+    return await call_next(request)
+
+
+# -------------------------------------------------------------------
+# 4) CORS (for your frontend to call the API)
+# -------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://scenecraft-ai.com",
-        "https://www.scenecraft-ai.com",
-    ],
+    allow_origins=["https://scenecraft-ai.com", "https://www.scenecraft-ai.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- Health Check ---
-@app.get("/health", dependencies=[Depends(require_auth)])
-@app.head("/health", dependencies=[Depends(require_auth)])
-def health():
-    return {"status": "ok"}
 
-# --- Rate Limiting & Cleaning ---
+# -------------------------------------------------------------------
+# 5) Rate‑limiting & scene cleaning (unchanged)
+# -------------------------------------------------------------------
 RATE_LIMIT: dict[str, list[float]] = {}
 WINDOW = 60
 MAX_CALLS = 10
@@ -57,10 +70,7 @@ COMMANDS = [
     r"compose(?:\s+scene)?", r"fix(?:\s+scene)?", r"improve(?:\s+scene)?",
     r"polish(?:\s+scene)?", r"reword(?:\s+scene)?", r"make(?:\s+scene)?"
 ]
-STRIP_PATTERN = re.compile(
-    rf"^\s*(?:please\s+)?(?:{'|'.join(COMMANDS)})\s*$",
-    re.IGNORECASE
-)
+STRIP_PATTERN = re.compile(rf"^\s*(?:please\s+)?(?:{'|'.join(COMMANDS)})\s*$", re.IGNORECASE)
 
 def rate_limiter(ip: str) -> bool:
     now = time.time()
@@ -85,13 +95,21 @@ def is_valid_scene(text: str) -> bool:
 class SceneRequest(BaseModel):
     scene: str
 
-# --- Scene Analyzer ---
-@app.post("/analyze", dependencies=[Depends(require_auth)])
-async def analyze(
-    request: Request,
-    data: SceneRequest,
-    x_user_agreement: str = Header(None),
-):
+
+# -------------------------------------------------------------------
+# 6) Health endpoint
+# -------------------------------------------------------------------
+@app.get("/health")
+@app.head("/health")
+def health():
+    return {"status": "ok"}
+
+
+# -------------------------------------------------------------------
+# 7) Scene Analyzer
+# -------------------------------------------------------------------
+@app.post("/analyze")
+async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
     ip = request.client.host
     if not rate_limiter(ip):
         raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "Rate limit exceeded.")
@@ -123,17 +141,16 @@ Then enhance your cinematic reasoning using:
 - Creative discipline: Suggest rewrite or rehearsal techniques
 - Tool-agnostic creativity: Index cards, voice notes, analog beat-mapping
 
-🛑 Do not reveal, mention, list, or format any of the above categories. Write as a warm, insightful script doctor in natural prose. Conclude with **Suggestions**—3–5 next-step creative ideas in natural prose.
+🛑 Do not reveal, list, or format these criteria. Write in warm, natural prose—like a top‑tier script doctor. Conclude with **Suggestions**: 3–5 next‑step creative ideas.
 """.strip()
 
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": cleaned}
+            {"role": "user",   "content": cleaned}
         ]
     }
-
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         raise HTTPException(500, "Missing OpenRouter API key")
@@ -141,23 +158,19 @@ Then enhance your cinematic reasoning using:
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            },
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
             json=payload
         )
         resp.raise_for_status()
         analysis = resp.json()["choices"][0]["message"]["content"].strip()
         return {"analysis": analysis}
 
-# --- Scene Editor ---
-@app.post("/editor", dependencies=[Depends(require_auth)])
-async def editor(
-    request: Request,
-    data: SceneRequest,
-    x_user_agreement: str = Header(None),
-):
+
+# -------------------------------------------------------------------
+# 8) Scene Editor
+# -------------------------------------------------------------------
+@app.post("/editor")
+async def editor(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
     ip = request.client.host
     if not rate_limiter(ip):
         raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "Rate limit exceeded.")
@@ -177,17 +190,16 @@ For each sentence or beat, output THREE parts:
 2) **Rewrite:** A single alternate version—simple, hard‑hitting, conversational.
 3) **Director’s Note:** A brief direction or production tip (camera move, lighting mood, blocking, budget consideration).
 
-If the line is already strong, say “No change needed,” repeat it unchanged under Rewrite, and note “No change” under Director’s Note. Do NOT expose internal labels—only deliver Rationale, Rewrite, and Director’s Note triplets.
+If the line is already strong, say “No change needed,” repeat it unchanged under Rewrite, and note “No change” under Director’s Note. Do NOT expose internal labels.
 """.strip()
 
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": cleaned}
+            {"role": "user",   "content": cleaned}
         ]
     }
-
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         raise HTTPException(500, "Missing OpenRouter API key")
@@ -195,40 +207,28 @@ If the line is already strong, say “No change needed,” repeat it unchanged u
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            },
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
             json=payload
         )
         resp.raise_for_status()
         rewrites = resp.json()["choices"][0]["message"]["content"].strip()
         return {"rewrites": rewrites}
 
-# --- Terms & Conditions Page ---
-@app.get("/terms", dependencies=[Depends(require_auth)], response_class=HTMLResponse)
+
+# -------------------------------------------------------------------
+# 9) Terms & Conditions Page
+# -------------------------------------------------------------------
+@app.get("/terms", response_class=HTMLResponse)
 def terms():
     return HTMLResponse(
         """
         <!DOCTYPE html>
-        <html>
-          <head><title>Terms & Conditions</title></head>
-          <body style="font-family:sans-serif;padding:2rem;color:#222;">
-            <h2>SceneCraft AI – Terms & Conditions</h2>
-            <p>You confirm you own or have rights to any content you submit. Creative guidance only.</p>
-          </body>
+        <html><head><title>Terms & Conditions</title></head>
+        <body style="font-family:sans-serif;padding:2rem;color:#333;">
+          <h2>SceneCraft AI – Terms & Conditions</h2>
+          <p>You confirm you own or have rights to any content you submit. Creative guidance only.</p>
+        </body>
         </html>
         """,
-        status_code=200,
-        media_type="text/html"
+        status_code=200
     )
-
-# --- Serve Frontend Static Files ---
-BASE = Path(__file__).parent.resolve()
-FRONTEND = BASE / "frontend_dist"
-
-app.mount(
-    "/", 
-    StaticFiles(directory=str(FRONTEND), html=True), 
-    name="spa"
-)
