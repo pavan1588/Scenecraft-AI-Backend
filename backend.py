@@ -14,6 +14,11 @@ from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
 app = FastAPI()
 
+# Unprotected health check for Render, Kubernetes, etc.
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 # ---- BASIC AUTH SETUP ----
 security = HTTPBasic()
 
@@ -31,7 +36,7 @@ def verify_user(creds: HTTPBasicCredentials = Depends(security)):
         )
     return True
 
-# ---- CORS (unchanged) ----
+# ---- CORS ----
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -43,9 +48,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---- STATIC FILES (protected) ----
-# After building your frontend, place all files under frontend_dist/
-app.mount("/static", StaticFiles(directory="frontend_dist"), name="static")
+# ---- STATIC FRONTEND SERVING (protected) ----
+# Place your built frontend files into `frontend_dist/`
+app.mount(
+    "/static",
+    StaticFiles(directory="frontend_dist"),
+    name="static",
+)
 
 @app.get("/", dependencies=[Depends(verify_user)])
 def serve_index():
@@ -62,7 +71,7 @@ def serve_spa(path: str):
         return FileResponse(full)
     return FileResponse("frontend_dist/index.html")
 
-# ---- RATE LIMITING & SCENE LOGIC (unchanged) ----
+# ---- RATE LIMITING & SCENE LOGIC ----
 RATE_LIMIT: dict[str, list[float]] = {}
 WINDOW = 60
 MAX_CALLS = 10
