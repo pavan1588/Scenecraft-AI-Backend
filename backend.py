@@ -3,6 +3,7 @@ import re
 import time
 import httpx
 import secrets
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, Header, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +15,7 @@ from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
 app = FastAPI()
 
-# Unprotected health check for Render, Kubernetes, etc.
+# ---- HEALTH CHECK (unprotected) ----
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -49,27 +50,36 @@ app.add_middleware(
 )
 
 # ---- STATIC FRONTEND SERVING (protected) ----
-# Place your built frontend files into `frontend_dist/`
-app.mount(
-    "/static",
-    StaticFiles(directory="frontend_dist"),
-    name="static",
-)
+BASE = Path(__file__).parent.resolve()
+FRONTEND = BASE / "frontend_dist"
+
+# mount assets under /static
+app.mount("/static", StaticFiles(directory=str(FRONTEND)), name="static")
 
 @app.get("/", dependencies=[Depends(verify_user)])
 def serve_index():
-    return FileResponse("frontend_dist/index.html")
+    index_path = FRONTEND / "index.html"
+    if not index_path.is_file():
+        raise HTTPException(500, "index.html not found")
+    return FileResponse(str(index_path))
 
 @app.get("/editor.html", dependencies=[Depends(verify_user)])
 def serve_editor():
-    return FileResponse("frontend_dist/editor.html")
+    editor_path = FRONTEND / "editor.html"
+    if not editor_path.is_file():
+        raise HTTPException(500, "editor.html not found")
+    return FileResponse(str(editor_path))
 
 @app.get("/{path:path}", dependencies=[Depends(verify_user)])
 def serve_spa(path: str):
-    full = os.path.join("frontend_dist", path)
-    if os.path.isfile(full):
-        return FileResponse(full)
-    return FileResponse("frontend_dist/index.html")
+    candidate = FRONTEND / path
+    if candidate.is_file():
+        return FileResponse(str(candidate))
+    # fallback to index.html for SPA routing
+    index_path = FRONTEND / "index.html"
+    if not index_path.is_file():
+        raise HTTPException(500, "index.html not found")
+    return FileResponse(str(index_path))
 
 # ---- RATE LIMITING & SCENE LOGIC ----
 RATE_LIMIT: dict[str, list[float]] = {}
@@ -206,7 +216,7 @@ def terms():
   <hr><p>&copy; SceneCraft AI 2025</p>
 </body></html>""")
 
-# ---- ROOT HEALTH CHECK ----
+# ---- ROOT HEALTH CHECK (protected) ----
 @app.get("/", dependencies=[Depends(verify_user)])
 def root():
     return {"message": "SceneCraft backend is live."}
