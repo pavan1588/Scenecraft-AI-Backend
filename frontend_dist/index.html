@@ -3,16 +3,17 @@ import re
 import time
 import httpx
 from pathlib import Path
-from fastapi import FastAPI, Request, HTTPException, Depends, status, Header
-from fastapi.responses import FileResponse, HTMLResponse
+
+from fastapi import FastAPI, Request, HTTPException, Depends, Header, status
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
 # -----------------------------------------------------------------------------
-# 1) App & Basic‑Auth setup
+# 1) App & Basic‑Auth
 # -----------------------------------------------------------------------------
 app = FastAPI()
 security = HTTPBasic()
@@ -26,31 +27,41 @@ def require_auth(creds: HTTPBasicCredentials = Depends(security)):
             detail="Unauthorized",
             headers={"WWW-Authenticate": "Basic"},
         )
+    # authorized
     return True
 
 # -----------------------------------------------------------------------------
-# 2) Mount your static assets under /static
+# 2) Mount static assets
 # -----------------------------------------------------------------------------
 FRONTEND = Path(__file__).parent / "frontend_dist"
-app.mount("/static", StaticFiles(directory=str(FRONTEND / "static")), name="static")
+app.mount(
+    "/static",
+    StaticFiles(directory=str(FRONTEND / "static")),
+    name="static",
+)
 
 # -----------------------------------------------------------------------------
-# 3) Serve the HTML pages, behind Basic‑Auth
+# 3) SPA Routes → serve the matching HTML, all behind Basic‑Auth
 # -----------------------------------------------------------------------------
-@app.get("/", response_class=HTMLResponse, dependencies=[Depends(require_auth)])
-def index():
-    return FileResponse(FRONTEND / "index.html")
+SPA_PAGES = {
+    "/": "index.html",
+    "/editor.html": "editor.html",
+    "/how-it-works.html": "how-it-works.html",
+    "/pricing.html": "pricing.html",
+    "/full-script.html": "full-script.html",
+    "/terms": "terms.html",
+}
 
-@app.get("/editor.html", response_class=HTMLResponse, dependencies=[Depends(require_auth)])
-def editor_page():
-    return FileResponse(FRONTEND / "editor.html")
-
-@app.get("/terms", response_class=HTMLResponse, dependencies=[Depends(require_auth)])
-def terms_page():
-    return FileResponse(FRONTEND / "terms.html")
+for route, fname in SPA_PAGES.items():
+    @app.get(route, response_class=HTMLResponse, dependencies=[Depends(require_auth)])
+    def _serve_spa(request: Request, fname=fname):
+        path = FRONTEND / fname
+        if not path.exists():
+            raise HTTPException(404, "Page not found")
+        return FileResponse(path)
 
 # -----------------------------------------------------------------------------
-# 4) CORS (for our frontend JS → API calls)
+# 4) CORS (frontend JS → our JSON APIs)
 # -----------------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
@@ -61,16 +72,14 @@ app.add_middleware(
 )
 
 # -----------------------------------------------------------------------------
-# 5) Rate‑limit & cleaning logic (unchanged)
+# 5) Rate‑limit & scene‑cleanup logic (unchanged)
 # -----------------------------------------------------------------------------
 RATE_LIMIT: dict[str, list[float]] = {}
 WINDOW = 60
 MAX_CALLS = 10
-COMMANDS = [
-    r"rewrite(?:\s+scene)?", r"regenerate(?:\s+scene)?", r"generate(?:\s+scene)?",
-    r"compose(?:\s+scene)?", r"fix(?:\s+scene)?", r"improve(?:\s+scene)?",
-    r"polish(?:\s+scene)?", r"reword(?:\s+scene)?", r"make(?:\s+scene)?"
-]
+COMMANDS = [r"rewrite(?:\s+scene)?", r"regenerate(?:\s+scene)?", r"generate(?:\s+scene)?",
+            r"compose(?:\s+scene)?", r"fix(?:\s+scene)?", r"improve(?:\s+scene)?",
+            r"polish(?:\s+scene)?", r"reword(?:\s+scene)?", r"make(?:\s+scene)?"]
 STRIP_PATTERN = re.compile(rf"^\s*(?:please\s+)?(?:{'|'.join(COMMANDS)})\s*$", re.IGNORECASE)
 
 def rate_limiter(ip: str) -> bool:
@@ -97,7 +106,7 @@ class SceneRequest(BaseModel):
     scene: str
 
 # -----------------------------------------------------------------------------
-# 6) Health check
+# 6) Healthcheck (no auth)
 # -----------------------------------------------------------------------------
 @app.get("/health")
 @app.head("/health")
@@ -105,7 +114,7 @@ def health():
     return {"status": "ok"}
 
 # -----------------------------------------------------------------------------
-# 7) Scene Analyzer API
+# 7) Analyze API
 # -----------------------------------------------------------------------------
 @app.post("/analyze")
 async def analyze(
@@ -172,7 +181,7 @@ Then enhance using:
         return {"analysis": analysis}
 
 # -----------------------------------------------------------------------------
-# 8) Scene Editor API
+# 8) Editor API
 # -----------------------------------------------------------------------------
 @app.post("/editor")
 async def editor(
