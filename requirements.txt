@@ -1,4 +1,6 @@
 fastapi
+fastapi-security
+python-multipart
 uvicorn[standard]
 sqlalchemy[asyncio]
 asyncpg
