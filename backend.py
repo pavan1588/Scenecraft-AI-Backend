@@ -8,23 +8,42 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
-# ─── 1) App & Basic‑Auth setup ────────────────────────────────────────────────
+# ─── App + Basic Auth setup ─────────────────────────────────────────────────
 app = FastAPI()
 security = HTTPBasic()
-
 ADMIN_USER = "admin"
 ADMIN_PASS = os.getenv("ADMIN_PASS", "SCENECRAFT-2024")
 
-def require_auth(creds: HTTPBasicCredentials = Depends(security)):
+def check_basic_auth(creds: HTTPBasicCredentials):
     if creds.username != ADMIN_USER or creds.password != ADMIN_PASS:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Unauthorized",
             headers={"WWW-Authenticate": "Basic"},
         )
-    return True
 
-# ─── 2) CORS (your front‑end JS → API calls) ─────────────────────────────────
+# ─── Custom middleware to gate all non‑API paths ─────────────────────────────
+@app.middleware("http")
+async def auth_spa(request: Request, call_next):
+    # allow health & both JSON endpoints through with no auth
+    if request.url.path in ("/health", "/analyze", "/editor"):
+        return await call_next(request)
+
+    # allow static assets through
+    if request.url.path.startswith("/static"):
+        return await call_next(request)
+
+    # otherwise require basic auth for SPA routes
+    try:
+        creds = await security(request)
+        check_basic_auth(creds)
+    except HTTPException as e:
+        return JSONResponse(status_code=e.status_code, content={"detail": e.detail}, headers=e.headers)
+
+    return await call_next(request)
+
+
+# ─── CORS ─────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -36,13 +55,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ─── 3) Healthcheck (no auth) ────────────────────────────────────────────────
+
+# ─── Healthcheck ──────────────────────────────────────────────────────────────
 @app.get("/health")
 @app.head("/health")
 def health():
     return {"status": "ok"}
 
-# ─── 4) Rate‑limit & cleaning logic (unchanged) ───────────────────────────────
+
+# ─── Rate‑limit & cleaning logic ───────────────────────────────────────────────
 RATE_LIMIT: dict[str, list[float]] = {}
 WINDOW = 60
 MAX_CALLS = 10
@@ -80,7 +101,8 @@ def is_valid_scene(text: str) -> bool:
 class SceneRequest(BaseModel):
     scene: str
 
-# ─── 5) Scene Analyzer API ──────────────────────────────────────────────────
+
+# ─── Scene Analyzer API ──────────────────────────────────────────────────────
 @app.post("/analyze")
 async def analyze(
     request: Request,
@@ -148,8 +170,7 @@ Conclude with a **Suggestions** section that gives 3–5 specific next-step crea
                 json=payload
             )
             resp.raise_for_status()
-            result   = resp.json()
-            analysis = result["choices"][0]["message"]["content"].strip()
+            analysis = resp.json()["choices"][0]["message"]["content"].strip()
             return {"analysis": analysis}
 
     except httpx.HTTPStatusError as e:
@@ -157,7 +178,8 @@ Conclude with a **Suggestions** section that gives 3–5 specific next-step crea
     except Exception as e:
         raise HTTPException(500, str(e))
 
-# ─── 6) Scene Editor API ────────────────────────────────────────────────────
+
+# ─── Scene Editor API ────────────────────────────────────────────────────────
 @app.post("/editor")
 async def editor(
     request: Request,
@@ -210,8 +232,7 @@ Write in warm, conversational prose reflecting diverse global voices and eras.
                 json=payload
             )
             resp.raise_for_status()
-            result   = resp.json()
-            rewrites = result["choices"][0]["message"]["content"].strip()
+            rewrites = resp.json()["choices"][0]["message"]["content"].strip()
             return {"rewrites": rewrites}
 
     except httpx.HTTPStatusError as e:
@@ -220,11 +241,15 @@ Write in warm, conversational prose reflecting diverse global voices and eras.
         raise HTTPException(500, str(e))
 
 
-# ─── 7) Now that ALL of your JSON routes are declared, mount the SPA ───────────
+# ─── Finally, mount your SPA at “/” ─────────────────────────────────────────
 FRONTEND = Path(__file__).parent / "frontend_dist"
 app.mount(
-    "/", 
+    "/static",
+    StaticFiles(directory=str(FRONTEND / "static")),
+    name="static"
+)
+app.mount(
+    "/",
     StaticFiles(directory=str(FRONTEND), html=True),
-    name="spa",
-    dependencies=[Depends(require_auth)]
+    name="spa"
 )
