@@ -7,7 +7,7 @@ import secrets
 from fastapi import FastAPI, HTTPException, Request, Header, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from fastapi.responses import HTMLResponse
+from starlette.responses import HTMLResponse
 from pydantic import BaseModel
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
@@ -17,10 +17,13 @@ app = FastAPI()
 security = HTTPBasic()
 
 def verify_user(creds: HTTPBasicCredentials = Depends(security)):
+    # credentials: username=admin, password=prantasdatwanta (or override via ADMIN_PASS)
     user_ok = secrets.compare_digest(creds.username, "admin")
-    pwd = os.getenv("ADMIN_PASS", "prantasdatwanta")
-    pass_ok = secrets.compare_digest(creds.password, pwd)
-    if not (user_ok and pass_ok):
+    pwd_ok  = secrets.compare_digest(
+        creds.password,
+        os.getenv("ADMIN_PASS", "prantasdatwanta")
+    )
+    if not (user_ok and pwd_ok):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
@@ -79,9 +82,13 @@ def is_valid_scene(text: str) -> bool:
 class SceneRequest(BaseModel):
     scene: str
 
-# ---- ANALYZE ENDPOINT ----
+# ---- ANALYZE ENDPOINT (protected) ----
 @app.post("/analyze", dependencies=[Depends(verify_user)])
-async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
+async def analyze(
+    request: Request,
+    data: SceneRequest,
+    x_user_agreement: str = Header(None)
+):
     ip = request.client.host
     if not rate_limiter(ip):
         raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "Rate limit exceeded.")
@@ -155,7 +162,7 @@ Conclude with a **Suggestions** section that gives 3–5 specific next-step crea
     except Exception as e:
         raise HTTPException(500, str(e))
 
-# ---- TERMS & CONDITIONS PAGE ----
+# ---- TERMS & CONDITIONS (protected) ----
 @app.get("/terms", dependencies=[Depends(verify_user)], response_class=HTMLResponse)
 def terms():
     return HTMLResponse("""<!DOCTYPE html>
@@ -172,7 +179,7 @@ def terms():
   <hr><p>&copy; SceneCraft AI 2025</p>
 </body></html>""")
 
-# ---- ROOT HEALTH CHECK ----
+# ---- ROOT HEALTH CHECK (protected) ----
 @app.get("/", dependencies=[Depends(verify_user)])
 def root():
     return {"message": "SceneCraft backend is live."}
