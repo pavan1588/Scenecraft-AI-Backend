@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>SceneCraft AI - Scene Editor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-black text-gray-100 p-8 min-h-screen">
+
+  <h1 class="text-3xl font-bold text-yellow-400 mb-6 text-center">SceneCraft AI – Scene Editor</h1>
+
+  <textarea id="sceneInputEditor" rows="10" class="w-full p-4 bg-gray-800 rounded" placeholder="Paste your scene (up to 2 pages)..."></textarea>
+
+  <div class="flex items-center space-x-4 mt-4">
+    <input type="file" id="sceneFileEditor" accept=".txt,.pdf" class="text-gray-400"/>
+    <label class="inline-flex items-center text-sm text-gray-200">
+      <input type="checkbox" id="agreeChkEditor" class="form-checkbox text-yellow-400 mr-2"/>
+      <span>I agree to the 
+        <a href="/terms" target="_blank" class="underline text-yellow-300 hover:text-yellow-400">Terms & Conditions</a>
+      </span>
+    </label>
+  </div>
+
+  <button id="editBtn" class="w-full mt-4 bg-yellow-400 text-gray-900 py-2 rounded-lg font-semibold">Edit Scene</button>
+
+  <div id="editOutput" class="hidden mt-6 bg-gray-800 p-6 rounded">
+    <h3 class="text-yellow-300 font-semibold mb-2">Rewrite Suggestions</h3>
+    <div id="editResult" class="space-y-4"></div>
+  </div>
+
+  <script>
+    document.getElementById('editBtn').onclick = () => {
+      const agree = document.getElementById('agreeChkEditor').checked;
+      const scene = document.getElementById('sceneInputEditor').value.trim();
+      const file = document.getElementById('sceneFileEditor');
+
+      if (!agree) {
+        alert("Please accept the Terms & Conditions.");
+        return;
+      }
+
+      if (!scene && file.files.length) {
+        return file.files[0].text().then(txt => runEdit(txt.trim()));
+      }
+
+      runEdit(scene);
+    };
+
+    function runEdit(scene) {
+      if (scene.length < 10) return alert('Enter at least 10 characters.');
+
+      const outBox = document.getElementById('editOutput');
+      const resBox = document.getElementById('editResult');
+      resBox.innerText = 'Editing...';
+      outBox.classList.remove('hidden');
+
+      fetch('https://scenecraft-ai-backend.onrender.com/edit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-agreement': 'true'
+        },
+        body: JSON.stringify({ scene })
+      })
+      .then(r => r.json())
+      .then(d => {
+        const cleaned = d.rewrites || d.error || 'No response.';
+        renderParagraphs(cleaned);
+      })
+      .catch(e => renderParagraphs('Network error: ' + e.message));
+    }
+
+    function renderParagraphs(text) {
+      const resBox = document.getElementById('editResult');
+      resBox.innerHTML = '';
+      text.split('\n\n').forEach(p => {
+        const para = document.createElement('p');
+        para.className = 'mb-4';
+        para.innerText = p;
+        resBox.appendChild(para);
+      });
+    }
+  </script>
+</body>
+</html>
