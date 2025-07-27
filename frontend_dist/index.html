@@ -21,12 +21,12 @@
     nav a.active, nav a:hover { color:#fdd835; }
     nav a.disabled { color:#555; cursor:default; }
     .container { max-width:900px; margin:2rem auto; padding:0 2rem; }
-    .hero { text-align:center; padding:4rem 0 2rem; }
-    .hero h1 { font-size:3rem; color:#fdd835; margin-bottom:1rem; }
-    .hero p { color:#ccc; font-size:1.1rem; }
+    .hero, .features { margin-bottom:2rem; }
+    .hero h1 { font-size:3rem; color:#fdd835; margin-bottom:1rem; text-align:center; }
+    .hero p { color:#ccc; font-size:1.1rem; text-align:center; }
     .features {
       display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
-      gap:1.5rem; margin-top:2rem;
+      gap:1.5rem;
     }
     .feature {
       background:#1a1a2e; border-radius:8px; padding:1.5rem; text-align:center;
@@ -34,26 +34,38 @@
     .feature.coming-soon { opacity:.5; }
     section { display:none; }
     section.visible { display:block; }
+    .panel {
+      background:#1a1a2e; padding:2rem; border-radius:8px;
+      margin:2rem auto; max-width:800px; position:relative;
+      box-shadow:0 4px 10px rgba(0,0,0,0.5);
+    }
+    .panel h2 { color:#fdd835; margin-bottom:1rem; }
+    .close-btn {
+      position:absolute; top:1rem; right:1rem;
+      background:transparent; border:none; color:#bbb;
+      font-size:1.2rem; cursor:pointer;
+    }
     textarea {
-      width:100%; height:200px; background:#1a1a2e; color:#fff;
-      border:none; padding:1rem; border-radius:5px; font-size:1rem;
+      width:100%; height:180px; background:#0f0f1f; color:#fff;
+      border:none; padding:1rem; border-radius:5px;
+      font-size:1rem; font-family:inherit;
     }
     .controls { margin-top:1rem; display:flex; align-items:center; gap:1rem; }
-    button {
+    .controls label { color:#ccc; font-size:.9rem; }
+    button.action {
       margin-top:1.5rem; background:#fdd835; color:#111;
       border:none; padding:.75rem 1.5rem; border-radius:5px;
       font-weight:bold; cursor:pointer;
     }
-    #output, #editOutput { margin-top:1.5rem; padding:1rem; background:#1a1a2e; border-radius:5px; }
-    #output p, #editOutput p { margin-bottom:1rem; line-height:1.5; }
-    footer { text-align:center; padding:2rem 0; color:#555; font-size:.9rem; }
+    .output { margin-top:1.5rem; padding:1rem; background:#12121a; border-radius:5px; }
+    .output p { margin-bottom:1rem; line-height:1.5; }
+    footer { text-align:center; padding:2rem 0; color:#555; font-size:.9em; }
   </style>
-
   <script>
     // prompt on every load
     (function(){
       const pw = prompt("🔒 Enter site password:");
-      if (pw !== "prantasdatwanta") {
+      if (pw !== "SCENECRAFT-2024") {
         document.write('<div style="color:red;text-align:center;padding:3rem;"><h1>Access Denied</h1></div>');
         window.stop();
       } else {
@@ -64,9 +76,9 @@
     })();
   </script>
 </head>
-
 <body>
   <div id="app">
+    <!-- NAV -->
     <header>
       <div class="logo">SceneCraft AI</div>
       <nav>
@@ -96,27 +108,29 @@
       </section>
 
       <!-- ANALYZER -->
-      <section id="analyzer">
+      <section id="analyzer" class="panel">
+        <button class="close-btn" id="closeAnalyzer">&times;</button>
         <h2>Scene Analyzer</h2>
-        <textarea id="sceneInput" placeholder="Paste your scene here…"></textarea>
+        <textarea id="sceneInput" placeholder="Paste your scene…"></textarea>
         <div class="controls">
           <input type="file" id="sceneFile" accept=".txt,.pdf"/>
           <label><input type="checkbox" id="agreeChk"/> I agree to <a href="terms" style="color:#fdd835;">Terms & Conditions</a></label>
         </div>
-        <button id="analyzeBtn">Analyze Scene</button>
-        <div id="output"></div>
+        <button id="analyzeBtn" class="action">Analyze Scene</button>
+        <div id="output" class="output"></div>
       </section>
 
       <!-- EDITOR -->
-      <section id="editor">
+      <section id="editor" class="panel">
+        <button class="close-btn" id="closeEditor">&times;</button>
         <h2>Scene Editor</h2>
-        <textarea id="sceneInputEditor" placeholder="Paste your scene here…"></textarea>
+        <textarea id="sceneInputEditor" placeholder="Paste your scene…"></textarea>
         <div class="controls">
           <input type="file" id="sceneFileEditor" accept=".txt,.pdf"/>
           <label><input type="checkbox" id="agreeChkEditor"/> I agree to <a href="terms" style="color:#fdd835;">Terms & Conditions</a></label>
         </div>
-        <button id="editBtn">Get Rewrite Suggestions</button>
-        <div id="editOutput"></div>
+        <button id="editBtn" class="action">Get Rewrite Suggestions</button>
+        <div id="editOutput" class="output"></div>
       </section>
     </div>
 
@@ -124,50 +138,94 @@
   </div>
 
   <script>
-    // TAB SWITCHING
-    const sections = { home:1, analyzer:1, editor:1 };
-    function show(tab){
-      for(let s in sections){
-        document.getElementById(s).classList.toggle('visible', s===tab);
-        document.getElementById('tab'+s.charAt(0).toUpperCase()+s.slice(1))
-          .classList.toggle('active', s===tab);
-      }
+    // helper to clear panels
+    function resetAnalyzer(){
+      document.getElementById('sceneInput').value = '';
+      document.getElementById('sceneFile').value = '';
+      document.getElementById('agreeChk').checked = false;
+      document.getElementById('output').innerHTML = '';
     }
-    document.getElementById('tabHome').onclick     = ()=> show('home');
-    document.getElementById('tabAnalyzer').onclick = ()=> show('analyzer');
-    document.getElementById('tabEditor').onclick   = ()=> show('editor');
+    function resetEditor(){
+      document.getElementById('sceneInputEditor').value = '';
+      document.getElementById('sceneFileEditor').value = '';
+      document.getElementById('agreeChkEditor').checked = false;
+      document.getElementById('editOutput').innerHTML = '';
+    }
+
+    // TAB SWITCHING
+    function showTab(tab){
+      ['home','analyzer','editor'].forEach(id=>{
+        const el=document.getElementById(id);
+        el.classList.toggle('visible',id===tab);
+        document.getElementById('tab'+id.charAt(0).toUpperCase()+id.slice(1))
+          .classList.toggle('active',id===tab);
+      });
+      // clear inputs
+      if(tab==='analyzer') resetAnalyzer();
+      if(tab==='editor') resetEditor();
+    }
+    document.getElementById('tabHome').onclick     = ()=> showTab('home');
+    document.getElementById('tabAnalyzer').onclick = ()=> showTab('analyzer');
+    document.getElementById('tabEditor').onclick   = ()=> showTab('editor');
+    document.getElementById('closeAnalyzer').onclick = ()=> showTab('home');
+    document.getElementById('closeEditor').onclick   = ()=> showTab('home');
 
     // ANALYZER LOGIC
     document.getElementById('analyzeBtn').onclick = () => {
-      const scene = document.getElementById('sceneInput').value.trim();
-      if (!document.getElementById('agreeChk').checked) return alert('Accept Terms & Conditions.');
-      if (scene.length<10) return alert('Enter ≥10 characters.');
+      if (!document.getElementById('agreeChk').checked) return alert('Please accept Terms & Conditions.');
+      let txt = document.getElementById('sceneInput').value.trim();
+      if (!txt && document.getElementById('sceneFile').files.length) {
+        return document.getElementById('sceneFile').files[0].text().then(doAnalyze);
+      }
+      doAnalyze(txt);
+    };
+    function doAnalyze(scene){
+      if (!scene || scene.length<10) return alert('Enter ≥10 characters.');
       const out = document.getElementById('output');
       out.innerHTML = '<p style="color:#fdd835;">Analyzing…</p>';
-      fetch('/analyze',{method:'POST',headers:{
-        'Content-Type':'application/json','x-user-agreement':'true'
-      },body:JSON.stringify({scene})})
-      .then(r=>r.json()).then(d=>{
+      fetch('/analyze',{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'x-user-agreement':'true'
+        },
+        body:JSON.stringify({scene})
+      })
+      .then(r=>r.json())
+      .then(d=>{
         out.innerHTML = d.analysis.split('\n\n').map(p=>`<p>${p}</p>`).join('');
       })
-      .catch(e=>out.innerHTML=`<p style="color:red;">Error: ${e.message}</p>`);
-    };
+      .catch(e=> out.innerHTML = `<p style="color:red;">Error: ${e.message}</p>`);
+    }
 
     // EDITOR LOGIC
     document.getElementById('editBtn').onclick = () => {
-      const scene = document.getElementById('sceneInputEditor').value.trim();
-      if (!document.getElementById('agreeChkEditor').checked) return alert('Accept Terms & Conditions.');
-      if (scene.length<10) return alert('Enter ≥10 characters.');
+      if (!document.getElementById('agreeChkEditor').checked) return alert('Please accept Terms & Conditions.');
+      let txt = document.getElementById('sceneInputEditor').value.trim();
+      if (!txt && document.getElementById('sceneFileEditor').files.length) {
+        return document.getElementById('sceneFileEditor').files[0].text().then(doEdit);
+      }
+      doEdit(txt);
+    };
+    function doEdit(scene){
+      if (!scene || scene.length<10) return alert('Enter ≥10 characters.');
       const out = document.getElementById('editOutput');
       out.innerHTML = '<p style="color:#fdd835;">Generating rewrites…</p>';
-      fetch('/editor/analyze',{method:'POST',headers:{
-        'Content-Type':'application/json','x-user-agreement':'true'
-      },body:JSON.stringify({scene})})
-      .then(r=>r.json()).then(d=>{
-        out.innerHTML = (d.rewrites||'').split('\n\n').map(p=>`<p>${p}</p>`).join('');
+      fetch('/editor/analyze',{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'x-user-agreement':'true'
+        },
+        body:JSON.stringify({scene})
       })
-      .catch(e=>out.innerHTML=`<p style="color:red;">Error: ${e.message}</p>`);
-    };
+      .then(r=>r.json())
+      .then(d=>{
+        const txt = d.rewrites||d.analysis||'';
+        out.innerHTML = txt.split('\n\n').map(p=>`<p>${p}</p>`).join('');
+      })
+      .catch(e=> out.innerHTML = `<p style="color:red;">Error: ${e.message}</p>`);
+    }
   </script>
 </body>
 </html>
