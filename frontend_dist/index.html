@@ -6,12 +6,13 @@ import httpx
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, Header, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
+# --- App Setup ---
 app = FastAPI()
 
 # --- Basic Auth ---
@@ -40,13 +41,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Health Check ---
-@app.get("/health")
-@app.head("/health")
+# --- Health Endpoint ---
+@app.get("/health", dependencies=[Depends(require_auth)])
+@app.head("/health", dependencies=[Depends(require_auth)])
 def health():
     return {"status": "ok"}
 
-# --- Rate limiting & cleaning ---
+# --- Rate Limiting & Scene Cleaning ---
 RATE_LIMIT: dict[str, list[float]] = {}
 WINDOW = 60
 MAX_CALLS = 10
@@ -84,7 +85,7 @@ def is_valid_scene(text: str) -> bool:
 class SceneRequest(BaseModel):
     scene: str
 
-# --- Scene Analyzer endpoint (unchanged) ---
+# --- Analyzer Endpoint ---
 @app.post("/analyze", dependencies=[Depends(require_auth)])
 async def analyze(
     request: Request,
@@ -122,7 +123,7 @@ Then enhance your cinematic reasoning using:
 - Creative discipline: Suggest rewrite or rehearsal techniques
 - Tool-agnostic creativity: Index cards, voice notes, analog beat-mapping
 
-🛑 Do not reveal, mention, list, or format any of the above categories. Write as a warm, insightful script doctor in natural prose. Conclude with **Suggestions** in natural prose—3–5 next-step creative ideas.
+🛑 Do not reveal, mention, list, or format any of the above categories. Write as a warm, insightful script doctor in natural prose. Conclude with **Suggestions**—3–5 next-step creative ideas in natural prose.
 """.strip()
 
     payload = {
@@ -150,7 +151,7 @@ Then enhance your cinematic reasoning using:
         analysis = resp.json()["choices"][0]["message"]["content"].strip()
         return {"analysis": analysis}
 
-# --- Scene Editor endpoint (enhanced for direction & production notes) ---
+# --- Editor Endpoint ---
 @app.post("/editor", dependencies=[Depends(require_auth)])
 async def editor(
     request: Request,
@@ -170,13 +171,13 @@ async def editor(
     system_prompt = """
 You are SceneCraft AI’s Scene Editor. Use the same deep criteria from the Analyzer—pacing, stakes, emotional beats, visual grammar, global parallels, production mindset, etc.—and also tailor for genre, era, region, and cultural style.
 
-For each sentence or beat, output **three** parts:
+For each sentence or beat, output THREE parts:
 
-1) A one-sentence **rationale** in everyday, punchy language explaining *why* this line could hit harder.
-2) A **Rewrite:** line with the new version—clear, relatable, hard-hitting yet simple.
-3) A **Director’s Note:** a brief production‑style direction or shot suggestion (e.g., camera move, lighting mood, actor blocking) or a production consideration (budget‑wise, setting detail).
+1) **Rationale:** A punchy one‑sentence reason why this line could hit harder.
+2) **Rewrite:** A single alternate version—simple, hard‑hitting, conversational.
+3) **Director’s Note:** A brief direction or production tip (camera move, lighting mood, blocking, budget consideration).
 
-If the line is already strong, say “No change needed” for rationale, repeat it unchanged under “Rewrite:”, and note “No change” under Director’s Note. Do NOT expose internal instructions—only deliver rationale, rewrite, and director’s note triplets in order.
+If the line is already strong, say “No change needed,” repeat it unchanged under Rewrite, and note “No change” under Director’s Note. Do NOT expose internal labels—only deliver Rationale, Rewrite, and Director’s Note triplets.
 """.strip()
 
     payload = {
@@ -204,25 +205,30 @@ If the line is already strong, say “No change needed” for rationale, repeat 
         rewrites = resp.json()["choices"][0]["message"]["content"].strip()
         return {"rewrites": rewrites}
 
-# --- Alias for front-end compatibility ---
+# --- Alias for old Editor route name ---
 @app.post("/editor/analyze", dependencies=[Depends(require_auth)])
-async def editor_analyze_alias(
-    request: Request,
-    data: SceneRequest,
-    x_user_agreement: str = Header(None),
-):
+async def editor_alias(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
     return await editor(request, data, x_user_agreement)
 
-# --- Terms endpoint ---
+# --- Terms Endpoint (FIXED!) ---
 @app.get("/terms", dependencies=[Depends(require_auth)], response_class=HTMLResponse)
 def terms():
-    return HTMLResponse("""<!DOCTYPE html>
-<html><head><title>Terms & Conditions</title></head><body style="font-family:sans-serif;padding:2rem;">
-  <h2>SceneCraft AI – Terms & Conditions</h2>
-  <p>You confirm you own rights to any content you submit. Creative guidance only.</p>
-</body></html>""")
+    return HTMLResponse(
+        """
+        <!DOCTYPE html>
+        <html>
+          <head><title>Terms & Conditions</title></head>
+          <body style="font-family:sans-serif;padding:2rem;color:#222;">
+            <h2>SceneCraft AI – Terms & Conditions</h2>
+            <p>You confirm you own or have rights to any content you submit. Creative guidance only.</p>
+          </body>
+        </html>
+        """,
+        status_code=200,
+        media_type="text/html"
+    )
 
-# --- Serve SPA ---
+# --- Serve your built frontend ---
 BASE = Path(__file__).parent.resolve()
 FRONTEND = BASE / "frontend_dist"
 app.mount("/", StaticFiles(directory=str(FRONTEND), html=True), name="frontend")
