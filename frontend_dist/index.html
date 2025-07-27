@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>SceneCraft AI</title>
   <style>
-    body { margin:0; font-family:Arial,sans-serif; background:#000; color:#fff; }
+    /* 1) Hide everything by default */
+    body { display: none; margin:0; font-family:Arial,sans-serif; background:#000; color:#fff; }
+    #denied { display: none; color:red; text-align:center; padding:2em; }
+    /* your normal styles */
     header { background:#11182a; padding:1em; display:flex; justify-content:space-between; align-items:center; }
     header nav a { margin:0 1em; color:#fdd835; text-decoration:none; font-weight:bold; }
     .container { padding:2em; max-width:800px; margin:0 auto; }
@@ -14,105 +17,99 @@
     button { margin-top:1em; width:100%; padding:.75em; background:#fdd835; color:#000; border:none; font-weight:bold; border-radius:5px; cursor:pointer; }
     #output { margin-top:2em; background:#1a1a2e; padding:1em; border-radius:5px; display:none; }
     #output p { margin-bottom:1em; }
-    #denied { color:red; text-align:center; padding:2em; display:none; }
   </style>
+
+  <script>
+    // 2) Prompt immediately, before anything renders
+    (function(){
+      const PASSWORD = "SCENECRAFT-2024";
+      const entry = prompt("Enter site password:");
+      if (entry === PASSWORD) {
+        // 3) On correct, un-hide the body so all your HTML shows
+        document.documentElement.style.display = "block"; // show everything
+      } else {
+        // 4) On wrong, clear and show denied message
+        document.documentElement.style.display = "block";
+        document.body.innerHTML = '<div id="denied"><h1>Access Denied</h1><p>Incorrect password.</p></div>';
+      }
+    })();
+  </script>
 </head>
 <body>
-  <div id="denied"><h1>Access Denied</h1><p>Incorrect password.</p></div>
+  <header>
+    <div style="font-size:1.5em; color:#fdd835;">SceneCraft AI</div>
+    <nav>
+      <a href="index.html">Scene Analyzer</a>
+      <a href="editor.html">Scene Editor</a>
+    </nav>
+  </header>
 
-  <div id="app" style="display:none">
-    <header>
-      <div style="font-size:1.5em; color:#fdd835;">SceneCraft AI</div>
-      <nav>
-        <a href="index.html">Scene Analyzer</a>
-        <a href="editor.html">Scene Editor</a>
-      </nav>
-    </header>
+  <div class="container">
+    <h1 style="color:#fdd835;">Scene Analyzer</h1>
+    <textarea id="sceneInput" placeholder="Paste your scene here…"></textarea>
 
-    <div class="container">
-      <h1 style="color:#fdd835;">Scene Analyzer</h1>
-      <textarea id="sceneInput" placeholder="Paste your scene here…"></textarea>
-
-      <div class="controls">
-        <input type="file" id="sceneFile" accept=".txt,.pdf"/>
-        <label>
-          <input type="checkbox" id="agreeChk"/> I agree to
-          <a href="terms" style="color:#fdd835; text-decoration:underline;">Terms & Conditions</a>
-        </label>
-      </div>
-
-      <button id="analyzeBtn">Analyze Scene</button>
-
-      <div id="output">
-        <h2 style="color:#fdd835;">Analysis & Suggestions</h2>
-        <div id="analysisResult"></div>
-      </div>
+    <div class="controls">
+      <input type="file" id="sceneFile" accept=".txt,.pdf"/>
+      <label>
+        <input type="checkbox" id="agreeChk"/> I agree to
+        <a href="terms" style="color:#fdd835; text-decoration:underline;">Terms & Conditions</a>
+      </label>
     </div>
 
-    <script>
-      // 1) gate on DOMContentLoaded
-      document.addEventListener("DOMContentLoaded", () => {
-        const PASSWORD = "SCENECRAFT-2024";
-        const pass = prompt("Enter site password:");
-        if (pass === PASSWORD) {
-          // show the app
-          document.getElementById("app").style.display = "";
-          document.getElementById("denied").style.display = "none";
-        } else {
-          // show denied
-          document.getElementById("denied").style.display = "";
-          document.getElementById("app").style.display = "none";
-        }
-      });
-    </script>
+    <button id="analyzeBtn">Analyze Scene</button>
 
-    <script>
-      // your existing analysis logic
-      const analyzeBtn = document.getElementById('analyzeBtn'),
-            sceneInput = document.getElementById('sceneInput'),
-            sceneFile  = document.getElementById('sceneFile'),
-            agreeChk   = document.getElementById('agreeChk'),
-            output     = document.getElementById('output'),
-            resultBox  = document.getElementById('analysisResult');
-
-      analyzeBtn.onclick = () => {
-        if (!agreeChk.checked) return alert('Please accept the Terms & Conditions.');
-        if (!sceneInput.value.trim() && sceneFile.files.length) {
-          return sceneFile.files[0].text().then(txt => doAnalyze(txt.trim()));
-        }
-        doAnalyze(sceneInput.value.trim());
-      };
-
-      function doAnalyze(scene) {
-        if (scene.length < 10) { alert('Enter at least 10 characters.'); return; }
-        resultBox.textContent = 'Analyzing…';
-        output.style.display = 'block';
-
-        fetch('/analyze', {
-          method:'POST',
-          headers:{
-            'Content-Type':'application/json',
-            'x-user-agreement':'true'
-          },
-          body: JSON.stringify({ scene })
-        })
-        .then(async res => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return res.json();
-        })
-        .then(data => {
-          resultBox.innerHTML = '';
-          data.analysis.split('\n\n').forEach(p => {
-            const el = document.createElement('p');
-            el.textContent = p;
-            resultBox.appendChild(el);
-          });
-        })
-        .catch(err => {
-          resultBox.innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
-        });
-      }
-    </script>
+    <div id="output">
+      <h2 style="color:#fdd835;">Analysis & Suggestions</h2>
+      <div id="analysisResult"></div>
+    </div>
   </div>
+
+  <script>
+    // existing analyze logic (unchanged)
+    const analyzeBtn = document.getElementById('analyzeBtn'),
+          sceneInput = document.getElementById('sceneInput'),
+          sceneFile  = document.getElementById('sceneFile'),
+          agreeChk   = document.getElementById('agreeChk'),
+          output     = document.getElementById('output'),
+          resultBox  = document.getElementById('analysisResult');
+
+    analyzeBtn.onclick = () => {
+      if (!agreeChk.checked) return alert('Please accept the Terms & Conditions.');
+      if (!sceneInput.value.trim() && sceneFile.files.length) {
+        return sceneFile.files[0].text().then(txt => doAnalyze(txt.trim()));
+      }
+      doAnalyze(sceneInput.value.trim());
+    };
+
+    function doAnalyze(scene) {
+      if (scene.length < 10) { alert('Enter at least 10 characters.'); return; }
+      resultBox.textContent = 'Analyzing…';
+      output.style.display = 'block';
+
+      fetch('/analyze', {
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'x-user-agreement':'true'
+        },
+        body: JSON.stringify({ scene })
+      })
+      .then(async res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        resultBox.innerHTML = '';
+        data.analysis.split('\n\n').forEach(p => {
+          const el = document.createElement('p');
+          el.textContent = p;
+          resultBox.appendChild(el);
+        });
+      })
+      .catch(err => {
+        resultBox.innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
+      });
+    }
+  </script>
 </body>
 </html>
