@@ -8,41 +8,54 @@ import secrets
 from pathlib import Path
 from typing import Callable
 
-from fastapi import FastAPI, Request, HTTPException, status, Header, Depends
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse
+from fastapi import (
+    FastAPI,
+    Request,
+    HTTPException,
+    status,
+    Header,
+)
+from fastapi.responses import (
+    HTMLResponse,
+    PlainTextResponse,
+    FileResponse,
+    JSONResponse,
+)
 from pydantic import BaseModel
 
 app = FastAPI()
 
-# 1) Health check (open)
+# --- 1) Health check (no auth) ---
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
-# 2) Basic‑Auth helper
+# --- 2) HTTP Basic Auth middleware (applies to ALL non-health requests) ---
 ADMIN_USER = "admin"
 ADMIN_PASS = os.getenv("ADMIN_PASS", "prantasdatwanta")
 
-def check_auth_header(header: str) -> bool:
+def check_basic_auth(auth_header: str) -> bool:
+    """
+    Return True if header is valid Basic Auth for ADMIN_USER/ADMIN_PASS.
+    """
+    if not auth_header.startswith("Basic "):
+        return False
     try:
-        scheme, credentials = header.split(" ", 1)
-        if scheme.lower() != "basic":
-            return False
-        user_pass = base64.b64decode(credentials).decode()
+        b64 = auth_header.split(" ", 1)[1]
+        user_pass = base64.b64decode(b64).decode()
         user, pw = user_pass.split(":", 1)
         return secrets.compare_digest(user, ADMIN_USER) and secrets.compare_digest(pw, ADMIN_PASS)
     except Exception:
         return False
 
 @app.middleware("http")
-async def require_basic_auth(request: Request, call_next: Callable):
-    # Allow health and docs
-    if request.url.path in ("/health", "/openapi.json", "/docs", "/docs/oauth2-redirect"):
+async def enforce_basic_auth(request: Request, call_next: Callable):
+    # Skip auth for health endpoint
+    if request.url.path == "/health":
         return await call_next(request)
 
     auth = request.headers.get("Authorization", "")
-    if not check_auth_header(auth):
+    if not check_basic_auth(auth):
         return PlainTextResponse(
             "Unauthorized",
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -51,22 +64,12 @@ async def require_basic_auth(request: Request, call_next: Callable):
 
     return await call_next(request)
 
-# 3) CORS (unchanged)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://scenecraft-ai.com",
-        "https://www.scenecraft-ai.com",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
-# 4) Rate limiting & scene logic (unchanged)
+# --- 3) Rate limiting & scene logic (unchanged) ---
 RATE_LIMIT: dict[str, list[float]] = {}
 WINDOW = 60
 MAX_CALLS = 10
+
 COMMANDS = [
     r"rewrite(?:\s+scene)?", r"regenerate(?:\s+scene)?", r"generate(?:\s+scene)?",
     r"compose(?:\s+scene)?", r"fix(?:\s+scene)?", r"improve(?:\s+scene)?",
@@ -100,12 +103,13 @@ def is_valid_scene(text: str) -> bool:
 class SceneRequest(BaseModel):
     scene: str
 
-# 5) Analyze endpoint
+
+# --- 4) Analyze endpoint ---
 @app.post("/analyze")
 async def analyze(
     request: Request,
     data: SceneRequest,
-    x_user_agreement: str = Header(None),
+    x_user_agreement: str = Header(None)
 ):
     ip = request.client.host
     if not rate_limiter(ip):
@@ -173,28 +177,29 @@ Conclude with a **Suggestions** section that gives 3–5 specific next-step crea
             )
             resp.raise_for_status()
             result = resp.json()
-            analysis = result["choices"][0]["message"]["content"].strip()
-            return {"analysis": analysis}
+            return JSONResponse({"analysis": result["choices"][0]["message"]["content"].strip()})
     except httpx.HTTPStatusError as e:
         raise HTTPException(e.response.status_code, e.response.text)
     except Exception as e:
         raise HTTPException(500, str(e))
 
-# 6) Editor endpoint
+
+# --- 5) Editor endpoint (alias) ---
 @app.post("/editor/analyze")
 async def editor_analyze(
     request: Request,
     data: SceneRequest,
-    x_user_agreement: str = Header(None),
+    x_user_agreement: str = Header(None)
 ):
     return await analyze(request, data, x_user_agreement)
 
-# 7) Terms & Conditions page
-@app.get("/terms", response_class=HTMLResponse)
+
+# --- 6) Terms & Conditions page ---
+@app.get("/terms")
 def terms():
     return HTMLResponse("""<!DOCTYPE html>
 <html><head><title>Terms & Conditions</title></head><body style="font-family:sans-serif;padding:2rem;">
-  <h2>SceneCraft AI – Terms & Conditions</h2>
+  <h2>SceneCraft AI – Terms & Conditions</h2>
   <h3>User Agreement</h3><p>You confirm you own or have rights to any content you submit.</p>
   <h3>Disclaimer</h3><p>Creative guidance only.</p>
   <h3>Usage Policy</h3><ul>
@@ -203,15 +208,18 @@ def terms():
     <li>All feedback is creative, not legal advice</li>
   </ul>
   <h3>Copyright</h3><p>You retain all rights; SceneCraft AI does not store content.</p>
-  <hr><p>&copy; SceneCraft AI 2025</p>
+  <hr><p>&copy; SceneCraft AI 2025</p>
 </body></html>""")
 
-# 8) Catch‑all to serve static & SPA (protected)
-@app.get("/{full_path:path}", response_class=FileResponse)
+# --- 7) SPA static & fallback (protected) ---
+BASE = Path(__file__).parent.resolve()
+FRONTEND = BASE / "frontend_dist"
+
+@app.get("/{full_path:path}")
 def serve_spa(full_path: str):
-    # first try file
+    # Serve any static file if exists
     fp = FRONTEND / full_path
     if fp.exists() and fp.is_file():
         return FileResponse(str(fp))
-    # fallback to index
+    # Otherwise serve index
     return FileResponse(str(FRONTEND / "index.html"))
