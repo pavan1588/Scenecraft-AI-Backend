@@ -4,37 +4,54 @@ import time
 import httpx
 import base64
 import secrets
-from pathlib import Path
 
-from fastapi import (
-    FastAPI, Request, HTTPException,
-    Header, Depends, status
-)
+from pathlib import Path
+from typing import Callable
+
+from fastapi import FastAPI, Request, HTTPException, status, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse
 from pydantic import BaseModel
 
-# --- App setup ---
 app = FastAPI()
 
-# --- Basic‑Auth dependency ---
-security = HTTPBasic()
+# 1) Health check (open)
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+# 2) Basic‑Auth helper
 ADMIN_USER = "admin"
 ADMIN_PASS = os.getenv("ADMIN_PASS", "prantasdatwanta")
 
-def verify_user(creds: HTTPBasicCredentials = Depends(security)):
-    user_ok = secrets.compare_digest(creds.username, ADMIN_USER)
-    pwd_ok  = secrets.compare_digest(creds.password, ADMIN_PASS)
-    if not (user_ok and pwd_ok):
-        raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED,
-            "Unauthorized",
-            headers={"WWW-Authenticate": "Basic"},
-        )
-    return True
+def check_auth_header(header: str) -> bool:
+    try:
+        scheme, credentials = header.split(" ", 1)
+        if scheme.lower() != "basic":
+            return False
+        user_pass = base64.b64decode(credentials).decode()
+        user, pw = user_pass.split(":", 1)
+        return secrets.compare_digest(user, ADMIN_USER) and secrets.compare_digest(pw, ADMIN_PASS)
+    except Exception:
+        return False
 
-# --- CORS (unchanged) ---
+@app.middleware("http")
+async def require_basic_auth(request: Request, call_next: Callable):
+    # Allow health and docs
+    if request.url.path in ("/health", "/openapi.json", "/docs", "/docs/oauth2-redirect"):
+        return await call_next(request)
+
+    auth = request.headers.get("Authorization", "")
+    if not check_auth_header(auth):
+        return PlainTextResponse(
+            "Unauthorized",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            headers={"WWW-Authenticate": "Basic"}
+        )
+
+    return await call_next(request)
+
+# 3) CORS (unchanged)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -46,55 +63,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Health (open) ---
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-
-# --- Serve static files & pages (all protected) ---
-BASE = Path(__file__).parent.resolve()
-FRONTEND = BASE / "frontend_dist"
-
-def serve_file(path: Path):
-    if not path.is_file():
-        raise HTTPException(404, "Not found")
-    return FileResponse(str(path))
-
-@app.get("/", dependencies=[Depends(verify_user)])
-def serve_index():
-    return serve_file(FRONTEND / "index.html")
-
-@app.get("/editor.html", dependencies=[Depends(verify_user)])
-def serve_editor():
-    return serve_file(FRONTEND / "editor.html")
-
-# catch-all for CSS/JS/images and SPA fallback
-@app.get("/{full_path:path}", dependencies=[Depends(verify_user)])
-def serve_spa(full_path: str):
-    candidate = FRONTEND / full_path
-    if candidate.exists() and candidate.is_file():
-        return serve_file(candidate)
-    # fallback to index.html
-    return serve_file(FRONTEND / "index.html")
-
-# --- Stub pages for missing nav tabs (also protected) ---
-@app.get("/brief", dependencies=[Depends(verify_user)], response_class=HTMLResponse)
-def brief():
-    return "<h1>SceneCraft AI – Brief</h1><p>Coming soon…</p>"
-
-@app.get("/fullscript", dependencies=[Depends(verify_user)], response_class=HTMLResponse)
-def full_script():
-    return "<h1>SceneCraft AI – Full Script Writer</h1><p>Coming soon…</p>"
-
-@app.get("/how", dependencies=[Depends(verify_user)], response_class=HTMLResponse)
-def how_it_works():
-    return "<h1>How it Works</h1><p>Coming soon…</p>"
-
-@app.get("/pricing", dependencies=[Depends(verify_user)], response_class=HTMLResponse)
-def pricing():
-    return "<h1>Pricing</h1><p>Coming soon…</p>"
-
-# --- Rate limiting & scene logic (unchanged) ---
+# 4) Rate limiting & scene logic (unchanged)
 RATE_LIMIT: dict[str, list[float]] = {}
 WINDOW = 60
 MAX_CALLS = 10
@@ -131,17 +100,17 @@ def is_valid_scene(text: str) -> bool:
 class SceneRequest(BaseModel):
     scene: str
 
-# --- Analyze endpoint ---
-@app.post("/analyze", dependencies=[Depends(verify_user)])
+# 5) Analyze endpoint
+@app.post("/analyze")
 async def analyze(
     request: Request,
     data: SceneRequest,
-    x_user_agreement: str = Header(None)
+    x_user_agreement: str = Header(None),
 ):
     ip = request.client.host
     if not rate_limiter(ip):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Rate limit exceeded.")
-    if x_user_agreement is None or x_user_agreement.lower() != "true":
+    if x_user_agreement != "true":
         raise HTTPException(400, "You must accept the Terms & Conditions.")
 
     cleaned = clean_scene(data.scene)
@@ -200,7 +169,7 @@ Conclude with a **Suggestions** section that gives 3–5 specific next-step crea
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json"
                 },
-                json=payload
+                json=payload,
             )
             resp.raise_for_status()
             result = resp.json()
@@ -211,17 +180,17 @@ Conclude with a **Suggestions** section that gives 3–5 specific next-step crea
     except Exception as e:
         raise HTTPException(500, str(e))
 
-# --- Editor endpoint (alias) ---
-@app.post("/editor/analyze", dependencies=[Depends(verify_user)])
+# 6) Editor endpoint
+@app.post("/editor/analyze")
 async def editor_analyze(
     request: Request,
     data: SceneRequest,
-    x_user_agreement: str = Header(None)
+    x_user_agreement: str = Header(None),
 ):
     return await analyze(request, data, x_user_agreement)
 
-# --- Terms & Conditions ---
-@app.get("/terms", dependencies=[Depends(verify_user)], response_class=HTMLResponse)
+# 7) Terms & Conditions page
+@app.get("/terms", response_class=HTMLResponse)
 def terms():
     return HTMLResponse("""<!DOCTYPE html>
 <html><head><title>Terms & Conditions</title></head><body style="font-family:sans-serif;padding:2rem;">
@@ -236,3 +205,13 @@ def terms():
   <h3>Copyright</h3><p>You retain all rights; SceneCraft AI does not store content.</p>
   <hr><p>&copy; SceneCraft AI 2025</p>
 </body></html>""")
+
+# 8) Catch‑all to serve static & SPA (protected)
+@app.get("/{full_path:path}", response_class=FileResponse)
+def serve_spa(full_path: str):
+    # first try file
+    fp = FRONTEND / full_path
+    if fp.exists() and fp.is_file():
+        return FileResponse(str(fp))
+    # fallback to index
+    return FileResponse(str(FRONTEND / "index.html"))
