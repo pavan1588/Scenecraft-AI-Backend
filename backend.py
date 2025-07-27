@@ -22,7 +22,6 @@ def health():
 
 # ---- BASIC AUTH SETUP ----
 security = HTTPBasic()
-
 def verify_user(creds: HTTPBasicCredentials = Depends(security)):
     user_ok = secrets.compare_digest(creds.username, "admin")
     pwd_ok  = secrets.compare_digest(
@@ -53,7 +52,6 @@ app.add_middleware(
 BASE = Path(__file__).parent.resolve()
 FRONTEND = BASE / "frontend_dist"
 
-# mount assets under /static
 app.mount("/static", StaticFiles(directory=str(FRONTEND)), name="static")
 
 @app.get("/", dependencies=[Depends(verify_user)])
@@ -215,8 +213,3 @@ def terms():
   <h3>Copyright</h3><p>You retain all rights; SceneCraft AI does not store content.</p>
   <hr><p>&copy; SceneCraft AI 2025</p>
 </body></html>""")
-
-# ---- ROOT HEALTH CHECK (protected) ----
-@app.get("/", dependencies=[Depends(verify_user)])
-def root():
-    return {"message": "SceneCraft backend is live."}
