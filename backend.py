@@ -2,78 +2,109 @@ import os
 import re
 import time
 import httpx
-import base64
 import secrets
-
 from pathlib import Path
-from typing import Callable
 
 from fastapi import (
     FastAPI,
     Request,
     HTTPException,
-    status,
+    Depends,
     Header,
+    status,
 )
-from fastapi.responses import (
-    HTMLResponse,
-    PlainTextResponse,
-    FileResponse,
-    JSONResponse,
-)
+from fastapi.responses import HTMLResponse, FileResponse, PlainTextResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 
 app = FastAPI()
 
-# --- 1) Health check (no auth) ---
+# --- CONFIGURE YOUR ADMIN CREDENTIALS ---
+ADMIN_USER = "admin"
+ADMIN_PASS = os.getenv("ADMIN_PASS", "prantasdatwanta")
+
+security = HTTPBasic()
+
+def require_auth(creds: HTTPBasicCredentials = Depends(security)):
+    """
+    Raises 401 if the provided credentials are not exactly ADMIN_USER/ADMIN_PASS.
+    """
+    correct_username = secrets.compare_digest(creds.username, ADMIN_USER)
+    correct_password = secrets.compare_digest(creds.password, ADMIN_PASS)
+    if not (correct_username and correct_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return True
+
+# --- HEALTH CHECK (no auth) ---
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
-# --- 2) HTTP Basic Auth middleware (applies to ALL non-health requests) ---
-ADMIN_USER = "admin"
-ADMIN_PASS = os.getenv("ADMIN_PASS", "prantasdatwanta")
+# --- STATIC FILES & SPA ROUTING (protected) ---
+BASE = Path(__file__).parent.resolve()
+FRONTEND = BASE / "frontend_dist"
 
-def check_basic_auth(auth_header: str) -> bool:
-    """
-    Return True if header is valid Basic Auth for ADMIN_USER/ADMIN_PASS.
-    """
-    if not auth_header.startswith("Basic "):
-        return False
-    try:
-        b64 = auth_header.split(" ", 1)[1]
-        user_pass = base64.b64decode(b64).decode()
-        user, pw = user_pass.split(":", 1)
-        return secrets.compare_digest(user, ADMIN_USER) and secrets.compare_digest(pw, ADMIN_PASS)
-    except Exception:
-        return False
+def serve_file(path: Path):
+    if not path.exists() or not path.is_file():
+        raise HTTPException(404, "Not found")
+    return FileResponse(str(path))
 
-@app.middleware("http")
-async def enforce_basic_auth(request: Request, call_next: Callable):
-    # Skip auth for health endpoint
-    if request.url.path == "/health":
-        return await call_next(request)
+@app.get("/", dependencies=[Depends(require_auth)])
+def serve_index():
+    return serve_file(FRONTEND / "index.html")
 
-    auth = request.headers.get("Authorization", "")
-    if not check_basic_auth(auth):
-        return PlainTextResponse(
-            "Unauthorized",
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            headers={"WWW-Authenticate": "Basic"}
-        )
+@app.get("/editor.html", dependencies=[Depends(require_auth)])
+def serve_editor():
+    return serve_file(FRONTEND / "editor.html")
 
-    return await call_next(request)
+@app.get("/static/{file_path:path}", dependencies=[Depends(require_auth)])
+def serve_static(file_path: str):
+    return serve_file(FRONTEND / file_path)
 
+@app.get("/{any_path:path}", dependencies=[Depends(require_auth)])
+def serve_spa(any_path: str):
+    # Attempt to serve a matching file; otherwise SPA fallback
+    candidate = FRONTEND / any_path
+    if candidate.exists() and candidate.is_file():
+        return serve_file(candidate)
+    return serve_file(FRONTEND / "index.html")
 
-# --- 3) Rate limiting & scene logic (unchanged) ---
+# --- TERMS & CONDITIONS (protected) ---
+@app.get("/terms", dependencies=[Depends(require_auth)], response_class=HTMLResponse)
+def terms():
+    return HTMLResponse("""<!DOCTYPE html>
+<html><head><title>Terms & Conditions</title></head><body style="font-family:sans-serif;padding:2rem;">
+  <h2>SceneCraft AI – Terms & Conditions</h2>
+  <h3>User Agreement</h3><p>You confirm you own or have rights to any content you submit.</p>
+  <h3>Disclaimer</h3><p>Creative guidance only.</p>
+  <h3>Usage Policy</h3><ul>
+    <li>Original scenes/excerpts only</li>
+    <li>No random text or rewrite prompts</li>
+    <li>All feedback is creative, not legal advice</li>
+  </ul>
+  <h3>Copyright</h3><p>You retain all rights; SceneCraft AI does not store content.</p>
+  <hr><p>&copy; SceneCraft AI 2025</p>
+</body></html>""")
+
+# --- RATE LIMITING & SCENE LOGIC (unchanged) ---
 RATE_LIMIT: dict[str, list[float]] = {}
 WINDOW = 60
 MAX_CALLS = 10
 
 COMMANDS = [
-    r"rewrite(?:\s+scene)?", r"regenerate(?:\s+scene)?", r"generate(?:\s+scene)?",
-    r"compose(?:\s+scene)?", r"fix(?:\s+scene)?", r"improve(?:\s+scene)?",
-    r"polish(?:\s+scene)?", r"reword(?:\s+scene)?", r"make(?:\s+scene)?"
+    r"rewrite(?:\s+scene)?",
+    r"regenerate(?:\s+scene)?",
+    r"generate(?:\s+scene)?",
+    r"compose(?:\s+scene)?",
+    r"fix(?:\s+scene)?",
+    r"improve(?:\s+scene)?",
+    r"polish(?:\s+scene)?",
+    r"reword(?:\s+scene)?",
+    r"make(?:\s+scene)?"
 ]
 STRIP_PATTERN = re.compile(
     rf"^\s*(?:please\s+)?(?:{'|'.join(COMMANDS)})\s*$",
@@ -103,9 +134,8 @@ def is_valid_scene(text: str) -> bool:
 class SceneRequest(BaseModel):
     scene: str
 
-
-# --- 4) Analyze endpoint ---
-@app.post("/analyze")
+# --- ANALYZE ENDPOINT (protected) ---
+@app.post("/analyze", dependencies=[Depends(require_auth)])
 async def analyze(
     request: Request,
     data: SceneRequest,
@@ -156,7 +186,7 @@ Conclude with a **Suggestions** section that gives 3–5 specific next-step crea
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": cleaned}
+            {"role": "user",   "content": cleaned}
         ],
         "stop": []
     }
@@ -171,55 +201,23 @@ Conclude with a **Suggestions** section that gives 3–5 specific next-step crea
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
                     "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json"
+                    "Content-Type":  "application/json"
                 },
                 json=payload,
             )
             resp.raise_for_status()
             result = resp.json()
-            return JSONResponse({"analysis": result["choices"][0]["message"]["content"].strip()})
+            return {"analysis": result["choices"][0]["message"]["content"].strip()}
     except httpx.HTTPStatusError as e:
         raise HTTPException(e.response.status_code, e.response.text)
     except Exception as e:
         raise HTTPException(500, str(e))
 
-
-# --- 5) Editor endpoint (alias) ---
-@app.post("/editor/analyze")
+# --- EDITOR ENDPOINT (alias, protected) ---
+@app.post("/editor/analyze", dependencies=[Depends(require_auth)])
 async def editor_analyze(
     request: Request,
     data: SceneRequest,
     x_user_agreement: str = Header(None)
 ):
     return await analyze(request, data, x_user_agreement)
-
-
-# --- 6) Terms & Conditions page ---
-@app.get("/terms")
-def terms():
-    return HTMLResponse("""<!DOCTYPE html>
-<html><head><title>Terms & Conditions</title></head><body style="font-family:sans-serif;padding:2rem;">
-  <h2>SceneCraft AI – Terms & Conditions</h2>
-  <h3>User Agreement</h3><p>You confirm you own or have rights to any content you submit.</p>
-  <h3>Disclaimer</h3><p>Creative guidance only.</p>
-  <h3>Usage Policy</h3><ul>
-    <li>Original scenes/excerpts only</li>
-    <li>No random text or rewrite prompts</li>
-    <li>All feedback is creative, not legal advice</li>
-  </ul>
-  <h3>Copyright</h3><p>You retain all rights; SceneCraft AI does not store content.</p>
-  <hr><p>&copy; SceneCraft AI 2025</p>
-</body></html>""")
-
-# --- 7) SPA static & fallback (protected) ---
-BASE = Path(__file__).parent.resolve()
-FRONTEND = BASE / "frontend_dist"
-
-@app.get("/{full_path:path}")
-def serve_spa(full_path: str):
-    # Serve any static file if exists
-    fp = FRONTEND / full_path
-    if fp.exists() and fp.is_file():
-        return FileResponse(str(fp))
-    # Otherwise serve index
-    return FileResponse(str(FRONTEND / "index.html"))
