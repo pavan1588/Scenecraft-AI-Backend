@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>SceneCraft AI – Analyzer</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>SceneCraft AI</title>
   <style>
     body { margin:0; font-family:Arial,sans-serif; background:#000; color:#fff; }
     header { background:#11182a; padding:1em; display:flex; justify-content:space-between; align-items:center; }
@@ -15,7 +14,19 @@
     button { margin-top:1em; width:100%; padding:0.75em; background:#fdd835; color:#000; border:none; font-weight:bold; border-radius:5px; cursor:pointer; }
     #output { margin-top:2em; background:#1a1a2e; padding:1em; border-radius:5px; display:none; }
     #output p { margin-bottom:1em; }
+    #denied { color:red; text-align:center; padding:2em; display:none; }
   </style>
+  <script>
+    // prompt every load
+    const PASSWORD = "SCENECRAFT-2024";
+    const p = prompt("Enter site password:");
+    if (p !== PASSWORD) {
+      document.addEventListener("DOMContentLoaded", ()=>{
+        document.body.innerHTML = '<div id="denied"><h1>Access Denied</h1><p>Incorrect password.</p></div>';
+      });
+      throw new Error("Access denied");  // stop further JS
+    }
+  </script>
 </head>
 <body>
   <header>
@@ -34,28 +45,28 @@
       <input type="file" id="sceneFile" accept=".txt,.pdf"/>
       <label>
         <input type="checkbox" id="agreeChk"/> I agree to
-        <a href="terms" target="_blank" style="color:#fdd835; text-decoration:underline;">Terms & Conditions</a>
+        <a href="terms" style="color:#fdd835; text-decoration:underline;">Terms & Conditions</a>
       </label>
     </div>
 
     <button id="analyzeBtn">Analyze Scene</button>
 
     <div id="output">
-      <h2 style="color:#fdd835;">Analysis & Suggestions</h2>
+      <h2 style="color:#fdd835;">Analysis & Suggestions</h2>
       <div id="analysisResult"></div>
     </div>
   </div>
 
   <script>
-    const analyzeBtn = document.getElementById('analyzeBtn');
-    const sceneInput = document.getElementById('sceneInput');
-    const sceneFile  = document.getElementById('sceneFile');
-    const agreeChk   = document.getElementById('agreeChk');
-    const output     = document.getElementById('output');
-    const resultBox  = document.getElementById('analysisResult');
+    const analyzeBtn = document.getElementById('analyzeBtn'),
+          sceneInput = document.getElementById('sceneInput'),
+          sceneFile  = document.getElementById('sceneFile'),
+          agreeChk   = document.getElementById('agreeChk'),
+          output     = document.getElementById('output'),
+          resultBox  = document.getElementById('analysisResult');
 
     analyzeBtn.onclick = () => {
-      if (!agreeChk.checked) return alert('Please accept the Terms & Conditions.');
+      if (!agreeChk.checked) return alert('Please accept the Terms & Conditions.');
       if (!sceneInput.value.trim() && sceneFile.files.length) {
         return sceneFile.files[0].text().then(txt => doAnalyze(txt.trim()));
       }
@@ -68,39 +79,27 @@
       output.style.display = 'block';
 
       fetch('/analyze', {
-        method: 'POST',
-        headers: {
+        method:'POST',
+        headers:{
           'Content-Type':'application/json',
           'x-user-agreement':'true'
         },
         body: JSON.stringify({ scene })
       })
       .then(async res => {
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`HTTP ${res.status}: ${res.statusText}\n${text}`);
-        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
       .then(data => {
-        if (!data.analysis) throw new Error('No `analysis` in response');
-        render(data.analysis);
+        resultBox.innerHTML = '';
+        data.analysis.split('\n\n').forEach(p => {
+          const el = document.createElement('p');
+          el.textContent = p;
+          resultBox.appendChild(el);
+        });
       })
       .catch(err => {
-        resultBox.textContent = '';
-        const p = document.createElement('p');
-        p.style.color = 'red';
-        p.textContent = `Error: ${err.message}`;
-        resultBox.appendChild(p);
-      });
-    }
-
-    function render(text) {
-      resultBox.innerHTML = '';
-      text.split('\n\n').forEach(p => {
-        const pEl = document.createElement('p');
-        pEl.textContent = p;
-        resultBox.appendChild(pEl);
+        resultBox.innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
       });
     }
   </script>
