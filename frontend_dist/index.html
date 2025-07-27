@@ -8,49 +8,53 @@
     body { margin:0; font-family:Arial,sans-serif; background:#000; color:#fff; }
     header { background:#11182a; padding:1em; display:flex; justify-content:space-between; align-items:center; }
     header nav a { margin:0 1em; text-decoration:none; font-weight:bold; }
-    header nav a.active { color:#fdd835; }
+    header nav a.active { color:#fdd835; cursor:pointer; }
     header nav a.disabled { color:#555; cursor:default; }
     .container { padding:2em; max-width:900px; margin:0 auto; }
-    .hero { text-align:center; padding:4em 0; }
-    .hero h1 { font-size:3em; color:#fdd835; margin-bottom:.5em; }
-    .hero p { font-size:1.2em; color:#ccc; }
+    .hero, .features, #analyzer { display:none; }
+    .hero.visible, .features.visible, #analyzer.visible { display:block; }
+    .hero h1 { font-size:3em; color:#fdd835; text-align:center; }
+    .hero p { color:#ccc; text-align:center; margin-top:1em; }
     .features { display:grid; grid-template-columns:1fr 1fr; gap:1em; margin-top:2em; }
     .feature { background:#1a1a2e; padding:1.5em; border-radius:8px; }
     .feature.disabled { opacity:.5; }
-    .feature h3 { margin-bottom:.5em; }
-    .feature h3.active { color:#fdd835; }
     .section { margin-top:4em; }
     .section h2 { color:#fdd835; margin-bottom:1em; }
-    .btn { display:inline-block; margin-top:1em; padding:.75em 1.5em; background:#fdd835; color:#000; text-decoration:none; font-weight:bold; border-radius:5px; cursor:pointer; border:none; }
+    .btn { display:inline-block; padding:.75em 1.5em; background:#fdd835; color:#000; text-decoration:none; font-weight:bold; border-radius:5px; cursor:pointer; border:none; }
     textarea { width:100%; height:200px; background:#1a1a2e; color:#fff; border:none; padding:1em; border-radius:5px; }
     .controls { margin-top:1em; display:flex; align-items:center; gap:1em; }
     #output { display:none; margin-top:2em; padding:1em; background:#1a1a2e; border-radius:5px; }
-    #output p { margin-bottom:1em; color:#fff; }
+    #output p { margin-bottom:1em; }
     footer { text-align:center; padding:2em 0; color:#666; font-size:.9em; }
   </style>
-</head>
-<body>
   <script>
+    // block everything until password check
     (function(){
+      // run before anything else
       if (!sessionStorage.getItem('scene_access')) {
-        const pw = prompt("Enter site password:");
-        if (pw === "prantasdatwanta") {
-          sessionStorage.setItem('scene_access','true');
-        } else {
-          document.body.innerHTML = '<div style="color:red;text-align:center;padding:3em;"><h1>Access Denied</h1><p>Incorrect password.</p></div>';
-          throw "halt";
+        const pw = prompt("🔒 SceneCraft AI is password protected.\nPlease enter the password:");
+        if (pw !== "prantasdatwanta") {
+          document.write(`
+            <div style="color:red;text-align:center;padding:3em;">
+              <h1>Access Denied</h1>
+              <p>Incorrect password.</p>
+            </div>
+          `);
+          window.stop();
         }
+        sessionStorage.setItem('scene_access','true');
       }
     })();
   </script>
-
+</head>
+<body>
   <!-- NAV -->
   <header>
     <div style="font-size:1.5em;color:#fdd835;">SceneCraft AI</div>
     <nav>
-      <a href="index.html" class="active">Home</a>
-      <a href="#analyzer" class="active">Scene Analyzer</a>
-      <a href="editor.html" class="active">Scene Editor</a>
+      <a id="tabHome"     class="active">Home</a>
+      <a id="tabAnalyzer"       >Scene Analyzer</a>
+      <a class="disabled">Scene Editor*</a>
       <a class="disabled">Full Script Writer</a>
       <a class="disabled">How it Works</a>
       <a class="disabled">Pricing</a>
@@ -58,33 +62,33 @@
   </header>
 
   <div class="container">
-    <!-- HERO -->
-    <section class="hero">
+    <!-- HERO SECTION -->
+    <section class="hero visible" id="hero">
       <h1>SceneCraft AI</h1>
       <p>Your cinematic storytelling partner—melding AI expertise with filmmaker craft to deliver instant, actionable feedback.</p>
     </section>
 
     <!-- FEATURES SUMMARY -->
-    <section class="features">
+    <section class="features visible" id="features">
       <div class="feature">
-        <h3 class="active">Scene Analyzer</h3>
+        <h3 style="color:#fdd835;">Scene Analyzer</h3>
         <p>Deep insights on pacing, stakes, dialogue, and visual grammar.</p>
       </div>
       <div class="feature">
-        <h3 class="active">Scene Editor</h3>
-        <p>Line‑by‑line rewrite suggestions with alternate phrasing.</p>
+        <h3>Scene Editor</h3>
+        <p>Line‑by‑line rewrite suggestions.</p>
       </div>
       <div class="feature disabled">
         <h3>Full Script Writer</h3>
-        <p>(Coming Soon)</p>
+        <p>Coming Soon</p>
       </div>
       <div class="feature disabled">
         <h3>Collaborative Dashboard</h3>
-        <p>(Coming Soon)</p>
+        <p>Coming Soon</p>
       </div>
     </section>
 
-    <!-- SCENE ANALYZER -->
+    <!-- SCENE ANALYZER (hidden until clicked) -->
     <section id="analyzer" class="section">
       <h2>Scene Analyzer</h2>
       <textarea id="sceneInput" placeholder="Paste your scene here…"></textarea>
@@ -92,7 +96,7 @@
         <input type="file" id="sceneFile" accept=".txt,.pdf"/>
         <label><input type="checkbox" id="agreeChk"/> I agree to <a href="terms" style="color:#fdd835;text-decoration:underline;">Terms & Conditions</a></label>
       </div>
-      <button id="analyzeBtn" class="btn">Analyze Scene</button>
+      <button id="analyzeBtn" class="btn">Analyze Scene</button>
       <div id="output">
         <h3 style="color:#fdd835;">Analysis & Suggestions</h3>
         <div id="analysisResult"></div>
@@ -103,7 +107,29 @@
   <footer>&copy; 2025 SceneCraft AI</footer>
 
   <script>
-    // Scene Analyzer logic unchanged
+    // tabs logic
+    const hero        = document.getElementById('hero'),
+          features    = document.getElementById('features'),
+          analyzerSec = document.getElementById('analyzer'),
+          tabHome     = document.getElementById('tabHome'),
+          tabAnalyzer = document.getElementById('tabAnalyzer');
+
+    tabHome.onclick = () => {
+      tabHome.classList.add('active');
+      tabAnalyzer.classList.remove('active');
+      hero.classList.add('visible');
+      features.classList.add('visible');
+      analyzerSec.classList.remove('visible');
+    };
+    tabAnalyzer.onclick = () => {
+      tabHome.classList.remove('active');
+      tabAnalyzer.classList.add('active');
+      hero.classList.remove('visible');
+      features.classList.remove('visible');
+      analyzerSec.classList.add('visible');
+    };
+
+    // scene analyzer logic (unchanged)
     const analyzeBtn = document.getElementById('analyzeBtn'),
           sceneInput = document.getElementById('sceneInput'),
           sceneFile  = document.getElementById('sceneFile'),
