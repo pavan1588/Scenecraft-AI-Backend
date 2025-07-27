@@ -5,9 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>SceneCraft AI</title>
   <style>
+    /* Reset & base */
     * { box-sizing:border-box; margin:0; padding:0; }
     body { font-family:Arial,sans-serif; background:#0a0a0a; color:#eee; }
     #app { display:none; }
+
+    /* Header/Nav */
     header {
       background:#11182a; padding:1rem 2rem;
       display:flex; justify-content:space-between; align-items:center;
@@ -20,18 +23,24 @@
     }
     nav a.active, nav a:hover { color:#fdd835; }
     nav a.disabled { color:#555; cursor:default; }
+
+    /* Container */
     .container { max-width:900px; margin:2rem auto; padding:0 2rem; }
-    .hero, .features { margin-bottom:2rem; }
-    .hero h1 { font-size:3rem; color:#fdd835; margin-bottom:1rem; text-align:center; }
-    .hero p { color:#ccc; font-size:1.1rem; text-align:center; }
+
+    /* Home */
+    .hero { text-align:center; margin-bottom:2rem; }
+    .hero h1 { font-size:3rem; color:#fdd835; margin-bottom:1rem; }
+    .hero p { color:#ccc; font-size:1.1rem; }
     .features {
       display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
-      gap:1.5rem;
+      gap:1.5rem; margin-bottom:2rem;
     }
     .feature {
       background:#1a1a2e; border-radius:8px; padding:1.5rem; text-align:center;
     }
     .feature.coming-soon { opacity:.5; }
+
+    /* Panels */
     section { display:none; }
     section.visible { display:block; }
     .panel {
@@ -61,11 +70,12 @@
     .output p { margin-bottom:1rem; line-height:1.5; }
     footer { text-align:center; padding:2rem 0; color:#555; font-size:.9em; }
   </style>
+
   <script>
-    // prompt on every load
+    // Password prompt every load
     (function(){
       const pw = prompt("🔒 Enter site password:");
-      if (pw !== "prantasdatwanta") {
+      if (pw !== "SCENECRAFT-2024") {
         document.write('<div style="color:red;text-align:center;padding:3rem;"><h1>Access Denied</h1></div>');
         window.stop();
       } else {
@@ -76,6 +86,7 @@
     })();
   </script>
 </head>
+
 <body>
   <div id="app">
     <!-- NAV -->
@@ -138,31 +149,34 @@
   </div>
 
   <script>
-    // helper to clear panels
+    // Reset helpers
     function resetAnalyzer(){
       document.getElementById('sceneInput').value = '';
       document.getElementById('sceneFile').value = '';
       document.getElementById('agreeChk').checked = false;
       document.getElementById('output').innerHTML = '';
+      const btn = document.getElementById('analyzeBtn');
+      btn.disabled = false; btn.textContent = 'Analyze Scene';
     }
     function resetEditor(){
       document.getElementById('sceneInputEditor').value = '';
       document.getElementById('sceneFileEditor').value = '';
       document.getElementById('agreeChkEditor').checked = false;
       document.getElementById('editOutput').innerHTML = '';
+      const btn = document.getElementById('editBtn');
+      btn.disabled = false; btn.textContent = 'Get Rewrite Suggestions';
     }
 
-    // TAB SWITCHING
+    // Tab switching
+    const tabs = ['home','analyzer','editor'];
     function showTab(tab){
-      ['home','analyzer','editor'].forEach(id=>{
-        const el=document.getElementById(id);
-        el.classList.toggle('visible',id===tab);
+      tabs.forEach(id=>{
+        document.getElementById(id).classList.toggle('visible', id===tab);
         document.getElementById('tab'+id.charAt(0).toUpperCase()+id.slice(1))
-          .classList.toggle('active',id===tab);
+          .classList.toggle('active', id===tab);
       });
-      // clear inputs
       if(tab==='analyzer') resetAnalyzer();
-      if(tab==='editor') resetEditor();
+      if(tab==='editor')   resetEditor();
     }
     document.getElementById('tabHome').onclick     = ()=> showTab('home');
     document.getElementById('tabAnalyzer').onclick = ()=> showTab('analyzer');
@@ -170,62 +184,84 @@
     document.getElementById('closeAnalyzer').onclick = ()=> showTab('home');
     document.getElementById('closeEditor').onclick   = ()=> showTab('home');
 
-    // ANALYZER LOGIC
-    document.getElementById('analyzeBtn').onclick = () => {
-      if (!document.getElementById('agreeChk').checked) return alert('Please accept Terms & Conditions.');
-      let txt = document.getElementById('sceneInput').value.trim();
-      if (!txt && document.getElementById('sceneFile').files.length) {
-        return document.getElementById('sceneFile').files[0].text().then(doAnalyze);
+    // Single-run binder
+    function bindSingleRun(textareaId, fileId, checkboxId, buttonId, runFunc) {
+      const ta = document.getElementById(textareaId);
+      const fi = document.getElementById(fileId);
+      const cb = document.getElementById(checkboxId);
+      const btn = document.getElementById(buttonId);
+
+      btn.addEventListener('click', async () => {
+        if (btn.disabled) return;
+        await runFunc();
+        btn.disabled = true;
+        btn.textContent = 'Done';
+      });
+
+      function reenable(){
+        btn.disabled = false;
+        btn.textContent = (buttonId==='analyzeBtn') ? 'Analyze Scene' : 'Get Rewrite Suggestions';
       }
-      doAnalyze(txt);
-    };
-    function doAnalyze(scene){
-      if (!scene || scene.length<10) return alert('Enter ≥10 characters.');
-      const out = document.getElementById('output');
-      out.innerHTML = '<p style="color:#fdd835;">Analyzing…</p>';
-      fetch('/analyze',{
-        method:'POST',
-        headers:{
-          'Content-Type':'application/json',
-          'x-user-agreement':'true'
-        },
-        body:JSON.stringify({scene})
-      })
-      .then(r=>r.json())
-      .then(d=>{
-        out.innerHTML = d.analysis.split('\n\n').map(p=>`<p>${p}</p>`).join('');
-      })
-      .catch(e=> out.innerHTML = `<p style="color:red;">Error: ${e.message}</p>`);
+
+      ta.addEventListener('input', reenable);
+      fi.addEventListener('change', reenable);
+      cb.addEventListener('change', reenable);
     }
 
-    // EDITOR LOGIC
-    document.getElementById('editBtn').onclick = () => {
-      if (!document.getElementById('agreeChkEditor').checked) return alert('Please accept Terms & Conditions.');
-      let txt = document.getElementById('sceneInputEditor').value.trim();
-      if (!txt && document.getElementById('sceneFileEditor').files.length) {
-        return document.getElementById('sceneFileEditor').files[0].text().then(doEdit);
+    // Analyzer run
+    async function doAnalyzeScene(){
+      const input = document.getElementById('sceneInput').value.trim();
+      const file  = document.getElementById('sceneFile').files[0];
+      const agree = document.getElementById('agreeChk').checked;
+      if (!agree) return alert('Please accept the Terms & Conditions.');
+      let scene = input;
+      if (!scene && file) scene = await file.text();
+      if (!scene || scene.length<10) return alert('Enter at least 10 characters.');
+      const out = document.getElementById('output');
+      out.innerHTML = '<p style="color:#fdd835;">Analyzing…</p>';
+      try {
+        const res = await fetch('/analyze', {
+          method:'POST',
+          headers:{'Content-Type':'application/json','x-user-agreement':'true'},
+          body: JSON.stringify({ scene })
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        out.innerHTML = data.analysis.split('\n\n').map(p=>`<p>${p}</p>`).join('');
+      } catch(e) {
+        out.innerHTML = `<p style="color:red;">Error: ${e.message}</p>`;
       }
-      doEdit(txt);
-    };
-    function doEdit(scene){
-      if (!scene || scene.length<10) return alert('Enter ≥10 characters.');
+    }
+
+    // Editor run
+    async function doEditScene(){
+      const input = document.getElementById('sceneInputEditor').value.trim();
+      const file  = document.getElementById('sceneFileEditor').files[0];
+      const agree = document.getElementById('agreeChkEditor').checked;
+      if (!agree) return alert('Please accept the Terms & Conditions.');
+      let scene = input;
+      if (!scene && file) scene = await file.text();
+      if (!scene || scene.length<10) return alert('Enter at least 10 characters.');
       const out = document.getElementById('editOutput');
       out.innerHTML = '<p style="color:#fdd835;">Generating rewrites…</p>';
-      fetch('/editor/analyze',{
-        method:'POST',
-        headers:{
-          'Content-Type':'application/json',
-          'x-user-agreement':'true'
-        },
-        body:JSON.stringify({scene})
-      })
-      .then(r=>r.json())
-      .then(d=>{
-        const txt = d.rewrites||d.analysis||'';
-        out.innerHTML = txt.split('\n\n').map(p=>`<p>${p}</p>`).join('');
-      })
-      .catch(e=> out.innerHTML = `<p style="color:red;">Error: ${e.message}</p>`);
+      try {
+        const res = await fetch('/editor/analyze', {
+          method:'POST',
+          headers:{'Content-Type':'application/json','x-user-agreement':'true'},
+          body: JSON.stringify({ scene })
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const content = data.rewrites?.trim() || 'No suggestions.';
+        out.innerHTML = content.split('\n\n').map(p=>`<p>${p}</p>`).join('');
+      } catch(e) {
+        out.innerHTML = `<p style="color:red;">Error: ${e.message}</p>`;
+      }
     }
+
+    // Bind buttons
+    bindSingleRun('sceneInput','sceneFile','agreeChk','analyzeBtn', doAnalyzeScene);
+    bindSingleRun('sceneInputEditor','sceneFileEditor','agreeChkEditor','editBtn', doEditScene);
   </script>
 </body>
 </html>
