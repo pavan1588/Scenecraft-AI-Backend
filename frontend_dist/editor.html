@@ -5,8 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>SceneCraft AI – Scene Editor</title>
   <style>
-    body { display:none; margin:0; font-family:Arial,sans-serif; background:#000; color:#fff; }
-    #denied { display:none; color:red; text-align:center; padding:2em; }
+    body { margin:0; font-family:Arial,sans-serif; background:#000; color:#fff; }
     header { background:#11182a; padding:1em; display:flex; justify-content:space-between; align-items:center; }
     header nav a { margin:0 1em; color:#fdd835; text-decoration:none; font-weight:bold; }
     .container { padding:2em; max-width:800px; margin:0 auto; }
@@ -16,19 +15,6 @@
     #editOutput { margin-top:2em; background:#1a1a2e; padding:1em; border-radius:5px; display:none; }
     #editResult p { margin-bottom:1em; }
   </style>
-
-  <script>
-    (function(){
-      const PASSWORD = "SCENECRAFT-2024";
-      const entry = prompt("Enter site password:");
-      if (entry === PASSWORD) {
-        document.documentElement.style.display = "block";
-      } else {
-        document.documentElement.style.display = "block";
-        document.body.innerHTML = '<div id="denied"><h1>Access Denied</h1><p>Incorrect password.</p></div>';
-      }
-    })();
-  </script>
 </head>
 <body>
   <header>
@@ -42,22 +28,33 @@
   <div class="container">
     <h1 style="color:#fdd835;">Scene Editor</h1>
     <textarea id="sceneInputEditor" placeholder="Paste your scene here…"></textarea>
-
     <div class="controls">
       <input type="file" id="sceneFileEditor" accept=".txt,.pdf"/>
       <label>
-        <input type="checkbox" id="agreeChkEditor"/> I agree to
-        <a href="terms" style="color:#fdd835; text-decoration:underline;">Terms & Conditions</a>
+        <input type="checkbox" id="agreeChkEditor"/> I agree to 
+        <a href="terms" style="color:#fdd835;text-decoration:underline;">Terms & Conditions</a>
       </label>
     </div>
-
     <button id="editBtn">Edit Scene</button>
-
     <div id="editOutput">
       <h2 style="color:#fdd835;">Rewrite Suggestions</h2>
       <div id="editResult"></div>
     </div>
   </div>
+
+  <script>
+    window.onload = () => {
+      const PASSWORD = "SCENECRAFT-2024";
+      const entry = prompt("Enter site password:");
+      if (entry !== PASSWORD) {
+        document.body.innerHTML = `
+          <div style="color:red; text-align:center; padding:3em;">
+            <h1>Access Denied</h1>
+            <p>Incorrect password.</p>
+          </div>`;
+      }
+    };
+  </script>
 
   <script>
     // your existing editor logic
