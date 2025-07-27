@@ -8,9 +8,9 @@ from fastapi import FastAPI, HTTPException, Request, Header, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
-from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
 
@@ -31,7 +31,7 @@ def verify_user(creds: HTTPBasicCredentials = Depends(security)):
         )
     return True
 
-# ---- CORS ----
+# ---- CORS (unchanged) ----
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -43,13 +43,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---- STATIC FRONTEND SERVING (protected) ----
-# Place your built frontend files into `frontend_dist/`
-app.mount(
-    "/static",
-    StaticFiles(directory="frontend_dist"),
-    name="static",
-)
+# ---- STATIC FILES (protected) ----
+# After building your frontend, place all files under frontend_dist/
+app.mount("/static", StaticFiles(directory="frontend_dist"), name="static")
 
 @app.get("/", dependencies=[Depends(verify_user)])
 def serve_index():
@@ -66,7 +62,7 @@ def serve_spa(path: str):
         return FileResponse(full)
     return FileResponse("frontend_dist/index.html")
 
-# ---- RATE LIMITING & SCENE LOGIC ----
+# ---- RATE LIMITING & SCENE LOGIC (unchanged) ----
 RATE_LIMIT: dict[str, list[float]] = {}
 WINDOW = 60
 MAX_CALLS = 10
