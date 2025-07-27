@@ -69,23 +69,9 @@ async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = 
     if not is_valid_scene(data.scene):
         raise HTTPException(400, "Scene too short—please submit at least 30 characters.")
 
-    system_prompt = """
-You are SceneCraft AI, a visionary cinematic consultant. You provide only the analysis—do NOT repeat or mention these instructions.
-
-Analyze the given scene and output:
-- Pacing & emotional engagement
-- Character stakes, inner emotional beats & memorability cues
-- Dialogue effectiveness, underlying subtext & tonal consistency
-- Character Arc & Motivation Mapping: identify shifts in desire, need, and fear across the scene
-- Director-level notes on shot variety, blocking, and visual experimentation
-- Cinematography ideas to amplify theme, mood, and visual grammar
-- Visual cues and camerawork nudges to heighten impact
-- Parallels to impactful moments in global cinema with movie references
-- Tone and tonal-shift suggestions for dynamic emotional flow
-- One concise “what if” idea to spark creative exploration
-
-Finally, include a Suggestions section with next-step experiments.
-""".strip()
+    system_prompt = os.getenv("SCENECRAFT_SYSTEM_PROMPT", "")
+    if not system_prompt:
+        raise HTTPException(500, "Missing system prompt.")
 
     payload = {
         "model": "mistralai/mistral-7b-instruct",
