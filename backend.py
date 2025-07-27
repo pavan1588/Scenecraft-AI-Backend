@@ -9,7 +9,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
-# ─── Basic‑Auth Setup ─────────────────────────────────────────────────────────
+# 1) Basic Auth
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "SCENECRAFT-2024")
 security = HTTPBasic()
@@ -17,23 +17,23 @@ security = HTTPBasic()
 def require_auth(creds: HTTPBasicCredentials = Depends(security)):
     if creds.username != ADMIN_USER or creds.password != ADMIN_PASS:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status.HTTP_401_UNAUTHORIZED,
             detail="Unauthorized",
-            headers={"WWW-Authenticate": "Basic"},
+            headers={"WWW-Authenticate":"Basic"},
         )
     return True
 
-# ─── App & CORS ───────────────────────────────────────────────────────────────
+# 2) App & CORS
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # or your domains
+    allow_origins=["*"],  # lock down to your domains if desired
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ─── Rate‑Limit & Scene Cleaning ──────────────────────────────────────────────
+# 3) Rate-limit & cleaning (unchanged)
 RATE_LIMIT = {}
 WINDOW, MAX_CALLS = 60, 10
 COMMANDS = [
@@ -46,7 +46,7 @@ STRIP = re.compile(rf"^\s*(?:please\s+)?(?:{'|'.join(COMMANDS)})\s*$", re.IGNORE
 def rate_limiter(ip: str):
     now = time.time()
     calls = RATE_LIMIT.setdefault(ip, [])
-    RATE_LIMIT[ip] = [t for t in calls if now - t < WINDOW]
+    RATE_LIMIT[ip] = [t for t in calls if now-t < WINDOW]
     if len(RATE_LIMIT[ip]) >= MAX_CALLS:
         return False
     RATE_LIMIT[ip].append(now)
@@ -66,44 +66,48 @@ def is_valid_scene(text: str) -> bool:
 class SceneRequest(BaseModel):
     scene: str
 
-# ─── Healthcheck ──────────────────────────────────────────────────────────────
+# 4) Healthcheck
 @app.get("/health")
 @app.head("/health")
 def health():
-    return {"status": "ok"}
+    return {"status":"ok"}
 
-# ─── Serve SPA & Protect with Basic‑Auth ───────────────────────────────────────
+# 5) Static assets under /static
 FRONTEND = Path(__file__).parent / "frontend_dist"
+(app_dir := FRONTEND / "static").mkdir(exist_ok=True)  # noop if exists
+app.mount("/static", StaticFiles(directory=str(app_dir)), name="static")
 
-# mount entire frontend_dist at root (serves index.html, editor.html, CSS/JS)
-app.mount("/", StaticFiles(directory=str(FRONTEND), html=True), name="spa")
+# 6) SPA pages (explicit, behind auth)
+PAGES = {
+    "/": "index.html",
+    "/editor.html": "editor.html",
+    "/terms.html": "terms.html",
+    "/how-it-works.html": "how-it-works.html",
+    "/pricing.html": "pricing.html",
+    "/full-script.html": "full-script.html",
+}
 
-@app.middleware("http")
-async def auth_spa(request: Request, call_next):
-    path = request.url.path
-    # skip auth for health and API routes
-    if path.startswith("/health") or path.startswith("/analyze") or path.startswith("/editor"):
-        return await call_next(request)
+for route, fname in PAGES.items():
+    @app.get(route, dependencies=[Depends(require_auth)])
+    def serve_page(request: Request, fname=fname):
+        path = FRONTEND / fname
+        if not path.exists():
+            raise HTTPException(404, "Page not found")
+        return FileResponse(path, media_type="text/html")
 
-    # every other GET (your SPA pages) needs auth
-    if request.method == "GET":
-        await require_auth(await security(request))
-
-    return await call_next(request)
-
-# ─── Scene Analyzer Endpoint ─────────────────────────────────────────────────
+# 7) Scene Analyzer (logic untouched)
 @app.post("/analyze")
 async def analyze(
     request: Request,
     data: SceneRequest,
     x_user_agreement: str = Header(None),
+    auth=Depends(require_auth),
 ):
     ip = request.client.host
     if not rate_limiter(ip):
         raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "Rate limit exceeded.")
     if x_user_agreement != "true":
         raise HTTPException(400, "You must accept the Terms & Conditions.")
-
     cleaned = clean_scene(data.scene)
     if not is_valid_scene(data.scene):
         raise HTTPException(400, "Scene too short—please submit at least 30 characters.")
@@ -130,7 +134,7 @@ Then enhance your cinematic reasoning using:
 - Creative discipline: Suggest rewrite or rehearsal techniques
 - Tool-agnostic creativity: Index cards, voice notes, analog beat-mapping
 
-🛑 Do not reveal, mention, list, or format any of the above categories in the output. Do not expose your process. Only write as if you are a human expert analyzing this scene intuitively.
+🛑 Do not reveal, mention, list, or format any of the above categories in the output. Do not expose your process. Only write as a human expert analyzing this scene intuitively.
 
 Write in a warm, insightful tone—like a top-tier script doctor. Avoid robotic patterns or AI-sounding structure.
 
@@ -141,40 +145,35 @@ Conclude with a **Suggestions** section that gives 3–5 specific next-step crea
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": cleaned}
+            {"role": "user",   "content": cleaned},
         ]
     }
-
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         raise HTTPException(500, "Missing OpenRouter API key")
-
     async with httpx.AsyncClient() as client:
-        resp = await client.post(
+        r = await client.post(
             "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            },
-            json=payload
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json=payload,
         )
-        resp.raise_for_status()
-        analysis = resp.json()["choices"][0]["message"]["content"].strip()
-        return JSONResponse({"analysis": analysis})
+        r.raise_for_status()
+        ans = r.json()["choices"][0]["message"]["content"].strip()
+        return JSONResponse({"analysis": ans})
 
-# ─── Scene Editor Endpoint ───────────────────────────────────────────────────
+# 8) Scene Editor (logic untouched)
 @app.post("/editor")
 async def editor(
     request: Request,
     data: SceneRequest,
     x_user_agreement: str = Header(None),
+    auth=Depends(require_auth),
 ):
     ip = request.client.host
     if not rate_limiter(ip):
         raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "Rate limit exceeded.")
     if x_user_agreement != "true":
         raise HTTPException(400, "You must accept the Terms & Conditions.")
-
     cleaned = clean_scene(data.scene)
     if not is_valid_scene(data.scene):
         raise HTTPException(400, "Scene too short—please submit at least 30 characters.")
@@ -193,23 +192,18 @@ If the line is already strong, say “No change needed,” repeat it under **Rew
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": cleaned}
+            {"role": "user",   "content": cleaned},
         ]
     }
-
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         raise HTTPException(500, "Missing OpenRouter API key")
-
     async with httpx.AsyncClient() as client:
-        resp = await client.post(
+        r = await client.post(
             "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            },
-            json=payload
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json=payload,
         )
-        resp.raise_for_status()
-        rewrites = resp.json()["choices"][0]["message"]["content"].strip()
-        return JSONResponse({"rewrites": rewrites})
+        r.raise_for_status()
+        ans = r.json()["choices"][0]["message"]["content"].strip()
+        return JSONResponse({"rewrites": ans})
