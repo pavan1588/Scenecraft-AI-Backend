@@ -22,6 +22,7 @@ def health():
 
 # ---- BASIC AUTH SETUP ----
 security = HTTPBasic()
+
 def verify_user(creds: HTTPBasicCredentials = Depends(security)):
     user_ok = secrets.compare_digest(creds.username, "admin")
     pwd_ok  = secrets.compare_digest(
