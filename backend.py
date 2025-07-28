@@ -5,12 +5,13 @@ import httpx
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import FileResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
+# ─── 1. App Init & Basic Auth ───────────────────────────────
 app = FastAPI()
 security = HTTPBasic()
 
@@ -19,24 +20,32 @@ ADMIN_PASS = os.getenv("ADMIN_PASS", "prantasdatwanta")
 
 def require_auth(creds: HTTPBasicCredentials = Depends(security)):
     if creds.username != ADMIN_USER or creds.password != ADMIN_PASS:
-        raise HTTPException(status_code=401, detail="Unauthorized", headers={"WWW-Authenticate": "Basic"})
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized",
+            headers={"WWW-Authenticate": "Basic"},
+        )
     return True
 
+# ─── 2. CORS ────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Limit this later to your domain
+    allow_origins=["*"],  # Replace with ["https://scenecraft-ai.com"] in prod
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ─── 3. Health Check ────────────────────────────────────────
 @app.get("/health")
 @app.head("/health")
 def health():
     return {"status": "ok"}
 
+# ─── 4. Rate Limiting & Scene Cleaning ──────────────────────
 RATE_LIMIT = {}
 WINDOW, MAX_CALLS = 60, 10
+
 COMMANDS = [
     r"rewrite(?:\s+scene)?", r"regenerate(?:\s+scene)?", r"generate(?:\s+scene)?",
     r"compose(?:\s+scene)?", r"fix(?:\s+scene)?", r"improve(?:\s+scene)?",
@@ -64,17 +73,23 @@ def clean_scene(text: str) -> str:
 def is_valid_scene(text: str) -> bool:
     return len(clean_scene(text)) >= 30
 
+# ─── 5. Input Schema ────────────────────────────────────────
 class SceneRequest(BaseModel):
     scene: str
 
+# ─── 6. Scene Analyzer API ──────────────────────────────────
 @app.post("/analyze")
-async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
+async def analyze(
+    request: Request,
+    data: SceneRequest,
+    x_user_agreement: str = Header(None)
+):
     ip = request.client.host
     if not rate_limiter(ip):
         raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "Rate limit exceeded.")
     if x_user_agreement != "true":
         raise HTTPException(400, "You must accept the Terms & Conditions.")
-
+    
     cleaned = clean_scene(data.scene)
     if not is_valid_scene(data.scene):
         raise HTTPException(400, "Scene too short—please submit at least 30 characters.")
@@ -126,9 +141,16 @@ Conclude with a **Suggestions** section in natural prose.
         analysis = result["choices"][0]["message"]["content"].strip()
         return {"analysis": analysis}
 
-# ─── Serve frontend from /frontend_dist ───────────────────────────────
-FRONTEND_FOLDER = Path(__file__).parent / "frontend_dist"
-if not FRONTEND_FOLDER.exists():
-    raise RuntimeError("Frontend build not found.")
+# ─── 7. Frontend Mount (Final Fix) ───────────────────────────
+FRONTEND = Path(__file__).parent / "frontend_dist"
+if not FRONTEND.exists():
+    raise RuntimeError(f"Frontend build not found: {FRONTEND}")
 
-app.mount("/", StaticFiles(directory=FRONTEND_FOLDER, html=True), name="static")
+# Serve static files like /assets/js, /assets/css
+app.mount("/assets", StaticFiles(directory=FRONTEND, html=False), name="assets")
+
+# Serve index.html on root and fallback for SPA routing
+@app.get("/")
+@app.get("/{full_path:path}")
+async def serve_spa():
+    return FileResponse(FRONTEND / "index.html")
