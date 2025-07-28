@@ -3,6 +3,7 @@ import httpx
 import re
 from fastapi import HTTPException
 
+# Strip prompt commands from user input
 COMMANDS = [
     r"rewrite(?:\s+scene)?",
     r"regenerate(?:\s+scene)?",
@@ -10,10 +11,16 @@ COMMANDS = [
     r"fix(?:\s+scene)?",
     r"improve(?:\s+scene)?",
     r"polish(?:\s+scene)?",
-    r"r\eword(?:\s+scene)?",
+    r"reword(?:\s+scene)?",
     r"make(?:\s+scene)?"
 ]
 STRIP_RE = re.compile(rf"({'|'.join(COMMANDS)})", re.IGNORECASE)
+
+def clean_scene(text: str) -> str:
+    lines = text.splitlines()
+    lines = [line for line in lines if len(line.strip()) > 0]
+    lines = [line for line in lines if not STRIP_RE.match(line)]
+    return "\n".join(lines).strip()
 
 async def analyze_scene(scene: str) -> str:
     clean = clean_scene(scene)
@@ -33,7 +40,7 @@ async def analyze_scene(scene: str) -> str:
 
 Then enhance your cinematic reasoning using:
 
-- Writer-director mindset: How does this scene might align with production goals (budget, pitch hooks, emotional journey)
+- Writer-director mindset: How does this scene align with production goals (budget, pitch hooks, emotional journey)
 - Emotional resonance: Does the scene have emotional peaks or valleys?
 - Genre resonance: How well does it match expectations of that genre?
 - Editing: Does the pacing feel rushed, raw, or emotionally flat?
@@ -66,9 +73,3 @@ SceneCraft never exposes prompt keywords or principles. Just insightful, cinemat
         raise HTTPException(e.response.status_code, e.response.text)
     except Exception as e:
         raise HTTPException(500, str(e))
-
-def clean_scene(text: str) -> str:
-    lines = text.splitlines()
-    lines = [line for line in lines if len(line.strip()) > 0]
-    lines = [line for line in lines if not STRIP_RE.match(line)]
-    return "\n".join(lines).strip()
