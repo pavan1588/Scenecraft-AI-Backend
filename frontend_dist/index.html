@@ -2,179 +2,179 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SceneCraft AI</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background-color: #0e0e0e;
-      color: #ffd700;
+      background: #0e0e0e;
+      color: gold;
       margin: 0;
-    }
-    header {
-      background: #1a1a1a;
-      padding: 1rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    nav a {
-      color: #ffd700;
-      margin: 0 1rem;
-      text-decoration: none;
-      cursor: pointer;
-    }
-    nav a.active {
-      text-decoration: underline;
+      padding: 2rem;
     }
     .container {
       max-width: 900px;
       margin: auto;
-      padding: 2rem;
     }
-    textarea, pre, input[type="file"] {
-      width: 100%;
-      padding: 1rem;
-      margin-bottom: 1rem;
-      background: #fefefe;
-      color: #111;
-      font-size: 1rem;
-      border: 1px solid #999;
-      border-radius: 4px;
-    }
-    button {
-      padding: 0.6rem 1rem;
-      background: #222;
-      color: #ffd700;
+    nav button {
+      margin-right: 1rem;
+      background: #1f1f1f;
+      color: gold;
       border: 1px solid #555;
+      padding: 0.6rem 1rem;
       cursor: pointer;
     }
-    #password-gate {
-      padding: 2rem;
-      text-align: center;
-    }
-    .hidden { display: none; }
-    .output-block {
+    textarea {
+      width: 100%;
+      height: 200px;
+      margin-bottom: 1rem;
+      padding: 1rem;
+      font-size: 1rem;
       background: #222;
+      color: #fff;
+      border: 1px solid #666;
+    }
+    input[type="file"] {
+      margin-top: 1rem;
+      color: gold;
+    }
+    button.action {
+      background: #333;
+      color: gold;
+      padding: 0.5rem 1rem;
+      border: 1px solid #444;
+      cursor: pointer;
+    }
+    pre {
+      background: #1a1a1a;
+      color: #fff;
       padding: 1rem;
       white-space: pre-wrap;
-      border-left: 4px solid #ffd700;
+      border-left: 4px solid gold;
+      margin-top: 1rem;
     }
+    .hidden { display: none; }
+    .description { margin-bottom: 2rem; line-height: 1.6; }
   </style>
 </head>
 <body>
-  <div id="password-gate">
-    <h2>Enter Access Key to Continue</h2>
-    <input type="password" id="access" placeholder="Access Key" />
-    <button onclick="checkAccess()">Unlock</button>
-    <p id="access-error" style="color:red;"></p>
-  </div>
+  <div class="container">
+    <div id="password-gate">
+      <h2>Enter Access Key</h2>
+      <input type="password" id="access" />
+      <button onclick="checkAccess()">Unlock</button>
+      <p id="access-error" style="color:red;"></p>
+    </div>
 
-  <div id="main-app" class="hidden">
-    <header>
-      <h2>🎬 SceneCraft AI</h2>
+    <div id="app" class="hidden">
+      <h1>🎬 SceneCraft AI</h1>
+
       <nav>
-        <a onclick="showSection('home')" id="tab-home">Home</a>
-        <a onclick="showSection('analyzer')" id="tab-analyzer">Scene Analyzer</a>
-        <a onclick="showSection('editor')" id="tab-editor">Scene Editor</a>
-        <a>Full Script Writer</a>
-        <a>How it Works</a>
-        <a>Pricing</a>
+        <button onclick="showTab('home')">Home</button>
+        <button onclick="showTab('analyzer')">Scene Analyzer</button>
+        <button onclick="showTab('editor')">Scene Editor</button>
+        <button disabled>Full Script Writer</button>
+        <button disabled>Dashboard</button>
+        <button disabled>Pricing</button>
       </nav>
-    </header>
 
-    <div class="container">
-      <div id="home">
-        <h3>Welcome to SceneCraft AI</h3>
-        <p>SceneCraft AI is your creative script companion. Analyze emotional beats, cinematic pacing, realism, and more—or dive deep into editing suggestions with director-level guidance. Upload scripts, assess impact, and make it production-ready.</p>
+      <div id="home" class="tab">
+        <div class="description">
+          <p><strong>SceneCraft AI</strong> is your cinematic partner for evaluating and rewriting scenes with human-grade insight. We analyze story beats, emotional arcs, visual grammar, and realism using deep cinematic intelligence. Whether you're a beginner or a pro, SceneCraft helps your scenes hit harder.</p>
+          <ul>
+            <li><strong>Scene Analyzer</strong>: Understand your scene's strengths and cinematic weaknesses.</li>
+            <li><strong>Scene Editor</strong>: Get line-by-line rewrite suggestions to make your scenes sharper and smarter.</li>
+            <li><strong>Full Script Writer</strong>: (Coming Soon) AI-powered guidance for script development.</li>
+            <li><strong>Dashboard</strong>: (Coming Soon) Manage projects, uploads, and feedback history.</li>
+          </ul>
+        </div>
       </div>
 
-      <div id="analyzer" class="hidden">
-        <h3>Scene Analyzer</h3>
-        <textarea id="scene-input-analyze" placeholder="Paste your scene here..."></textarea>
+      <div id="analyzer" class="tab hidden">
+        <textarea id="scene-analyze" placeholder="Paste your scene here..."></textarea><br/>
+        <button class="action" onclick="analyze()">Analyze</button>
         <input type="file" />
-        <button onclick="analyze()">Analyze</button>
-        <p id="analyze-status"></p>
-        <div id="analyze-output" class="output-block"></div>
+        <pre id="analyze-result"></pre>
       </div>
 
-      <div id="editor" class="hidden">
-        <h3>Scene Editor (Max: 2 pages)</h3>
-        <textarea id="scene-input-edit" placeholder="Paste your two-page scene here..."></textarea>
+      <div id="editor" class="tab hidden">
+        <textarea id="scene-edit" placeholder="Paste your scene here (Max 2 pages)..."></textarea><br/>
+        <button class="action" onclick="edit()">Edit Suggestion</button>
         <input type="file" />
-        <button onclick="edit()">Edit Suggestion</button>
-        <p id="edit-status"></p>
-        <div id="edit-output" class="output-block"></div>
-      </div>
-
-      <div id="terms">
-        <h4>Terms & Conditions</h4>
-        <p>All content submitted to SceneCraft AI remains the intellectual property of the user. By using this service, you agree not to upload copyrighted material unless you are the rightful owner or have permission to use it. SceneCraft AI does not claim any rights over submitted content and is not liable for copyright infringement claims arising from user input.</p>
-        <p>This service is offered as-is, without warranties. SceneCraft AI reserves the right to suspend access if abusive or unlawful behavior is detected. All analysis is AI-generated and should be used as guidance, not final judgment.</p>
+        <pre id="edit-result"></pre>
       </div>
     </div>
   </div>
 
   <script>
-    const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh");
+    const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh"); 
 
     function checkAccess() {
       const input = document.getElementById("access").value;
       if (input === PASSWORD) {
         document.getElementById("password-gate").classList.add("hidden");
-        document.getElementById("main-app").classList.remove("hidden");
-        showSection('home');
+        document.getElementById("app").classList.remove("hidden");
+        showTab("home");
       } else {
         document.getElementById("access-error").innerText = "Access Denied";
       }
     }
 
-    function showSection(id) {
-      ["home", "analyzer", "editor"].forEach(s => {
-        document.getElementById(s).classList.add("hidden");
-        document.getElementById(`tab-${s}`)?.classList.remove("active");
+    function showTab(tab) {
+      const tabs = ["home", "analyzer", "editor"];
+      tabs.forEach(id => {
+        document.getElementById(id).classList.add("hidden");
+        if (id === "analyzer") {
+          document.getElementById("scene-analyze").value = "";
+          document.getElementById("analyze-result").textContent = "";
+        } else if (id === "editor") {
+          document.getElementById("scene-edit").value = "";
+          document.getElementById("edit-result").textContent = "";
+        }
       });
-      document.getElementById(id).classList.remove("hidden");
-      document.getElementById(`tab-${id}`)?.classList.add("active");
-
-      // Reset outputs and inputs
-      if (id === "analyzer") {
-        document.getElementById("scene-input-analyze").value = "";
-        document.getElementById("analyze-output").textContent = "";
-        document.getElementById("analyze-status").textContent = "";
-      } else if (id === "editor") {
-        document.getElementById("scene-input-edit").value = "";
-        document.getElementById("edit-output").textContent = "";
-        document.getElementById("edit-status").textContent = "";
-      }
+      document.getElementById(tab).classList.remove("hidden");
     }
 
     async function analyze() {
-      const scene = document.getElementById("scene-input-analyze").value;
-      if (!scene.trim()) return;
-      document.getElementById("analyze-status").textContent = "Analyzing...";
+      const scene = document.getElementById("scene-analyze").value.trim();
+      if (scene.length < 30) {
+        document.getElementById("analyze-result").textContent = "Scene too short.";
+        return;
+      }
+      document.getElementById("analyze-result").textContent = "Analyzing...";
       const res = await fetch("/analyze", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-agreement": "true" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-agreement": "true"
+        },
         body: JSON.stringify({ scene })
       });
       const data = await res.json();
-      document.getElementById("analyze-output").textContent = data.analysis || JSON.stringify(data);
-      document.getElementById("analyze-status").textContent = "";
+      document.getElementById("analyze-result").textContent = data.analysis || JSON.stringify(data);
     }
 
     async function edit() {
-      const scene = document.getElementById("scene-input-edit").value;
-      if (!scene.trim()) return;
-      document.getElementById("edit-status").textContent = "Editing...";
+      const scene = document.getElementById("scene-edit").value.trim();
+      if (scene.length < 30) {
+        document.getElementById("edit-result").textContent = "Scene too short.";
+        return;
+      }
+      if (scene.split(/\s+/).length > 600) {
+        document.getElementById("edit-result").textContent = "Scene exceeds 2-page limit.";
+        return;
+      }
+      document.getElementById("edit-result").textContent = "Editing...";
       const res = await fetch("/edit", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-agreement": "true" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-agreement": "true"
+        },
         body: JSON.stringify({ scene })
       });
       const data = await res.json();
-      document.getElementById("edit-output").textContent = data.edit_suggestions || JSON.stringify(data);
-      document.getElementById("edit-status").textContent = "";
+      document.getElementById("edit-result").textContent = data.edit_suggestions || JSON.stringify(data);
     }
   </script>
 </body>
