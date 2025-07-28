@@ -8,106 +8,120 @@
     body {
       font-family: Arial, sans-serif;
       background: #0e0e0e;
-      color: #fff;
+      color: #ffd700;
       margin: 0;
       padding: 0;
     }
-    nav {
+    header, nav, footer {
       background: #1a1a1a;
-      padding: 1rem;
-      display: flex;
-      justify-content: center;
-      gap: 1.5rem;
-      border-bottom: 1px solid #333;
+      padding: 1rem 2rem;
     }
-    nav a {
-      color: #fff;
-      text-decoration: none;
-      font-weight: bold;
-    }
-    nav a.disabled {
-      color: #777;
-      pointer-events: none;
+    nav button {
+      background: none;
+      color: #ffd700;
+      border: none;
+      font-size: 1rem;
+      margin-right: 1rem;
+      cursor: pointer;
     }
     .container {
       max-width: 900px;
-      margin: auto;
+      margin: 2rem auto;
       padding: 2rem;
     }
-    textarea, input[type="file"] {
+    textarea {
       width: 100%;
-      margin-bottom: 1rem;
+      height: 200px;
+      margin-top: 1rem;
       padding: 1rem;
       font-size: 1rem;
-      background: #111;
-      color: #fff;
+      background: #1e1e1e;
+      color: #ffd700;
       border: 1px solid #444;
     }
-    button {
-      padding: 0.6rem 1rem;
-      margin-right: 0.5rem;
-      background: #1f1f1f;
-      color: #fff;
-      border: 1px solid #444;
+    button.action {
+      padding: 0.6rem 1.5rem;
+      margin-top: 1rem;
+      background: #333;
+      color: #ffd700;
+      border: 1px solid #888;
       cursor: pointer;
     }
     pre {
-      background: #1a1a1a;
+      background: #1e1e1e;
       padding: 1rem;
       white-space: pre-wrap;
-      border-left: 4px solid #4caf50;
-      max-height: 400px;
-      overflow-y: auto;
+      margin-top: 1rem;
+      border-left: 4px solid #ffd700;
     }
     .hidden { display: none; }
-    footer {
-      margin-top: 4rem;
-      padding: 2rem;
-      background: #111;
+    input[type="password"] {
+      margin-top: 0.5rem;
+      padding: 0.5rem;
+      width: 200px;
+    }
+    .notice {
       font-size: 0.9rem;
-      color: #ccc;
+      color: #aaa;
+      margin-top: 1rem;
     }
   </style>
 </head>
 <body>
-  <nav>
-    <a href="#" onclick="switchTab('analyzer')">Scene Analyzer</a>
-    <a href="#" onclick="switchTab('editor')">Scene Editor</a>
-    <a class="disabled">Full Script Writer</a>
-    <a class="disabled">How it Works</a>
-    <a class="disabled">Pricing</a>
-  </nav>
+  <header>
+    <h1>🎬 SceneCraft AI</h1>
+    <nav>
+      <button onclick="showTab('home')">Home</button>
+      <button onclick="showTab('analyzer')">Scene Analyzer</button>
+      <button onclick="showTab('editor')">Scene Editor</button>
+      <button disabled>Full Script Writer</button>
+      <button disabled>How It Works</button>
+      <button disabled>Pricing</button>
+    </nav>
+  </header>
 
   <div class="container">
-    <h1>🎬 SceneCraft AI</h1>
-    <p>Your cinematic scene consultant—powered by professional-grade storytelling logic and analysis benchmarks.</p>
-
     <div id="password-gate">
       <p>Enter Access Key:</p>
       <input type="password" id="access" />
-      <button onclick="checkAccess()">Unlock</button>
+      <button class="action" onclick="checkAccess()">Unlock</button>
       <p id="access-error" style="color:red;"></p>
     </div>
 
     <div id="app" class="hidden">
-      <input type="file" id="fileUpload" accept=".doc,.docx,.pdf" onchange="extractText(event)" />
-      <textarea id="scene" placeholder="Paste your scene here... (max 600 words)"></textarea><br/>
-      <button onclick="analyze()">Scene Analyzer</button>
-      <button onclick="edit()">Scene Editor</button>
-      <pre id="result"></pre>
+      <div id="home">
+        <h2>Welcome to SceneCraft AI</h2>
+        <p>SceneCraft AI is your cinematic assistant, offering professional-grade feedback on your scenes and scripts. Whether you're a seasoned screenwriter or just starting out, SceneCraft provides smart, realistic, and emotionally tuned analysis and editing suggestions.</p>
+        <ul>
+          <li><strong>Scene Analyzer:</strong> Breaks down pacing, character beats, subtext, and more.</li>
+          <li><strong>Scene Editor:</strong> Offers line-by-line rewrites with rationale and director's notes.</li>
+          <li><strong>Full Script Writer:</strong> Coming soon – a structured co-writing assistant.</li>
+        </ul>
+      </div>
+
+      <div id="analyzer" class="hidden">
+        <h2>Scene Analyzer</h2>
+        <textarea id="scene-analyze" placeholder="Paste your scene here..."></textarea><br/>
+        <button class="action" onclick="analyze()">Analyze</button>
+        <input type="file" />
+        <pre id="result-analyze"></pre>
+      </div>
+
+      <div id="editor" class="hidden">
+        <h2>Scene Editor (Max 2 pages / ~600 words)</h2>
+        <textarea id="scene-edit" placeholder="Paste your scene here..."></textarea><br/>
+        <div class="notice">Limit: Approx. 600 words (2 pages max)</div>
+        <button class="action" onclick="edit()">Edit Suggestion</button>
+        <input type="file" />
+        <pre id="result-edit"></pre>
+      </div>
+
+      <div class="notice">
+        <h4>Terms & Conditions</h4>
+        <p>All scenes you upload remain your property. SceneCraft AI does not store, publish, or share your content. By using this tool, you agree to our disclaimer: the feedback is AI-generated and intended for creative assistance, not as legal or copyright advice.</p>
+      </div>
     </div>
   </div>
-
-  <footer>
-    <p><strong>Terms & Conditions:</strong></p>
-    <ul>
-      <li>All content remains your intellectual property. We do not store submitted scenes.</li>
-      <li>SceneCraft AI does not provide legal advice or script copyrighting.</li>
-      <li>Rewrites are creative suggestions, not production-ready content.</li>
-      <li>Ensure your submission abides by local copyright law.</li>
-      <li>Scene Editor accepts scenes up to 2 pages (~600 words).</li>
-    </ul>
-  </footer>
 
   <script>
     const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh");
@@ -122,14 +136,21 @@
       }
     }
 
-    function switchTab(tab) {
-      document.getElementById("result").textContent = "";
-      document.getElementById("scene").value = "";
+    function showTab(tab) {
+      ["home", "analyzer", "editor"].forEach(id => {
+        document.getElementById(id).classList.add("hidden");
+      });
+      document.getElementById(tab).classList.remove("hidden");
+      clearResults();
+    }
+
+    function clearResults() {
+      document.getElementById("result-analyze").textContent = "";
+      document.getElementById("result-edit").textContent = "";
     }
 
     async function analyze() {
-      const scene = document.getElementById("scene").value;
-      if (!scene || scene.length < 30) return alert("Scene too short");
+      const scene = document.getElementById("scene-analyze").value;
       const res = await fetch("/analyze", {
         method: "POST",
         headers: {
@@ -139,12 +160,11 @@
         body: JSON.stringify({ scene })
       });
       const data = await res.json();
-      document.getElementById("result").textContent = data.analysis || JSON.stringify(data);
+      document.getElementById("result-analyze").textContent = data.analysis || JSON.stringify(data);
     }
 
     async function edit() {
-      const scene = document.getElementById("scene").value;
-      if (!scene || scene.split(" ").length > 600) return alert("Max 600 words allowed (2 pages)");
+      const scene = document.getElementById("scene-edit").value;
       const res = await fetch("/editor", {
         method: "POST",
         headers: {
@@ -154,20 +174,7 @@
         body: JSON.stringify({ scene })
       });
       const data = await res.json();
-      document.getElementById("result").textContent = data.rewrites || JSON.stringify(data);
-    }
-
-    async function extractText(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      if (file.name.endsWith(".pdf")) {
-        alert("PDF upload support requires backend text extraction.");
-      } else if (file.name.endsWith(".docx") || file.name.endsWith(".doc")) {
-        alert("Word file upload support requires backend docx parsing.");
-      } else {
-        alert("Unsupported file format.");
-      }
+      document.getElementById("result-edit").textContent = data.rewrites || JSON.stringify(data);
     }
   </script>
 </body>
