@@ -5,7 +5,7 @@ import httpx
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import FileResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
@@ -29,7 +29,7 @@ def require_auth(creds: HTTPBasicCredentials = Depends(security)):
 # ─── 2. CORS ─────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Change to ["https://scenecraft-ai.com"] if needed
+    allow_origins=["*"],  # You can restrict to ["https://scenecraft-ai.com"]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -144,11 +144,4 @@ Conclude with a **Suggestions** section in natural prose.
 @app.get("/")
 async def serve_index():
     index_path = Path(__file__).parent / "frontend_dist" / "index.html"
-    if not index_path.exists():
-        raise HTTPException(500, detail="frontend_dist/index.html missing.")
-    return FileResponse(index_path)
-
-# ─── 8. Catch-all fallback (for deep links or subroutes) ─────────────
-@app.get("/{path_name:path}")
-async def catch_all(path_name: str):
-    return await serve_index()
+    if
