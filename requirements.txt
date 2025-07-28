@@ -7,4 +7,3 @@ asyncpg
 firebase-admin
 httpx
 python-dotenv
-psycopg2-binary
