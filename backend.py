@@ -10,7 +10,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
-# ─── 1. App Init & Auth ──────────────────────────────────────────────
+# ─── 1. App Setup & Auth ─────────────────────────────────────────────
 app = FastAPI()
 security = HTTPBasic()
 
@@ -29,7 +29,7 @@ def require_auth(creds: HTTPBasicCredentials = Depends(security)):
 # ─── 2. CORS ─────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # You can restrict to ["https://scenecraft-ai.com"]
+    allow_origins=["*"],  # Replace with your domain if needed
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -41,9 +41,10 @@ app.add_middleware(
 def health():
     return {"status": "ok"}
 
-# ─── 4. Rate Limiting & Scene Cleaning ───────────────────────────────
+# ─── 4. Rate Limit & Scene Cleaning ──────────────────────────────────
 RATE_LIMIT = {}
-WINDOW, MAX_CALLS = 60, 10
+WINDOW = 60
+MAX_CALLS = 10
 
 COMMANDS = [
     r"rewrite(?:\s+scene)?", r"regenerate(?:\s+scene)?", r"generate(?:\s+scene)?",
@@ -72,11 +73,11 @@ def clean_scene(text: str) -> str:
 def is_valid_scene(text: str) -> bool:
     return len(clean_scene(text)) >= 30
 
-# ─── 5. Input Schema ─────────────────────────────────────────────────
+# ─── 5. Schema ───────────────────────────────────────────────────────
 class SceneRequest(BaseModel):
     scene: str
 
-# ─── 6. Scene Analyzer API ───────────────────────────────────────────
+# ─── 6. Analyze Endpoint ─────────────────────────────────────────────
 @app.post("/analyze")
 async def analyze(
     request: Request,
@@ -88,7 +89,7 @@ async def analyze(
         raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "Rate limit exceeded.")
     if x_user_agreement != "true":
         raise HTTPException(400, "You must accept the Terms & Conditions.")
-    
+
     cleaned = clean_scene(data.scene)
     if not is_valid_scene(data.scene):
         raise HTTPException(400, "Scene too short—please submit at least 30 characters.")
@@ -118,8 +119,8 @@ Conclude with a **Suggestions** section in natural prose.
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": cleaned},
-        ],
+            {"role": "user", "content": cleaned}
+        ]
     }
 
     api_key = os.getenv("OPENROUTER_API_KEY")
@@ -137,11 +138,17 @@ Conclude with a **Suggestions** section in natural prose.
         )
         resp.raise_for_status()
         result = resp.json()
-        analysis = result["choices"][0]["message"]["content"].strip()
-        return {"analysis": analysis}
+        return {"analysis": result["choices"][0]["message"]["content"].strip()}
 
 # ─── 7. Serve index.html ─────────────────────────────────────────────
 @app.get("/")
 async def serve_index():
     index_path = Path(__file__).parent / "frontend_dist" / "index.html"
-    if
+    if not index_path.exists():
+        raise HTTPException(500, detail="frontend_dist/index.html missing.")
+    return FileResponse(index_path)
+
+# ─── 8. Fallback for any route (SPA-friendly) ────────────────────────
+@app.get("/{path_name:path}")
+async def catch_all(path_name: str):
+    return await serve_index()
