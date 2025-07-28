@@ -1,10 +1,12 @@
 import os
 import time
 import httpx
+from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-
 from logic.prompt_templates import SCENE_EDITOR_PROMPT
 
 app = FastAPI()
@@ -81,6 +83,24 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
     except Exception as e:
         raise HTTPException(500, str(e))
 
+# Mount frontend
+FRONTEND_DIR = Path(__file__).parent / "frontend_dist"
+if not FRONTEND_DIR.exists():
+    raise RuntimeError("frontend_dist folder not found.")
+app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+
+# Serve index.html
 @app.get("/")
-def root():
-    return {"message": "SceneCraft Scene Editor API is live."}
+async def serve_index():
+    index_path = FRONTEND_DIR / "index.html"
+    if not index_path.exists():
+        raise HTTPException(status_code=500, detail="index.html not found.")
+    return FileResponse(index_path)
+
+# Fallback route for SPA deep links
+@app.get("/{full_path:path}")
+async def fallback(full_path: str):
+    index_path = FRONTEND_DIR / "index.html"
+    if not index_path.exists():
+        raise HTTPException(status_code=500, detail="index.html not found.")
+    return FileResponse(index_path)
