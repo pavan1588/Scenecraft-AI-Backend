@@ -16,7 +16,7 @@ security = HTTPBasic()
 
 # Basic Auth (Optional)
 ADMIN_USER = "admin"
-ADMIN_PASS = os.getenv("ADMIN_PASS", "SCENECRAFT-2024")
+ADMIN_PASS = os.getenv("ADMIN_PASS", "prantasdatwanta")
 def require_auth(creds: HTTPBasicCredentials = Depends(security)):
     if creds.username != ADMIN_USER or creds.password != ADMIN_PASS:
         raise HTTPException(
