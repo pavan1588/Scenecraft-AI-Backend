@@ -165,7 +165,7 @@
 
     async function edit() {
       const scene = document.getElementById("scene-edit").value;
-      const res = await fetch("/editor", {
+      const res = await fetch("/edit", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
