@@ -14,19 +14,18 @@ security = HTTPBasic()
 ADMIN_USER = "admin"
 ADMIN_PASS = os.getenv("ADMIN_PASS", "prantasdatwanta")
 
-def require_auth(creds: HTTPBasicCredentials = Depends(security)):
+def require_auth(creds: HTTPBasicCredentials):
     if creds.username != ADMIN_USER or creds.password != ADMIN_PASS:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Unauthorized",
             headers={"WWW-Authenticate": "Basic"},
         )
-    return True
 
-# ─── 2) CORS ─────────────────────────────────────────────────────────────────
+# ─── 2) CORS FOR API CALLS ────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # restrict to your domains if you like
+    allow_origins=["*"],  # adjust to your domains
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
