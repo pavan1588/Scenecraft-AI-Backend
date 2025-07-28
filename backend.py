@@ -17,14 +17,10 @@ app = FastAPI()
 security = HTTPBasic()
 
 ADMIN_USER = "admin"
-ADMIN_PASS = os.getenv("ADMIN_PASS", "prantasdatwanta")
+ADMIN_PASS = os.getenv("ADMIN_PASS", "SCENECRAFT-2024")
 
 def require_auth(creds: HTTPBasicCredentials = Depends(security)):
-    correct = (
-        creds.username == ADMIN_USER
-        and creds.password == ADMIN_PASS
-    )
-    if not correct:
+    if not (creds.username == ADMIN_USER and creds.password == ADMIN_PASS):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Unauthorized",
@@ -32,11 +28,11 @@ def require_auth(creds: HTTPBasicCredentials = Depends(security)):
         )
     return True
 
-# ─── CORS (allow your front‑end to hit the APIs) ─────────────────────────────────
+# ─── CORS ───────────────────────────────────────────────────────────────────────
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # or lock to your domain
+    allow_origins=["*"],  # you can lock this to your domains
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -49,7 +45,7 @@ app.add_middleware(
 def health():
     return {"status": "ok"}
 
-# ─── RATE‑LIMIT & SCENE CLEANING (UNCHANGED) ────────────────────────────────────
+# ─── RATE‑LIMIT & CLEANING LOGIC (UNCHANGED) ────────────────────────────────────
 
 RATE_LIMIT: dict[str, list[float]] = {}
 WINDOW = 60
@@ -70,7 +66,6 @@ STRIP_PATTERN = re.compile(
 def rate_limiter(ip: str) -> bool:
     now = time.time()
     calls = RATE_LIMIT.setdefault(ip, [])
-    # purge old
     RATE_LIMIT[ip] = [t for t in calls if now - t < WINDOW]
     if len(RATE_LIMIT[ip]) >= MAX_CALLS:
         return False
@@ -91,7 +86,7 @@ def is_valid_scene(text: str) -> bool:
 class SceneRequest(BaseModel):
     scene: str
 
-# ─── SCENE ANALYZER ENDPOINT ───────────────────────────────────────────────────
+# ─── SCENE ANALYZER API ─────────────────────────────────────────────────────────
 
 @app.post("/analyze")
 async def analyze(
@@ -104,7 +99,6 @@ async def analyze(
         raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "Rate limit exceeded.")
     if x_user_agreement != "true":
         raise HTTPException(400, "You must accept the Terms & Conditions.")
-
     cleaned = clean_scene(data.scene)
     if not is_valid_scene(data.scene):
         raise HTTPException(400, "Scene too short—please submit at least 30 characters.")
@@ -165,7 +159,7 @@ Conclude with a **Suggestions** section that gives 3–5 specific next-step crea
         analysis = result["choices"][0]["message"]["content"].strip()
         return {"analysis": analysis}
 
-# ─── SCENE EDITOR ENDPOINT ─────────────────────────────────────────────────────
+# ─── SCENE EDITOR API ───────────────────────────────────────────────────────────
 
 @app.post("/editor")
 async def edit(
@@ -178,7 +172,6 @@ async def edit(
         raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "Rate limit exceeded.")
     if x_user_agreement != "true":
         raise HTTPException(400, "You must accept the Terms & Conditions.")
-
     cleaned = clean_scene(data.scene)
     if not is_valid_scene(data.scene):
         raise HTTPException(400, "Scene too short—please submit at least 30 characters.")
@@ -220,14 +213,12 @@ If the line is already strong, say “No change needed.” Do NOT expose any int
         rewrites = result["choices"][0]["message"]["content"].strip()
         return {"rewrites": rewrites}
 
-# ─── MOUNT YOUR FRONTEND (NO STATIC/) ───────────────────────────────────────────
+# ─── SERVE YOUR FRONTEND HTML (BASIC‑AUTH PROTECTED) ─────────────────────────────
 
 FRONTEND = Path(__file__).parent / "frontend_dist"
-
 if not FRONTEND.exists():
     raise RuntimeError(f"Front‑end build not found at {FRONTEND!s}")
 
-# serve index.html and editor.html (Basic‑Auth protected)
 @app.get("/", response_class=HTMLResponse, dependencies=[Depends(require_auth)])
 def serve_index():
     return FileResponse(FRONTEND / "index.html")
@@ -235,10 +226,3 @@ def serve_index():
 @app.get("/editor.html", response_class=HTMLResponse, dependencies=[Depends(require_auth)])
 def serve_editor():
     return FileResponse(FRONTEND / "editor.html")
-
-# If you add more standalone HTML (how-it-works.html, pricing.html, terms.html),
-# just duplicate the @app.get(...) pattern above.
-
-# ────────────────────────────────────────────────────────────────────────────────
-
-# End of file.  
