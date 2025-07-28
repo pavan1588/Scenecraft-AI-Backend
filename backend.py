@@ -29,7 +29,7 @@ def require_auth(creds: HTTPBasicCredentials = Depends(security)):
 # ─── 2. CORS ─────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Replace with your domain if needed
+    allow_origins=["*"],  # Adjust for your domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -148,7 +148,7 @@ async def serve_index():
         raise HTTPException(500, detail="frontend_dist/index.html missing.")
     return FileResponse(index_path)
 
-# ─── 8. Fallback for any route (SPA-friendly) ────────────────────────
+# ─── 8. Fallback for SPA routes ──────────────────────────────────────
 @app.get("/{path_name:path}")
 async def catch_all(path_name: str):
     return await serve_index()
