@@ -17,7 +17,7 @@ app = FastAPI()
 security = HTTPBasic()
 
 ADMIN_USER = "admin"
-ADMIN_PASS = os.getenv("ADMIN_PASS", "SCENECRAFT-2024")
+ADMIN_PASS = os.getenv("ADMIN_PASS", "prantasdatwanta")
 
 def require_auth(creds: HTTPBasicCredentials = Depends(security)):
     if not (creds.username == ADMIN_USER and creds.password == ADMIN_PASS):
