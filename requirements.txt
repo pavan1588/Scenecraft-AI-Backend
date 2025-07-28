@@ -1,4 +1,5 @@
 fastapi
+fastapi
 fastapi-security
 python-multipart
 uvicorn[standard]
