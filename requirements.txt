@@ -1,4 +1,5 @@
 fastapi
+fastapi
 fastapi-security
 python-multipart
 uvicorn[standard]
@@ -7,4 +8,3 @@ asyncpg
 firebase-admin
 httpx
 python-dotenv
-psycopg2-binary
