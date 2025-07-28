@@ -5,12 +5,13 @@ import httpx
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.staticfiles import StaticFiles  # ✅ THIS WAS MISSING EARLIER!
 from pydantic import BaseModel
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
-# ─── 1. App Setup & Auth ─────────────────────────────────────────────
+# ─── 1. App Init & Auth ──────────────────────────────────────────────
 app = FastAPI()
 security = HTTPBasic()
 
@@ -29,7 +30,7 @@ def require_auth(creds: HTTPBasicCredentials = Depends(security)):
 # ─── 2. CORS ─────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust for your domain
+    allow_origins=["*"],  # Change to specific domain when ready
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -41,10 +42,9 @@ app.add_middleware(
 def health():
     return {"status": "ok"}
 
-# ─── 4. Rate Limit & Scene Cleaning ──────────────────────────────────
+# ─── 4. Rate Limiting & Scene Cleaning ───────────────────────────────
 RATE_LIMIT = {}
-WINDOW = 60
-MAX_CALLS = 10
+WINDOW, MAX_CALLS = 60, 10
 
 COMMANDS = [
     r"rewrite(?:\s+scene)?", r"regenerate(?:\s+scene)?", r"generate(?:\s+scene)?",
@@ -73,11 +73,11 @@ def clean_scene(text: str) -> str:
 def is_valid_scene(text: str) -> bool:
     return len(clean_scene(text)) >= 30
 
-# ─── 5. Schema ───────────────────────────────────────────────────────
+# ─── 5. Input Schema ─────────────────────────────────────────────────
 class SceneRequest(BaseModel):
     scene: str
 
-# ─── 6. Analyze Endpoint ─────────────────────────────────────────────
+# ─── 6. Scene Analyzer API ───────────────────────────────────────────
 @app.post("/analyze")
 async def analyze(
     request: Request,
@@ -89,7 +89,7 @@ async def analyze(
         raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "Rate limit exceeded.")
     if x_user_agreement != "true":
         raise HTTPException(400, "You must accept the Terms & Conditions.")
-
+    
     cleaned = clean_scene(data.scene)
     if not is_valid_scene(data.scene):
         raise HTTPException(400, "Scene too short—please submit at least 30 characters.")
@@ -119,8 +119,8 @@ Conclude with a **Suggestions** section in natural prose.
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": cleaned}
-        ]
+            {"role": "user", "content": cleaned},
+        ],
     }
 
     api_key = os.getenv("OPENROUTER_API_KEY")
@@ -138,17 +138,12 @@ Conclude with a **Suggestions** section in natural prose.
         )
         resp.raise_for_status()
         result = resp.json()
-        return {"analysis": result["choices"][0]["message"]["content"].strip()}
+        analysis = result["choices"][0]["message"]["content"].strip()
+        return {"analysis": analysis}
 
-# ─── 7. Serve index.html ─────────────────────────────────────────────
-@app.get("/")
-async def serve_index():
-    index_path = Path(__file__).parent / "frontend_dist" / "index.html"
-    if not index_path.exists():
-        raise HTTPException(500, detail="frontend_dist/index.html missing.")
-    return FileResponse(index_path)
+# ─── 7. Static HTML Mount (FINAL FIX) ────────────────────────────────
+FRONTEND = Path(__file__).parent / "frontend_dist"
+if not FRONTEND.exists():
+    raise RuntimeError("Frontend folder missing!")
 
-# ─── 8. Fallback for SPA routes ──────────────────────────────────────
-@app.get("/{path_name:path}")
-async def catch_all(path_name: str):
-    return await serve_index()
+app.mount("/", StaticFiles(directory=FRONTEND, html=True), name="spa")
