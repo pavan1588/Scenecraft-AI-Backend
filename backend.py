@@ -113,6 +113,6 @@ if not FRONTEND.exists():
     raise RuntimeError(f"Frontend build not found: {FRONTEND}")
     @app.get("/health")
     def health_check():
-    return {"status": "ok"}
+        return {"status": "ok"}
 
 app.mount("/", StaticFiles(directory=str(FRONTEND), html=True), name="spa")
