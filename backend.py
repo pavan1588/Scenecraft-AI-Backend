@@ -111,4 +111,7 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
 FRONTEND = Path(__file__).parent / "frontend_dist"
 if not FRONTEND.exists():
     raise RuntimeError(f"Frontend build not found: {FRONTEND}")
+    @app.get("/health")
+def health_check():
+    return {"status": "ok"}
 app.mount("/", StaticFiles(directory=str(FRONTEND), html=True), name="spa")
