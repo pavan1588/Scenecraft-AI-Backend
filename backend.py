@@ -11,6 +11,7 @@ from starlette.status import HTTP_429_TOO_MANY_REQUESTS, HTTP_401_UNAUTHORIZED
 from logic.analyzer import analyze_scene
 from logic.prompt_templates import SCENE_EDITOR_PROMPT
 
+# ─── 1. App & Auth Setup ─────────────────────────────────────────────────────
 app = FastAPI()
 security = HTTPBasic()
 ADMIN_USER = "admin"
@@ -25,23 +26,25 @@ def require_auth(creds: HTTPBasicCredentials = Depends(security)):
         )
     return True
 
-# CORS
+# ─── 2. CORS ─────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Lock to your domain in production
+    allow_origins=["*"],  # Lock this to your production domains
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# HEALTHCHECK
+# ─── 3. Health Check ─────────────────────────────────────────────────────────
+@app.get("/health")
 @app.head("/health")
 def health():
     return {"status": "ok"}
 
-# RATE LIMITING
+# ─── 4. Rate Limiting ────────────────────────────────────────────────────────
 RATE_LIMIT = {}
 WINDOW, MAX_CALLS = 60, 10
+
 def rate_limiter(ip: str) -> bool:
     now = time.time()
     calls = RATE_LIMIT.setdefault(ip, [])
@@ -51,10 +54,11 @@ def rate_limiter(ip: str) -> bool:
     RATE_LIMIT[ip].append(now)
     return True
 
-# ===== SCENE ANALYZER =====
+# ─── 5. Input Schema ─────────────────────────────────────────────────────────
 class SceneRequest(BaseModel):
     scene: str
 
+# ─── 6. Scene Analyzer ───────────────────────────────────────────────────────
 @app.post("/analyze")
 async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
     ip = request.client.host
@@ -67,7 +71,7 @@ async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = 
         raise HTTPException(400, "Scene too short—please enter at least 30 characters.")
     return {"analysis": await analyze_scene(text)}
 
-# ===== SCENE EDITOR =====
+# ─── 7. Scene Editor ─────────────────────────────────────────────────────────
 @app.post("/edit")
 async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
     ip = request.client.host
@@ -107,12 +111,9 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
     except Exception as e:
         raise HTTPException(500, str(e))
 
-# Serve Frontend
+# ─── 8. Serve Frontend ───────────────────────────────────────────────────────
 FRONTEND = Path(__file__).parent / "frontend_dist"
 if not FRONTEND.exists():
     raise RuntimeError(f"Frontend build not found: {FRONTEND}")
-   @app.get("/health")
-   def health_check():
-       return {"status": "ok"}
 
 app.mount("/", StaticFiles(directory=str(FRONTEND), html=True), name="spa")
