@@ -114,4 +114,5 @@ if not FRONTEND.exists():
     @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
 app.mount("/", StaticFiles(directory=str(FRONTEND), html=True), name="spa")
