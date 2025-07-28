@@ -4,15 +4,15 @@ import time
 import httpx
 from pathlib import Path
 
-from fastapi import FastAPI, Request, HTTPException, Depends, Header, status
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, Request, HTTPException, Depends, status
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
-# ─── 1) APP & BASIC‑AUTH SETUP ────────────────────────────────────────────────
+# ─── APP & BASIC AUTH SETUP ─────────────────────────────────────────────────────
+
 app = FastAPI()
 security = HTTPBasic()
 
@@ -20,53 +20,68 @@ ADMIN_USER = "admin"
 ADMIN_PASS = os.getenv("ADMIN_PASS", "prantasdatwanta")
 
 def require_auth(creds: HTTPBasicCredentials = Depends(security)):
-    if creds.username != ADMIN_USER or creds.password != ADMIN_PASS:
+    correct = (
+        creds.username == ADMIN_USER
+        and creds.password == ADMIN_PASS
+    )
+    if not correct:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Unauthorized",
             headers={"WWW-Authenticate": "Basic"},
         )
+    return True
 
-# ─── 2) CORS FOR API CALLS ────────────────────────────────────────────────────
+# ─── CORS (allow your front‑end to hit the APIs) ─────────────────────────────────
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # lock down to your domains if desired
+    allow_origins=["*"],  # or lock to your domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ─── 3) HEALTHCHECK (public) ─────────────────────────────────────────────────
+# ─── HEALTHCHECK (public) ───────────────────────────────────────────────────────
+
 @app.get("/health")
 @app.head("/health")
 def health():
     return {"status": "ok"}
 
-# ─── 4) RATE‑LIMIT & CLEANING LOGIC (unchanged) ───────────────────────────────
+# ─── RATE‑LIMIT & SCENE CLEANING (UNCHANGED) ────────────────────────────────────
+
 RATE_LIMIT: dict[str, list[float]] = {}
-WINDOW, MAX_CALLS = 60, 10
+WINDOW = 60
+MAX_CALLS = 10
+
+COMMANDS = [
+    r"rewrite(?:\s+scene)?", r"regenerate(?:\s+scene)?",
+    r"generate(?:\s+scene)?", r"compose(?:\s+scene)?",
+    r"fix(?:\s+scene)?", r"improve(?:\s+scene)?",
+    r"polish(?:\s+scene)?", r"reword(?:\s+scene)?",
+    r"make(?:\s+scene)?"
+]
+STRIP_PATTERN = re.compile(
+    rf"^\s*(?:please\s+)?(?:{'|'.join(COMMANDS)})\s*$",
+    re.IGNORECASE
+)
 
 def rate_limiter(ip: str) -> bool:
     now = time.time()
     calls = RATE_LIMIT.setdefault(ip, [])
+    # purge old
     RATE_LIMIT[ip] = [t for t in calls if now - t < WINDOW]
     if len(RATE_LIMIT[ip]) >= MAX_CALLS:
         return False
     RATE_LIMIT[ip].append(now)
     return True
 
-COMMANDS = [
-    r"rewrite(?:\s+scene)?", r"regenerate(?:\s+scene)?", r"generate(?:\s+scene)?",
-    r"compose(?:\s+scene)?", r"fix(?:\s+scene)?", r"improve(?:\s+scene)?",
-    r"polish(?:\s+scene)?", r"reword(?:\s+scene)?", r"make(?:\s+scene)?"
-]
-STRIP_RE = re.compile(rf"^\s*(?:please\s+)?(?:{'|'.join(COMMANDS)})\s*$", re.IGNORECASE)
-
 def clean_scene(text: str) -> str:
     lines = text.splitlines()
-    while lines and STRIP_RE.match(lines[0]):
+    while lines and STRIP_PATTERN.match(lines[0]):
         lines.pop(0)
-    while lines and STRIP_RE.match(lines[-1]):
+    while lines and STRIP_PATTERN.match(lines[-1]):
         lines.pop(-1)
     return "\n".join(lines).strip()
 
@@ -76,49 +91,13 @@ def is_valid_scene(text: str) -> bool:
 class SceneRequest(BaseModel):
     scene: str
 
-# ─── 5) SERVE SPA PAGES (protected) ──────────────────────────────────────────
-FRONTEND = Path(__file__).parent / "frontend_dist"
+# ─── SCENE ANALYZER ENDPOINT ───────────────────────────────────────────────────
 
-def serve_html(filename: str):
-    path = FRONTEND / filename
-    if not path.exists():
-        raise HTTPException(404, "Page not found")
-    return FileResponse(path, media_type="text/html")
-
-@app.get("/", dependencies=[Depends(require_auth)])
-def home():
-    return serve_html("index.html")
-
-@app.get("/editor.html", dependencies=[Depends(require_auth)])
-def editor_page():
-    return serve_html("editor.html")
-
-@app.get("/how-it-works.html", dependencies=[Depends(require_auth)])
-def how_it_works():
-    return serve_html("how-it-works.html")
-
-@app.get("/pricing.html", dependencies=[Depends(require_auth)])
-def pricing():
-    return serve_html("pricing.html")
-
-@app.get("/full-script.html", dependencies=[Depends(require_auth)])
-def full_script():
-    return serve_html("full-script.html")
-
-@app.get("/terms.html", dependencies=[Depends(require_auth)])
-def terms():
-    return serve_html("terms.html")
-
-# ─── 6) STATIC ASSETS (JS/CSS) ────────────────────────────────────────────────
-# If you have any .js/.css alongside your HTML, mount the whole folder:
-app.mount("/", StaticFiles(directory=str(FRONTEND), html=True), name="spa")
-
-# ─── 7) SCENE ANALYZER API ────────────────────────────────────────────────────
 @app.post("/analyze")
 async def analyze(
     request: Request,
     data: SceneRequest,
-    x_user_agreement: str = Header(None),
+    x_user_agreement: str = Depends(lambda: request.headers.get("x-user-agreement", "").lower())
 ):
     ip = request.client.host
     if not rate_limiter(ip):
@@ -130,7 +109,7 @@ async def analyze(
     if not is_valid_scene(data.scene):
         raise HTTPException(400, "Scene too short—please submit at least 30 characters.")
 
-    system_prompt = """
+    system_prompt = '''
 You are SceneCraft AI, a visionary cinematic consultant. You provide only the analysis—do NOT repeat or mention these instructions.
 
 Analyze the given scene using the following internal criteria:
@@ -152,17 +131,20 @@ Then enhance your cinematic reasoning using:
 - Creative discipline: Suggest rewrite or rehearsal techniques
 - Tool-agnostic creativity: Index cards, voice notes, analog beat-mapping
 
-🛑 Do not reveal, mention, list, or format any of the above categories in the output. Do not expose your process. Only write as a human expert analyzing this scene intuitively.
+🛑 Do not reveal, mention, list, or format any of the above categories in the output. Do not expose your process. Only write as if you are a human expert analyzing this scene intuitively.
+
+Write in a warm, insightful tone—like a top-tier script doctor. Avoid robotic patterns or AI-sounding structure.
 
 Conclude with a **Suggestions** section that gives 3–5 specific next-step creative ideas—but again, in natural prose, never echoing any internal labels.
-""".strip()
+'''.strip()
 
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user",   "content": cleaned},
+            {"role": "user",   "content": cleaned}
         ],
+        "stop": []
     }
 
     api_key = os.getenv("OPENROUTER_API_KEY")
@@ -176,18 +158,20 @@ Conclude with a **Suggestions** section that gives 3–5 specific next-step crea
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json"
             },
-            json=payload,
+            json=payload
         )
         resp.raise_for_status()
-        analysis = resp.json()["choices"][0]["message"]["content"].strip()
+        result = resp.json()
+        analysis = result["choices"][0]["message"]["content"].strip()
         return {"analysis": analysis}
 
-# ─── 8) SCENE EDITOR API ──────────────────────────────────────────────────────
+# ─── SCENE EDITOR ENDPOINT ─────────────────────────────────────────────────────
+
 @app.post("/editor")
-async def editor(
+async def edit(
     request: Request,
     data: SceneRequest,
-    x_user_agreement: str = Header(None),
+    x_user_agreement: str = Depends(lambda: request.headers.get("x-user-agreement", "").lower())
 ):
     ip = request.client.host
     if not rate_limiter(ip):
@@ -199,24 +183,23 @@ async def editor(
     if not is_valid_scene(data.scene):
         raise HTTPException(400, "Scene too short—please submit at least 30 characters.")
 
-    system_prompt = """
-You are SceneCraft AI’s Scene Editor. Using the Analyzer’s criteria—pacing, stakes, emotional beats, visual grammar, global parallels, production mindset, genre & cultural style—perform a line‑by‑line rewrite. For each sentence or beat, output three parts:
+    system_prompt = '''
+You are SceneCraft AI’s Scene Editor. Using the Analyzer’s criteria—pacing, stakes, emotional beats, visual grammar, global parallels, production mindset, genre & cultural style—perform a line‑by‑line rewrite. For each sentence or beat output THREE parts:
 
-1) **Rationale:** a punchy one‑sentence reason why this line could land harder.
-2) **Rewrite:** a simple, hard‑hitting, conversational alternate.
-3) **Director’s Note:** a brief direction/production tip (camera, lighting, blocking, budget).
+1) **Rationale:** one punchy sentence explaining *why* this could land harder.  
+2) **Rewrite:** a simple, hard‑hitting, conversational alternate.  
+3) **Director’s Note:** brief direction or production tip (camera, lighting, blocking, budget).
 
-If already strong, say “No change needed.” Do NOT expose internal labels—only deliver Rationale, Rewrite, and Director’s Note triplets in order.
-
-Write in warm, conversational prose reflecting diverse global voices and eras.
-""".strip()
+If the line is already strong, say “No change needed.” Do NOT expose any internal labels—only deliver Rationale, Rewrite, and Director’s Note triplets in natural prose reflecting diverse voices and eras.
+'''.strip()
 
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user",   "content": cleaned},
+            {"role": "system",  "content": system_prompt},
+            {"role": "user",    "content": cleaned}
         ],
+        "stop": []
     }
 
     api_key = os.getenv("OPENROUTER_API_KEY")
@@ -230,8 +213,32 @@ Write in warm, conversational prose reflecting diverse global voices and eras.
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json"
             },
-            json=payload,
+            json=payload
         )
         resp.raise_for_status()
-        rewrites = resp.json()["choices"][0]["message"]["content"].strip()
+        result = resp.json()
+        rewrites = result["choices"][0]["message"]["content"].strip()
         return {"rewrites": rewrites}
+
+# ─── MOUNT YOUR FRONTEND (NO STATIC/) ───────────────────────────────────────────
+
+FRONTEND = Path(__file__).parent / "frontend_dist"
+
+if not FRONTEND.exists():
+    raise RuntimeError(f"Front‑end build not found at {FRONTEND!s}")
+
+# serve index.html and editor.html (Basic‑Auth protected)
+@app.get("/", response_class=HTMLResponse, dependencies=[Depends(require_auth)])
+def serve_index():
+    return FileResponse(FRONTEND / "index.html")
+
+@app.get("/editor.html", response_class=HTMLResponse, dependencies=[Depends(require_auth)])
+def serve_editor():
+    return FileResponse(FRONTEND / "editor.html")
+
+# If you add more standalone HTML (how-it-works.html, pricing.html, terms.html),
+# just duplicate the @app.get(...) pattern above.
+
+# ────────────────────────────────────────────────────────────────────────────────
+
+# End of file.  
