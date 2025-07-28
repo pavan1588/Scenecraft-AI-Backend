@@ -22,6 +22,9 @@
       margin-bottom: 1rem;
       padding: 1rem;
       font-size: 1rem;
+      background: #1a1a1a;
+      color: #fff;
+      border: 1px solid #444;
     }
     button {
       padding: 0.6rem 1rem;
@@ -38,6 +41,13 @@
       border-left: 4px solid #4caf50;
     }
     .hidden { display: none; }
+    input[type="password"] {
+      padding: 0.5rem;
+      font-size: 1rem;
+      border: 1px solid #444;
+      background: #1a1a1a;
+      color: #fff;
+    }
   </style>
 </head>
 <body>
@@ -60,7 +70,8 @@
   </div>
 
   <script>
-    const PASSWORD = atob("U0NFTkVDUkFGVC0yMDI0"); // prantasdatwanta
+    const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh"); // "prantasdatwanta" base64 encoded
+
     function checkAccess() {
       const input = document.getElementById("access").value;
       if (input === PASSWORD) {
@@ -87,7 +98,7 @@
 
     async function edit() {
       const scene = document.getElementById("scene").value;
-      const res = await fetch("/editor", {
+      const res = await fetch("/edit", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -96,7 +107,7 @@
         body: JSON.stringify({ scene })
       });
       const data = await res.json();
-      document.getElementById("result").textContent = data.rewrites || JSON.stringify(data);
+      document.getElementById("result").textContent = data.edit_suggestions || JSON.stringify(data);
     }
   </script>
 </body>
