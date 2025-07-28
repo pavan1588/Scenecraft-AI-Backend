@@ -10,19 +10,36 @@
       background: #0e0e0e;
       color: #fff;
       margin: 0;
-      padding: 2rem;
+      padding: 0;
+    }
+    nav {
+      background: #1a1a1a;
+      padding: 1rem;
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      border-bottom: 1px solid #333;
+    }
+    nav a {
+      color: #fff;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    nav a.disabled {
+      color: #777;
+      pointer-events: none;
     }
     .container {
-      max-width: 800px;
+      max-width: 900px;
       margin: auto;
+      padding: 2rem;
     }
-    textarea {
+    textarea, input[type="file"] {
       width: 100%;
-      height: 200px;
       margin-bottom: 1rem;
       padding: 1rem;
       font-size: 1rem;
-      background: #1a1a1a;
+      background: #111;
       color: #fff;
       border: 1px solid #444;
     }
@@ -39,20 +56,31 @@
       padding: 1rem;
       white-space: pre-wrap;
       border-left: 4px solid #4caf50;
+      max-height: 400px;
+      overflow-y: auto;
     }
     .hidden { display: none; }
-    input[type="password"] {
-      padding: 0.5rem;
-      font-size: 1rem;
-      border: 1px solid #444;
-      background: #1a1a1a;
-      color: #fff;
+    footer {
+      margin-top: 4rem;
+      padding: 2rem;
+      background: #111;
+      font-size: 0.9rem;
+      color: #ccc;
     }
   </style>
 </head>
 <body>
+  <nav>
+    <a href="#" onclick="switchTab('analyzer')">Scene Analyzer</a>
+    <a href="#" onclick="switchTab('editor')">Scene Editor</a>
+    <a class="disabled">Full Script Writer</a>
+    <a class="disabled">How it Works</a>
+    <a class="disabled">Pricing</a>
+  </nav>
+
   <div class="container">
     <h1>🎬 SceneCraft AI</h1>
+    <p>Your cinematic scene consultant—powered by professional-grade storytelling logic and analysis benchmarks.</p>
 
     <div id="password-gate">
       <p>Enter Access Key:</p>
@@ -62,15 +90,27 @@
     </div>
 
     <div id="app" class="hidden">
-      <textarea id="scene" placeholder="Paste your scene here..."></textarea><br/>
+      <input type="file" id="fileUpload" accept=".doc,.docx,.pdf" onchange="extractText(event)" />
+      <textarea id="scene" placeholder="Paste your scene here... (max 600 words)"></textarea><br/>
       <button onclick="analyze()">Scene Analyzer</button>
       <button onclick="edit()">Scene Editor</button>
       <pre id="result"></pre>
     </div>
   </div>
 
+  <footer>
+    <p><strong>Terms & Conditions:</strong></p>
+    <ul>
+      <li>All content remains your intellectual property. We do not store submitted scenes.</li>
+      <li>SceneCraft AI does not provide legal advice or script copyrighting.</li>
+      <li>Rewrites are creative suggestions, not production-ready content.</li>
+      <li>Ensure your submission abides by local copyright law.</li>
+      <li>Scene Editor accepts scenes up to 2 pages (~600 words).</li>
+    </ul>
+  </footer>
+
   <script>
-    const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh"); // "prantasdatwanta" base64 encoded
+    const PASSWORD = atob("U0NFTkVDUkFGVC0yMDI0");
 
     function checkAccess() {
       const input = document.getElementById("access").value;
@@ -82,8 +122,14 @@
       }
     }
 
+    function switchTab(tab) {
+      document.getElementById("result").textContent = "";
+      document.getElementById("scene").value = "";
+    }
+
     async function analyze() {
       const scene = document.getElementById("scene").value;
+      if (!scene || scene.length < 30) return alert("Scene too short");
       const res = await fetch("/analyze", {
         method: "POST",
         headers: {
@@ -98,7 +144,8 @@
 
     async function edit() {
       const scene = document.getElementById("scene").value;
-      const res = await fetch("/edit", {
+      if (!scene || scene.split(" ").length > 600) return alert("Max 600 words allowed (2 pages)");
+      const res = await fetch("/editor", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -107,7 +154,20 @@
         body: JSON.stringify({ scene })
       });
       const data = await res.json();
-      document.getElementById("result").textContent = data.edit_suggestions || JSON.stringify(data);
+      document.getElementById("result").textContent = data.rewrites || JSON.stringify(data);
+    }
+
+    async function extractText(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      if (file.name.endsWith(".pdf")) {
+        alert("PDF upload support requires backend text extraction.");
+      } else if (file.name.endsWith(".docx") || file.name.endsWith(".doc")) {
+        alert("Word file upload support requires backend docx parsing.");
+      } else {
+        alert("Unsupported file format.");
+      }
     }
   </script>
 </body>
