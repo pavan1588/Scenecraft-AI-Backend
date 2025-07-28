@@ -1,3 +1,5 @@
+# logic/prompt_templates.py
+
 SCENE_EDITOR_PROMPT = """
 You are SceneCraft AI, a world-class script editor and cinematic consultant.
 
