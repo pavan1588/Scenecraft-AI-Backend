@@ -7,18 +7,20 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body oncontextmenu="return false">
+  <!-- Password Gate -->
   <div id="password-gate">
     <div class="gate-container">
-      <h2>Enter Access Key to Continue</h2>
+      <h2>🔒 Enter Access Key to Continue</h2>
       <input type="password" id="access" placeholder="Access Key" />
       <button onclick="checkAccess()">Unlock</button>
       <p id="access-error" class="error-msg"></p>
     </div>
   </div>
 
+  <!-- Main Site -->
   <div id="main-content" class="hidden">
     <header>
-      <h1>SceneCraft AI</h1>
+      <h1>🎬 SceneCraft AI</h1>
       <nav>
         <ul>
           <li><a href="#" onclick="showSection('home')">Home</a></li>
@@ -32,17 +34,22 @@
     </header>
 
     <section id="home" class="content-section">
-      <p>
-        <strong>SceneCraft AI</strong> is a cinematic intelligence engine built for screenwriters, studios, and creatives. 
-        It analyzes and refines your film scenes using professional-grade storytelling benchmarks—from pacing and realism 
-        to emotional authenticity and production style. Whether you're working on a thriller, drama, or indie short, 
-        SceneCraft delivers human-like feedback and rewrite suggestions with the sensibility of a seasoned script doctor.
-      </p>
+      <div class="hero">
+        <p>
+          <strong>SceneCraft AI</strong> is your cinematic script doctor—designed for screenwriters, studios, and storytellers.
+          Get professional-grade feedback on your scenes with cinematic grammar, realism, pacing, and emotional impact.
+        </p>
+        <p>
+          🎥 Analyze → ✍️ Rewrite → 🎬 Refine — all in one seamless tool.
+        </p>
+        <p style="margin-top: 2rem;"><strong>⚠️ Access to tools requires accepting our Terms & Conditions below.</strong></p>
+      </div>
     </section>
 
+    <!-- Scene Analyzer -->
     <section id="analyzer" class="content-section hidden">
       <h2>🎥 Scene Analyzer</h2>
-      <p><em>Paste your scene (min 30 characters). Output shown once per analysis.</em></p>
+      <p><em>Paste a scene (min 30 characters). Output shown only once per analysis.</em></p>
       <textarea id="scene-analyze" placeholder="Paste your scene here..."></textarea><br/>
       <input type="file" />
       <button onclick="analyze()">Analyze</button>
@@ -50,9 +57,10 @@
       <pre id="analyze-result" class="readonly-output" oncopy="return false"></pre>
     </section>
 
+    <!-- Scene Editor -->
     <section id="editor" class="content-section hidden">
       <h2>✍️ Scene Editor</h2>
-      <p><em>Paste a scene (≤2 pages). Line-by-line rewrite suggestions will appear.</em></p>
+      <p><em>Paste a scene (up to 2 pages). Line-by-line rewrite suggestions will appear.</em></p>
       <textarea id="scene-edit" placeholder="Paste your scene here..."></textarea><br/>
       <input type="file" />
       <button onclick="edit()">Edit Suggestion</button>
@@ -60,12 +68,17 @@
       <pre id="edit-result" class="readonly-output" oncopy="return false"></pre>
     </section>
 
+    <!-- Terms -->
     <section id="terms" class="content-section">
       <h3>Terms & Conditions</h3>
       <p>
-        By using SceneCraft AI, you agree to our usage terms. Scenes uploaded must be owned or licensed by you.
-        SceneCraft provides analytical and editorial assistance without storing or redistributing user content.
-        All outputs are AI-generated suggestions and should be used at your discretion. We are not liable for creative or legal outcomes.
+        By using SceneCraft AI, you agree to our Terms of Use:
+        <ul>
+          <li>You confirm that any uploaded scene or script is owned or legally shared with you.</li>
+          <li>SceneCraft AI does not store, copy, or publish your submitted content.</li>
+          <li>All outputs are AI-generated suggestions and must be used at your own creative discretion.</li>
+          <li>SceneCraft AI is not liable for legal, creative, or production consequences of your content usage.</li>
+        </ul>
       </p>
     </section>
   </div>
