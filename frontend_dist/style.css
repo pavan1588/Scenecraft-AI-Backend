@@ -96,12 +96,3 @@ pre.readonly-output {
 .gate-container {
   text-align: center;
 }
-
-.hero {
-  font-size: 1.1rem;
-  background: url('https://images.unsplash.com/photo-1518972559570-7cc1309f3229?fit=crop&w=1350&q=80') no-repeat center center;
-  background-size: cover;
-  padding: 2rem;
-  border: 1px solid #ffd700;
-  border-radius: 8px;
-}
