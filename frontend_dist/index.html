@@ -2,100 +2,48 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SceneCraft AI</title>
-  <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0e0e0e;
+      color: #ffd700;
+      margin: 0;
+      padding: 2rem;
+    }
+    .hidden { display: none; }
+  </style>
 </head>
-<body oncontextmenu="return false">
-  <!-- Password Gate -->
+<body>
   <div id="password-gate">
-    <div class="gate-container">
-      <h2>🔒 Enter Access Key to Continue</h2>
-      <input type="password" id="access" placeholder="Access Key" />
-      <button onclick="checkAccess()">Unlock</button>
-      <p id="access-error" class="error-msg"></p>
-    </div>
+    <h2>Enter Access Key</h2>
+    <input type="password" id="access" />
+    <button onclick="checkAccess()">Unlock</button>
+    <p id="access-error" style="color:red;"></p>
   </div>
 
-  <!-- Main Site -->
   <div id="main-content" class="hidden">
-    <header>
-      <h1>🎬 SceneCraft AI</h1>
-      <nav>
-        <ul>
-          <li><a href="#" onclick="showSection('home')">Home</a></li>
-          <li><a href="#" onclick="showSection('analyzer')">Scene Analyzer</a></li>
-          <li><a href="#" onclick="showSection('editor')">Scene Editor</a></li>
-          <li><a href="#">Full Script Writer</a></li>
-          <li><a href="#">How It Works</a></li>
-          <li><a href="#">Pricing</a></li>
-        </ul>
-      </nav>
-    </header>
-
-    <section id="home" class="content-section">
-      <div class="hero">
-        <p>
-          <strong>SceneCraft AI</strong> is your cinematic script doctor—designed for screenwriters, studios, and storytellers.
-          Get professional-grade feedback on your scenes with cinematic grammar, realism, pacing, and emotional impact.
-        </p>
-        <p>
-          🎥 Analyze → ✍️ Rewrite → 🎬 Refine — all in one seamless tool.
-        </p>
-        <p style="margin-top: 2rem;"><strong>⚠️ Access to tools requires accepting our Terms & Conditions below.</strong></p>
-      </div>
-    </section>
-
-    <!-- Scene Analyzer -->
-    <section id="analyzer" class="content-section hidden">
-      <h2>🎥 Scene Analyzer</h2>
-      <p><em>Paste a scene (min 30 characters). Output shown only once per analysis.</em></p>
-      <textarea id="scene-analyze" placeholder="Paste your scene here..."></textarea><br/>
-      <input type="file" />
-      <button onclick="analyze()">Analyze</button>
-      <p id="analyze-status"></p>
-      <pre id="analyze-result" class="readonly-output" oncopy="return false"></pre>
-    </section>
-
-    <!-- Scene Editor -->
-    <section id="editor" class="content-section hidden">
-      <h2>✍️ Scene Editor</h2>
-      <p><em>Paste a scene (up to 2 pages). Line-by-line rewrite suggestions will appear.</em></p>
-      <textarea id="scene-edit" placeholder="Paste your scene here..."></textarea><br/>
-      <input type="file" />
-      <button onclick="edit()">Edit Suggestion</button>
-      <p id="edit-status"></p>
-      <pre id="edit-result" class="readonly-output" oncopy="return false"></pre>
-    </section>
-
-    <!-- Terms -->
-    <section id="terms" class="content-section">
-      <h3>Terms & Conditions</h3>
-      <p>
-        By using SceneCraft AI, you agree to our Terms of Use:
-        <ul>
-          <li>You confirm that any uploaded scene or script is owned or legally shared with you.</li>
-          <li>SceneCraft AI does not store, copy, or publish your submitted content.</li>
-          <li>All outputs are AI-generated suggestions and must be used at your own creative discretion.</li>
-          <li>SceneCraft AI is not liable for legal, creative, or production consequences of your content usage.</li>
-        </ul>
-      </p>
-    </section>
+    <h1>Welcome to SceneCraft AI</h1>
+    <p>This is the protected main content.</p>
   </div>
 
   <script>
-  const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh");
-  function checkAccess() {
-    const input = document.getElementById("access").value.trim();
-    console.log("Typed:", input);
-    console.log("Expected:", PASSWORD);
-    if (input === PASSWORD) {
-      document.getElementById("password-gate").classList.add("hidden");
-      document.getElementById("main-content").classList.remove("hidden");
-    } else {
-      document.getElementById("access-error").innerText = "Access Denied";
+    console.log("Script loaded");
+
+    function checkAccess() {
+      const input = document.getElementById("access").value.trim();
+      const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh"); // prantasdatwanta
+
+      console.log("Typed:", input);
+      console.log("Expected:", PASSWORD);
+
+      if (input === PASSWORD) {
+        document.getElementById("password-gate").classList.add("hidden");
+        document.getElementById("main-content").classList.remove("hidden");
+      } else {
+        document.getElementById("access-error").innerText = "Access Denied";
+      }
     }
-  }
-</script>
+  </script>
 </body>
 </html>
