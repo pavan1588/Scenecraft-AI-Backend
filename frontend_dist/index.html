@@ -176,16 +176,14 @@
       const data = await res.json();
       document.getElementById("edit-result").textContent = data.edit_suggestions || JSON.stringify(data);
     }
-  </script>
-  // Disable right-click
+  <script>
+  // Disable right-click context menu
   document.addEventListener('contextmenu', event => event.preventDefault());
 
-  // Disable Ctrl+C, Ctrl+A, Ctrl+S, Print
-  document.addEventListener('keydown', function(e) {
-    if (
-      (e.ctrlKey && (e.key === 'c' || e.key === 'a' || e.key === 's' || e.key === 'p')) ||
-      (e.metaKey && (e.key === 'c' || e.key === 'a' || e.key === 's' || e.key === 'p'))
-    ) {
+  // Disable Ctrl+C, Ctrl+A, Ctrl+S, Ctrl+P and Mac equivalents
+  document.addEventListener('keydown', function (e) {
+    const blocked = ['c', 'a', 's', 'p'];
+    if ((e.ctrlKey || e.metaKey) && blocked.includes(e.key.toLowerCase())) {
       e.preventDefault();
     }
   });
