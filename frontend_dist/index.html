@@ -177,5 +177,18 @@
       document.getElementById("edit-result").textContent = data.edit_suggestions || JSON.stringify(data);
     }
   </script>
+  // Disable right-click
+  document.addEventListener('contextmenu', event => event.preventDefault());
+
+  // Disable Ctrl+C, Ctrl+A, Ctrl+S, Print
+  document.addEventListener('keydown', function(e) {
+    if (
+      (e.ctrlKey && (e.key === 'c' || e.key === 'a' || e.key === 's' || e.key === 'p')) ||
+      (e.metaKey && (e.key === 'c' || e.key === 'a' || e.key === 's' || e.key === 'p'))
+    ) {
+      e.preventDefault();
+    }
+  });
+</script>
 </body>
 </html>
