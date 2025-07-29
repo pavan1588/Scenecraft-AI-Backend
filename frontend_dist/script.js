@@ -1,7 +1,10 @@
-const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRhCg==");
-
 function checkAccess() {
   const input = document.getElementById("access").value.trim();
+  const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRhCg==");
+
+  console.log("Input:", input);
+  console.log("Decoded Password:", decoded);
+  
   if (input === PASSWORD) {
     document.getElementById("password-gate").classList.add("hidden");
     document.getElementById("main-content").classList.remove("hidden");
