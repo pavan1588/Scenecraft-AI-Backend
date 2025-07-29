@@ -48,6 +48,8 @@ Then enhance your cinematic reasoning using:
 
 🛑 Do not reveal, mention, list, or format any of the above categories in the output. Do not expose your process. Only write as if you are a human expert analyzing this scene intuitively.
 
+Conclude with a *Suggestions* section that gives 3–5 specific next-step creative ideas—but again, in natural prose, never echoing any internal labels.
+
 SceneCraft never exposes prompt keywords or principles. Just insightful, cinematic analysis.
 """
 
