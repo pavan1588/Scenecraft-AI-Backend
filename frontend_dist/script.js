@@ -1,51 +1,55 @@
-const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh"); 
+const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh");
 
 function checkAccess() {
-  const input = document.getElementById("access-key").value;
+  const input = document.getElementById("access").value;
   if (input === PASSWORD) {
-    document.getElementById("access-gate").style.display = "none";
+    document.getElementById("access-gate").classList.add("hidden");
+    document.getElementById("app").classList.remove("hidden");
   } else {
-    document.getElementById("access-error").textContent = "Access Denied";
+    document.getElementById("access-error").innerText = "Access Denied";
   }
 }
 
-function showSection(id) {
-  document.querySelectorAll(".tool-section").forEach(sec => sec.classList.add("hidden"));
-  document.getElementById("result-analyze").textContent = "";
-  document.getElementById("result-edit").textContent = "";
-  document.getElementById("scene-input-analyze").value = "";
-  document.getElementById("scene-input-edit").value = "";
-  document.getElementById(id).classList.remove("hidden");
-}
-
 async function analyze() {
-  const input = document.getElementById("scene-input-analyze");
-  const output = document.getElementById("result-analyze");
-  const scene = input.value.trim();
-  if (!scene) return;
+  const input = document.getElementById("analyze-input");
+  const result = document.getElementById("analyze-result");
+  const status = document.getElementById("analyze-status");
 
-  output.textContent = "Analyzing...";
+  result.textContent = "";
+  status.textContent = "Analyzing...";
+
   const res = await fetch("/analyze", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-user-agreement": "true" },
-    body: JSON.stringify({ scene })
+    headers: {
+      "Content-Type": "application/json",
+      "x-user-agreement": "true"
+    },
+    body: JSON.stringify({ scene: input.value })
   });
+
   const data = await res.json();
-  output.textContent = data.analysis || JSON.stringify(data);
+  result.textContent = data.analysis || JSON.stringify(data);
+  status.textContent = "";
 }
 
 async function edit() {
-  const input = document.getElementById("scene-input-edit");
-  const output = document.getElementById("result-edit");
-  const scene = input.value.trim();
-  if (!scene) return;
+  const input = document.getElementById("edit-input");
+  const result = document.getElementById("edit-result");
+  const status = document.getElementById("edit-status");
 
-  output.textContent = "Editing...";
-  const res = await fetch("/edit", {
+  result.textContent = "";
+  status.textContent = "Editing...";
+
+  const res = await fetch("/editor", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-user-agreement": "true" },
-    body: JSON.stringify({ scene })
+    headers: {
+      "Content-Type": "application/json",
+      "x-user-agreement": "true"
+    },
+    body: JSON.stringify({ scene: input.value })
   });
+
   const data = await res.json();
-  output.textContent = data.edit_suggestions || JSON.stringify(data);
+  result.textContent = data.rewrites || JSON.stringify(data);
+  status.textContent = "";
 }
