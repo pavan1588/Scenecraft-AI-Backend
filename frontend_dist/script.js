@@ -1,66 +1,68 @@
-function showSection(section) {
-  document.getElementById("home-section").style.display = section === "home" ? "block" : "none";
-  document.getElementById("analyzer-section").style.display = section === "analyzer" ? "block" : "none";
-  document.getElementById("editor-section").style.display = section === "editor" ? "block" : "none";
+const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh");
 
-  document.getElementById("analyzer-result").textContent = "";
-  document.getElementById("editor-result").textContent = "";
+function checkAccess() {
+  const input = document.getElementById("access").value;
+  if (input === PASSWORD) {
+    document.getElementById("password-gate").classList.add("hidden");
+    document.getElementById("main-content").classList.remove("hidden");
+  } else {
+    document.getElementById("access-error").innerText = "Access Denied";
+  }
+}
+
+function showSection(id) {
+  document.querySelectorAll('.content-section').forEach(s => s.classList.add("hidden"));
+  document.getElementById(id).classList.remove("hidden");
+
+  // Clear old outputs on tab change
+  if (id === "analyzer") {
+    document.getElementById("scene-analyze").value = "";
+    document.getElementById("analyze-result").textContent = "";
+    document.getElementById("analyze-status").textContent = "";
+  } else if (id === "editor") {
+    document.getElementById("scene-edit").value = "";
+    document.getElementById("edit-result").textContent = "";
+    document.getElementById("edit-status").textContent = "";
+  }
 }
 
 async function analyze() {
-  const agree = document.getElementById("analyzer-agree").checked;
-  const scene = document.getElementById("analyze-input").value;
-  if (!agree) return alert("Please accept the Terms & Conditions.");
-  if (!scene.trim()) return alert("Please enter a scene.");
-  
-  const result = document.getElementById("analyzer-result");
-  result.textContent = "Analyzing...";
+  const text = document.getElementById("scene-analyze").value;
+  document.getElementById("analyze-status").textContent = "Analyzing...";
   const res = await fetch("/analyze", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-user-agreement": "true" },
-    body: JSON.stringify({ scene })
+    headers: {
+      "Content-Type": "application/json",
+      "x-user-agreement": "true"
+    },
+    body: JSON.stringify({ scene: text })
   });
   const data = await res.json();
-  result.textContent = data.analysis || JSON.stringify(data);
+  document.getElementById("analyze-result").textContent = data.analysis || JSON.stringify(data);
+  document.getElementById("analyze-status").textContent = "";
 }
 
 async function edit() {
-  const agree = document.getElementById("editor-agree").checked;
-  const scene = document.getElementById("edit-input").value;
-  if (!agree) return alert("Please accept the Terms & Conditions.");
-  if (!scene.trim()) return alert("Please enter a 2-page scene.");
-
-  const result = document.getElementById("editor-result");
-  result.textContent = "Editing...";
-  const res = await fetch("/edit", {
+  const text = document.getElementById("scene-edit").value;
+  document.getElementById("edit-status").textContent = "Editing...";
+  const res = await fetch("/editor", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-user-agreement": "true" },
-    body: JSON.stringify({ scene })
+    headers: {
+      "Content-Type": "application/json",
+      "x-user-agreement": "true"
+    },
+    body: JSON.stringify({ scene: text })
   });
   const data = await res.json();
-  result.textContent = data.edit_suggestions || JSON.stringify(data);
+  document.getElementById("edit-result").textContent = data.rewrites || JSON.stringify(data);
+  document.getElementById("edit-status").textContent = "";
 }
 
-function showTerms() {
-  document.getElementById("terms-modal").classList.remove("hidden");
-}
-function hideTerms() {
-  document.getElementById("terms-modal").classList.add("hidden");
-}
-
-// Disable copy & right-click on output
-document.addEventListener("DOMContentLoaded", () => {
-  ["analyzer-result", "editor-result"].forEach(id => {
-    const el = document.getElementById(id);
-    el.addEventListener("contextmenu", e => e.preventDefault());
-    el.addEventListener("copy", e => e.preventDefault());
+// Disable right-click and keyboard copying
+document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener("keydown", function (e) {
+    if ((e.ctrlKey && (e.key === 'c' || e.key === 'a')) || e.key === "PrintScreen") {
+      e.preventDefault();
+    }
   });
-});
-
-document.addEventListener("keydown", (e) => {
-  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-  if (((isMac && e.metaKey) || (!isMac && e.ctrlKey)) && ["c", "a"].includes(e.key.toLowerCase())) {
-    const tag = e.target.tagName.toLowerCase();
-    if (!["input", "textarea"].includes(tag)) e.preventDefault();
-  }
 });
