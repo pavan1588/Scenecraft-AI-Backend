@@ -1,4 +1,4 @@
-const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh");
+const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRhCg==");
 
 function checkAccess() {
   const input = document.getElementById("access").value.trim();
