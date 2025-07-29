@@ -4,100 +4,72 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SceneCraft AI</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #0e0e0e;
-      color: #fff;
-      margin: 0;
-      padding: 2rem;
-    }
-    .container {
-      max-width: 800px;
-      margin: auto;
-    }
-    textarea {
-      width: 100%;
-      height: 200px;
-      margin-bottom: 1rem;
-      padding: 1rem;
-      font-size: 1rem;
-    }
-    button {
-      padding: 0.6rem 1rem;
-      margin-right: 0.5rem;
-      background: #1f1f1f;
-      color: #fff;
-      border: 1px solid #444;
-      cursor: pointer;
-    }
-    pre {
-      background: #1a1a1a;
-      padding: 1rem;
-      white-space: pre-wrap;
-      border-left: 4px solid #4caf50;
-    }
-    .hidden { display: none; }
-  </style>
+  <link rel="stylesheet" href="style.css" />
 </head>
-<body>
-  <div class="container">
-    <h1>🎬 SceneCraft AI</h1>
-
-    <div id="password-gate">
-      <p>Enter Access Key:</p>
-      <input type="password" id="access" />
+<body oncontextmenu="return false">
+  <div id="password-gate">
+    <div class="gate-container">
+      <h2>Enter Access Key to Continue</h2>
+      <input type="password" id="access" placeholder="Access Key" />
       <button onclick="checkAccess()">Unlock</button>
-      <p id="access-error" style="color:red;"></p>
-    </div>
-
-    <div id="app" class="hidden">
-      <textarea id="scene" placeholder="Paste your scene here..."></textarea><br/>
-      <button onclick="analyze()">Scene Analyzer</button>
-      <button onclick="edit()">Scene Editor</button>
-      <pre id="result"></pre>
+      <p id="access-error" class="error-msg"></p>
     </div>
   </div>
 
-  <script>
-    const PASSWORD = atob("U0NFTkVDUkFGVC0yMDI0"); // prantasdatwanta
-    function checkAccess() {
-      const input = document.getElementById("access").value;
-      if (input === PASSWORD) {
-        document.getElementById("password-gate").classList.add("hidden");
-        document.getElementById("app").classList.remove("hidden");
-      } else {
-        document.getElementById("access-error").innerText = "Access Denied";
-      }
-    }
+  <div id="main-content" class="hidden">
+    <header>
+      <h1>SceneCraft AI</h1>
+      <nav>
+        <ul>
+          <li><a href="#" onclick="showSection('home')">Home</a></li>
+          <li><a href="#" onclick="showSection('analyzer')">Scene Analyzer</a></li>
+          <li><a href="#" onclick="showSection('editor')">Scene Editor</a></li>
+          <li><a href="#">Full Script Writer</a></li>
+          <li><a href="#">How It Works</a></li>
+          <li><a href="#">Pricing</a></li>
+        </ul>
+      </nav>
+    </header>
 
-    async function analyze() {
-      const scene = document.getElementById("scene").value;
-      const res = await fetch("/analyze", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-agreement": "true"
-        },
-        body: JSON.stringify({ scene })
-      });
-      const data = await res.json();
-      document.getElementById("result").textContent = data.analysis || JSON.stringify(data);
-    }
+    <section id="home" class="content-section">
+      <p>
+        <strong>SceneCraft AI</strong> is a cinematic intelligence engine built for screenwriters, studios, and creatives. 
+        It analyzes and refines your film scenes using professional-grade storytelling benchmarks—from pacing and realism 
+        to emotional authenticity and production style. Whether you're working on a thriller, drama, or indie short, 
+        SceneCraft delivers human-like feedback and rewrite suggestions with the sensibility of a seasoned script doctor.
+      </p>
+    </section>
 
-    async function edit() {
-      const scene = document.getElementById("scene").value;
-      const res = await fetch("/editor", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-agreement": "true"
-        },
-        body: JSON.stringify({ scene })
-      });
-      const data = await res.json();
-      document.getElementById("result").textContent = data.rewrites || JSON.stringify(data);
-    }
-  </script>
+    <section id="analyzer" class="content-section hidden">
+      <h2>🎥 Scene Analyzer</h2>
+      <p><em>Paste your scene (min 30 characters). Output shown once per analysis.</em></p>
+      <textarea id="scene-analyze" placeholder="Paste your scene here..."></textarea><br/>
+      <input type="file" />
+      <button onclick="analyze()">Analyze</button>
+      <p id="analyze-status"></p>
+      <pre id="analyze-result" class="readonly-output" oncopy="return false"></pre>
+    </section>
+
+    <section id="editor" class="content-section hidden">
+      <h2>✍️ Scene Editor</h2>
+      <p><em>Paste a scene (≤2 pages). Line-by-line rewrite suggestions will appear.</em></p>
+      <textarea id="scene-edit" placeholder="Paste your scene here..."></textarea><br/>
+      <input type="file" />
+      <button onclick="edit()">Edit Suggestion</button>
+      <p id="edit-status"></p>
+      <pre id="edit-result" class="readonly-output" oncopy="return false"></pre>
+    </section>
+
+    <section id="terms" class="content-section hidden">
+      <h3>Terms & Conditions</h3>
+      <p>
+        By using SceneCraft AI, you agree to our usage terms. Scenes uploaded must be owned or licensed by you.
+        SceneCraft provides analytical and editorial assistance without storing or redistributing user content.
+        All outputs are AI-generated suggestions and should be used at your discretion. We are not liable for creative or legal outcomes.
+      </p>
+    </section>
+  </div>
+
+  <script src="script.js"></script>
 </body>
 </html>
