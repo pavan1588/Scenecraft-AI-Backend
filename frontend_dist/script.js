@@ -1,14 +1,16 @@
 function checkAccess() {
   const input = document.getElementById("access").value.trim();
-  const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRhCg==");
+  const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh"); 
 
-  console.log("Input:", input);
-  console.log("Decoded Password:", decoded);
-  
+  console.log("Typed:", `"${input}"`);
+  console.log("Expected:", `"${PASSWORD}"`);
+
   if (input === PASSWORD) {
+    alert("Access Granted");
     document.getElementById("password-gate").classList.add("hidden");
     document.getElementById("main-content").classList.remove("hidden");
   } else {
+    alert("Access Denied");
     document.getElementById("access-error").innerText = "Access Denied";
   }
 }
