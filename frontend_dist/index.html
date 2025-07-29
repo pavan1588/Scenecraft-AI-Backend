@@ -7,53 +7,52 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="access-gate">
-    <div class="access-container">
-      <h2>Enter Access Key</h2>
-      <input type="password" id="access-key" placeholder="Access Key" />
-      <button onclick="checkAccess()">Unlock</button>
-      <p id="access-error" class="error"></p>
-    </div>
+  <div class="access-gate" id="access-gate">
+    <h2>Enter Access Key</h2>
+    <input type="password" id="access" placeholder="Access Key" />
+    <button onclick="checkAccess()">Unlock</button>
+    <p id="access-error" class="error"></p>
   </div>
 
-  <header>
-    <h1>🎬 SceneCraft AI</h1>
-    <nav>
-      <a href="#analyzer" onclick="showSection('analyzer')">Scene Analyzer</a>
-      <a href="#editor" onclick="showSection('editor')">Scene Editor</a>
-      <a href="#">Full Script Writer</a>
-      <a href="#">How it Works</a>
-      <a href="#">Pricing</a>
-    </nav>
-  </header>
+  <div id="app" class="hidden">
+    <header>
+      <h1>🎬 SceneCraft AI</h1>
+      <p class="subtitle">
+        Your cinematic companion. Diagnose, refine, and elevate your script with intelligent tools rooted in storytelling psychology, global cinema grammar, and real production wisdom.
+      </p>
+      <nav>
+        <a href="#analyzer">Scene Analyzer</a>
+        <a href="#editor">Scene Editor</a>
+        <a href="#writer">Full Script Writer</a>
+        <a href="#how">How it Works</a>
+        <a href="#pricing">Pricing</a>
+      </nav>
+    </header>
 
-  <section id="hero">
-    <p>SceneCraft AI is your cinematic companion. Analyze, rewrite, and elevate your scripts with professional-grade tools inspired by global cinema, real production needs, and behavioral realism.</p>
-  </section>
+    <main>
+      <section id="analyzer">
+        <h2>Scene Analyzer</h2>
+        <textarea id="analyze-input" placeholder="Paste your scene here..."></textarea>
+        <input type="file" id="analyze-file" accept=".pdf,.doc,.docx" />
+        <button onclick="analyze()">Analyze</button>
+        <p class="progress" id="analyze-status"></p>
+        <pre id="analyze-result" class="output-box"></pre>
+      </section>
 
-  <section id="analyzer" class="tool-section hidden">
-    <h2>Scene Analyzer</h2>
-    <textarea id="scene-input-analyze" placeholder="Paste your scene here..."></textarea>
-    <div class="controls">
-      <button onclick="analyze()">Analyze</button>
-      <input type="file" id="file-upload-analyze" />
-    </div>
-    <pre id="result-analyze"></pre>
-  </section>
+      <section id="editor">
+        <h2>Scene Editor <span>(max 2 pages)</span></h2>
+        <textarea id="edit-input" placeholder="Paste your 2-page scene here..."></textarea>
+        <input type="file" id="edit-file" accept=".pdf,.doc,.docx" />
+        <button onclick="edit()">Edit Suggestion</button>
+        <p class="progress" id="edit-status"></p>
+        <pre id="edit-result" class="output-box"></pre>
+      </section>
 
-  <section id="editor" class="tool-section hidden">
-    <h2>Scene Editor (max 2 pages)</h2>
-    <textarea id="scene-input-edit" placeholder="Paste your 2-page scene here..."></textarea>
-    <div class="controls">
-      <button onclick="edit()">Edit Suggestion</button>
-      <input type="file" id="file-upload-edit" />
-    </div>
-    <pre id="result-edit"></pre>
-  </section>
-
-  <footer>
-    <p>&copy; 2025 SceneCraft AI. All rights reserved. Script content belongs to original authors. SceneCraft offers diagnostics, not authorship.</p>
-  </footer>
+      <section id="footer">
+        <p>© 2025 SceneCraft AI. All rights reserved. Script content belongs to original authors. SceneCraft provides diagnostics, not authorship.</p>
+      </section>
+    </main>
+  </div>
 
   <script src="script.js"></script>
 </body>
