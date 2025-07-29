@@ -1,16 +1,11 @@
+const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh");
+
 function checkAccess() {
   const input = document.getElementById("access").value.trim();
-  const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh"); 
-
-  console.log("Typed:", `"${input}"`);
-  console.log("Expected:", `"${PASSWORD}"`);
-
   if (input === PASSWORD) {
-    alert("Access Granted");
     document.getElementById("password-gate").classList.add("hidden");
     document.getElementById("main-content").classList.remove("hidden");
   } else {
-    alert("Access Denied");
     document.getElementById("access-error").innerText = "Access Denied";
   }
 }
@@ -19,7 +14,6 @@ function showSection(id) {
   document.querySelectorAll('.content-section').forEach(s => s.classList.add("hidden"));
   document.getElementById(id).classList.remove("hidden");
 
-  // Clear old outputs on tab change
   if (id === "analyzer") {
     document.getElementById("scene-analyze").value = "";
     document.getElementById("analyze-result").textContent = "";
@@ -33,6 +27,10 @@ function showSection(id) {
 
 async function analyze() {
   const text = document.getElementById("scene-analyze").value;
+  if (text.length < 30) {
+    alert("Please enter a scene with at least 30 characters.");
+    return;
+  }
   document.getElementById("analyze-status").textContent = "Analyzing...";
   const res = await fetch("/analyze", {
     method: "POST",
@@ -49,6 +47,10 @@ async function analyze() {
 
 async function edit() {
   const text = document.getElementById("scene-edit").value;
+  if (text.length < 30) {
+    alert("Please enter a scene with enough content for review.");
+    return;
+  }
   document.getElementById("edit-status").textContent = "Editing...";
   const res = await fetch("/editor", {
     method: "POST",
@@ -63,7 +65,7 @@ async function edit() {
   document.getElementById("edit-status").textContent = "";
 }
 
-// Disable right-click and keyboard copying
+// Disable right-click & clipboard
 document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener("keydown", function (e) {
     if ((e.ctrlKey && (e.key === 'c' || e.key === 'a')) || e.key === "PrintScreen") {
