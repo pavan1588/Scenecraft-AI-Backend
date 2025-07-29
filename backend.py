@@ -116,4 +116,4 @@ FRONTEND = Path(__file__).parent / "frontend_dist"
 if not FRONTEND.exists():
     raise RuntimeError(f"Frontend build not found: {FRONTEND}")
 
-app.mount("/", StaticFiles(directory=str(FRONTEND), html=True), name="spa")
+app.mount("/", StaticFiles(directory="frontend_dist", html=True), name="frontend")
