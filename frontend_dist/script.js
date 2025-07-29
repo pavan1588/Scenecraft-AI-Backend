@@ -1,6 +1,6 @@
 function checkAccess() {
   const input = document.getElementById("access").value.trim();
-  const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh");  // decodes to "prantasdatwanta"
+  const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh"); 
 
   console.log("Typed:", `"${input}"`);
   console.log("Expected:", `"${PASSWORD}"`);
