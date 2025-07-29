@@ -83,6 +83,19 @@
     </section>
   </div>
 
-  <script src="script.js"></script>
+  <script>
+  const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh");
+  function checkAccess() {
+    const input = document.getElementById("access").value.trim();
+    console.log("Typed:", input);
+    console.log("Expected:", PASSWORD);
+    if (input === PASSWORD) {
+      document.getElementById("password-gate").classList.add("hidden");
+      document.getElementById("main-content").classList.remove("hidden");
+    } else {
+      document.getElementById("access-error").innerText = "Access Denied";
+    }
+  }
+</script>
 </body>
 </html>
