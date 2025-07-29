@@ -2,61 +2,72 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SceneCraft AI</title>
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
-  <div class="navbar">
-    <h1>🎬 SceneCraft AI</h1>
-    <div class="nav-links">
-      <a href="#" onclick="showSection('home')">Home</a>
-      <a href="#" onclick="showSection('analyzer')">Scene Analyzer</a>
-      <a href="#" onclick="showSection('editor')">Scene Editor</a>
-      <a href="#">Full Script Writer</a>
-      <a href="#">How it Works</a>
-      <a href="#">Pricing</a>
+<body oncontextmenu="return false">
+  <div id="password-gate">
+    <div class="gate-container">
+      <h2>Enter Access Key to Continue</h2>
+      <input type="password" id="access" placeholder="Access Key" />
+      <button onclick="checkAccess()">Unlock</button>
+      <p id="access-error" class="error-msg"></p>
     </div>
   </div>
 
-  <div class="content">
-    <!-- HOMEPAGE -->
-    <section id="home-section">
-      <h2>Welcome to SceneCraft AI</h2>
-      <p>SceneCraft AI is your cinematic partner—analyzing, refining, and elevating your scripts with studio-grade insights. Whether you're a new screenwriter or a seasoned filmmaker, our tools help you polish every line with precision.</p>
-      <div class="bg-image"></div>
+  <div id="main-content" class="hidden">
+    <header>
+      <h1>SceneCraft AI</h1>
+      <nav>
+        <ul>
+          <li><a href="#" onclick="showSection('home')">Home</a></li>
+          <li><a href="#" onclick="showSection('analyzer')">Scene Analyzer</a></li>
+          <li><a href="#" onclick="showSection('editor')">Scene Editor</a></li>
+          <li><a href="#">Full Script Writer</a></li>
+          <li><a href="#">How It Works</a></li>
+          <li><a href="#">Pricing</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <section id="home" class="content-section">
+      <p>
+        <strong>SceneCraft AI</strong> is a cinematic intelligence engine built for screenwriters, studios, and creatives. 
+        It analyzes and refines your film scenes using professional-grade storytelling benchmarks—from pacing and realism 
+        to emotional authenticity and production style. Whether you're working on a thriller, drama, or indie short, 
+        SceneCraft delivers human-like feedback and rewrite suggestions with the sensibility of a seasoned script doctor.
+      </p>
     </section>
 
-    <!-- ANALYZER -->
-    <section id="analyzer-section" class="tool-section hidden">
-      <h2>Scene Analyzer</h2>
-      <textarea id="analyze-input" placeholder="Paste your scene here..."></textarea><br/>
-      <label><input type="checkbox" id="analyzer-agree"> I accept the <a href="#" onclick="showTerms()">Terms & Conditions</a>.</label><br/>
+    <section id="analyzer" class="content-section hidden">
+      <h2>🎥 Scene Analyzer</h2>
+      <p><em>Paste your scene (min 30 characters). Output shown once per analysis.</em></p>
+      <textarea id="scene-analyze" placeholder="Paste your scene here..."></textarea><br/>
+      <input type="file" />
       <button onclick="analyze()">Analyze</button>
-      <pre id="analyzer-result" class="output-box"></pre>
-      <input type="file" />
+      <p id="analyze-status"></p>
+      <pre id="analyze-result" class="readonly-output" oncopy="return false"></pre>
     </section>
 
-    <!-- EDITOR -->
-    <section id="editor-section" class="tool-section hidden">
-      <h2>Scene Editor</h2>
-      <textarea id="edit-input" placeholder="Paste your 2-page script here..."></textarea><br/>
-      <label><input type="checkbox" id="editor-agree"> I accept the <a href="#" onclick="showTerms()">Terms & Conditions</a>.</label><br/>
-      <button onclick="edit()">Edit Suggestions</button>
-      <pre id="editor-result" class="output-box"></pre>
+    <section id="editor" class="content-section hidden">
+      <h2>✍️ Scene Editor</h2>
+      <p><em>Paste a scene (≤2 pages). Line-by-line rewrite suggestions will appear.</em></p>
+      <textarea id="scene-edit" placeholder="Paste your scene here..."></textarea><br/>
       <input type="file" />
+      <button onclick="edit()">Edit Suggestion</button>
+      <p id="edit-status"></p>
+      <pre id="edit-result" class="readonly-output" oncopy="return false"></pre>
     </section>
-  </div>
 
-  <!-- T&C MODAL -->
-  <div id="terms-modal" class="modal hidden">
-    <div class="modal-content">
-      <span class="close" onclick="hideTerms()">&times;</span>
+    <section id="terms" class="content-section">
       <h3>Terms & Conditions</h3>
       <p>
-        SceneCraft AI provides cinematic analysis and rewrite suggestions for educational and professional guidance only. The tool does not generate original scripts and does not claim copyright over user content. Users are responsible for any content uploaded or analyzed. All output is provided without warranty, and SceneCraft AI is not liable for any misuse. No copying or redistribution of analysis results is permitted.
+        By using SceneCraft AI, you agree to our usage terms. Scenes uploaded must be owned or licensed by you.
+        SceneCraft provides analytical and editorial assistance without storing or redistributing user content.
+        All outputs are AI-generated suggestions and should be used at your discretion. We are not liable for creative or legal outcomes.
       </p>
-    </div>
+    </section>
   </div>
 
   <script src="script.js"></script>
