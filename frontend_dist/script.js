@@ -1,55 +1,66 @@
-const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh");
+function showSection(section) {
+  document.getElementById("home-section").style.display = section === "home" ? "block" : "none";
+  document.getElementById("analyzer-section").style.display = section === "analyzer" ? "block" : "none";
+  document.getElementById("editor-section").style.display = section === "editor" ? "block" : "none";
 
-function checkAccess() {
-  const input = document.getElementById("access").value;
-  if (input === PASSWORD) {
-    document.getElementById("access-gate").classList.add("hidden");
-    document.getElementById("app").classList.remove("hidden");
-  } else {
-    document.getElementById("access-error").innerText = "Access Denied";
-  }
+  document.getElementById("analyzer-result").textContent = "";
+  document.getElementById("editor-result").textContent = "";
 }
 
 async function analyze() {
-  const input = document.getElementById("analyze-input");
-  const result = document.getElementById("analyze-result");
-  const status = document.getElementById("analyze-status");
-
-  result.textContent = "";
-  status.textContent = "Analyzing...";
-
+  const agree = document.getElementById("analyzer-agree").checked;
+  const scene = document.getElementById("analyze-input").value;
+  if (!agree) return alert("Please accept the Terms & Conditions.");
+  if (!scene.trim()) return alert("Please enter a scene.");
+  
+  const result = document.getElementById("analyzer-result");
+  result.textContent = "Analyzing...";
   const res = await fetch("/analyze", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-user-agreement": "true"
-    },
-    body: JSON.stringify({ scene: input.value })
+    headers: { "Content-Type": "application/json", "x-user-agreement": "true" },
+    body: JSON.stringify({ scene })
   });
-
   const data = await res.json();
   result.textContent = data.analysis || JSON.stringify(data);
-  status.textContent = "";
 }
 
 async function edit() {
-  const input = document.getElementById("edit-input");
-  const result = document.getElementById("edit-result");
-  const status = document.getElementById("edit-status");
+  const agree = document.getElementById("editor-agree").checked;
+  const scene = document.getElementById("edit-input").value;
+  if (!agree) return alert("Please accept the Terms & Conditions.");
+  if (!scene.trim()) return alert("Please enter a 2-page scene.");
 
-  result.textContent = "";
-  status.textContent = "Editing...";
-
-  const res = await fetch("/editor", {
+  const result = document.getElementById("editor-result");
+  result.textContent = "Editing...";
+  const res = await fetch("/edit", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-user-agreement": "true"
-    },
-    body: JSON.stringify({ scene: input.value })
+    headers: { "Content-Type": "application/json", "x-user-agreement": "true" },
+    body: JSON.stringify({ scene })
   });
-
   const data = await res.json();
-  result.textContent = data.rewrites || JSON.stringify(data);
-  status.textContent = "";
+  result.textContent = data.edit_suggestions || JSON.stringify(data);
 }
+
+function showTerms() {
+  document.getElementById("terms-modal").classList.remove("hidden");
+}
+function hideTerms() {
+  document.getElementById("terms-modal").classList.add("hidden");
+}
+
+// Disable copy & right-click on output
+document.addEventListener("DOMContentLoaded", () => {
+  ["analyzer-result", "editor-result"].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener("contextmenu", e => e.preventDefault());
+    el.addEventListener("copy", e => e.preventDefault());
+  });
+});
+
+document.addEventListener("keydown", (e) => {
+  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  if (((isMac && e.metaKey) || (!isMac && e.ctrlKey)) && ["c", "a"].includes(e.key.toLowerCase())) {
+    const tag = e.target.tagName.toLowerCase();
+    if (!["input", "textarea"].includes(tag)) e.preventDefault();
+  }
+});
