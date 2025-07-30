@@ -107,6 +107,8 @@
       </div>
 
       <div id="editor" class="tab hidden">
+        <label for="scene-context" style="color:white; font-weight:bold;">Optional: Add short background or context</label>
+        <textarea id="scene-context" placeholder="e.g., Leena just lost someone but hasn’t told Rafael. Their relationship is tense yet fragile." rows="3" style="width:100%; margin-bottom:10px;"></textarea>
         <textarea id="scene-edit" placeholder="Paste your scene here (Max 2 pages)..."></textarea><br/>
         <button class="action" onclick="edit()">Edit Suggestion</button>
         <input type="file" />
@@ -216,13 +218,14 @@ if (scene === lastEdited && lastEditOutput) {
   button.disabled = true;
 
   try {
+    const context = document.getElementById("scene-context").value.trim();
     const res = await fetch("/edit", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-user-agreement": "true"
       },
-      body: JSON.stringify({ scene })
+     body: JSON.stringify({ scene, context })
     });
 
     const data = await res.json();
