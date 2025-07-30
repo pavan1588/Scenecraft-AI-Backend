@@ -81,10 +81,13 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
     if x_user_agreement != "true":
         raise HTTPException(400, "You must accept the Terms & Conditions.")
     cleaned = data.scene.strip()
-    if len(cleaned) < 30:
-        raise HTTPException(400, "Scene too short.")
-    if len(cleaned.split()) > 600:
-        raise HTTPException(400, "Scene must be 2 pages or fewer.")
+
+# Split background from scene if a separator like "---" is used (optional future upgrade)
+# For now, treat everything as combined input
+if len(cleaned) < 30:
+    raise HTTPException(400, "Scene (including context) too short.")
+if len(cleaned.split()) > 650:  # small buffer for optional context
+    raise HTTPException(400, "Scene (including context) must be under 2 pages.")
 
     payload = {
         "model": "mistralai/mistral-7b-instruct",
