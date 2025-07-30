@@ -87,8 +87,6 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
     scene_text = data.scene.strip()
     cleaned = f"{background}\n\n{scene_text}" if background else scene_text
 
-    # Optional future upgrade: split context if separator like "---" is used
-    # For now, treat entire text as one input (context + scene)
     if len(cleaned) < 30:
         raise HTTPException(400, "Scene (including context) too short.")
     if len(cleaned.split()) > 650:
@@ -101,6 +99,9 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
             {"role": "user", "content": cleaned}
         ]
     }
+
+    response = await ask_openrouter(payload)
+    return {"edit_suggestions": response}
 
     try:
         async with httpx.AsyncClient() as client:
