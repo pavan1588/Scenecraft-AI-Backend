@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
+from typing import Optional
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS, HTTP_401_UNAUTHORIZED
 
 from logic.analyzer import analyze_scene
@@ -55,9 +56,8 @@ def rate_limiter(ip: str) -> bool:
     return True
 
 # ─── 5. Input Schema ─────────────────────────────────────────────────────────
-class SceneEditRequest(BaseModel):
+class SceneRequest(BaseModel):
     scene: str
-    context: Optional[str] = None
 
 # ─── 6. Scene Analyzer ───────────────────────────────────────────────────────
 @app.post("/analyze")
@@ -80,9 +80,7 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
         raise HTTPException(429, "Rate limit exceeded.")
     if x_user_agreement != "true":
         raise HTTPException(400, "You must accept the Terms & Conditions.")
-    scene = data.scene.strip()
-    context = data.context.strip() if data.context else ""
-    cleaned = f"{context}\n\n{scene}" if context else scene
+    cleaned = data.scene.strip()
     if len(cleaned) < 30:
         raise HTTPException(400, "Scene too short.")
     if len(cleaned.split()) > 600:
