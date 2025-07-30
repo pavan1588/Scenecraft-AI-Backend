@@ -222,15 +222,14 @@ if (scene === lastEdited && lastEditOutput) {
   document.getElementById("edit-result").textContent = "Editing...";
   button.disabled = true;
 
-  try {
-    const context = document.getElementById("scene-context").value.trim();
+  try {    
     const res = await fetch("/edit", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-user-agreement": "true"
       },
-     body: JSON.stringify({ scene, context })
+     body: JSON.stringify({ scene })
     });
 
     const data = await res.json();
