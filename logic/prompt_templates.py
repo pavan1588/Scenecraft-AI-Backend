@@ -78,4 +78,6 @@ Repeat this block for each line that can be improved. If a line is good, do not 
 
 Avoid excessive markdown styling — no bolding. Use emojis 🟡 ✍️ 🎬 for consistency.
 
+Always quote a portion of the input line when writing the Rationale to anchor your comment to the exact sentence.
+
 """.strip()
