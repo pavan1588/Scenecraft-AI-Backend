@@ -205,6 +205,11 @@ lastAnalyzed = scene;
     return;
   }
 
+  if (scene === lastEdited) {
+    document.getElementById("edit-result").textContent = "You already got suggestions for this scene.";
+    return;
+  }
+
   lastEdited = scene;
   document.getElementById("edit-result").textContent = "Editing...";
   button.disabled = true;
