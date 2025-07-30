@@ -120,8 +120,4 @@ if not FRONTEND.exists():
     def health_check():
         return {"status": "ok"}
 
-   @app.get("/health")
-   def health_check():
-       return {"status": "ok"}
-
 app.mount("/", StaticFiles(directory="frontend_dist", html=True), name="frontend")
