@@ -52,6 +52,15 @@
       white-space: pre-wrap;
       border-left: 4px solid gold;
       margin-top: 1rem;
+      line-height: 1.6;
+      font-family: Consolas, monospace;
+    }
+    pre strong {
+      color: #ffd700;
+    }
+    pre em {
+      color: #ccc;
+      font-style: italic;
     }
     .hidden { display: none; }
     .description { margin-bottom: 2rem; line-height: 1.6; }
@@ -107,9 +116,7 @@
   </div>
 
   <script>
-    const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh"); 
-    let lastAnalyzed = "";
-    let lastEdited = "";
+    const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh");
 
     function checkAccess() {
       const input = document.getElementById("access").value;
@@ -129,16 +136,15 @@
         if (id === "analyzer") {
           document.getElementById("scene-analyze").value = "";
           document.getElementById("analyze-result").textContent = "";
-          lastAnalyzed = "";
         } else if (id === "editor") {
           document.getElementById("scene-edit").value = "";
           document.getElementById("edit-result").textContent = "";
-          lastEdited = "";
         }
       });
       document.getElementById(tab).classList.remove("hidden");
     }
 
+    let lastAnalyzed = "";
     async function analyze() {
       const scene = document.getElementById("scene-analyze").value.trim();
       if (scene.length < 30) {
@@ -149,22 +155,27 @@
       lastAnalyzed = scene;
 
       document.getElementById("analyze-result").textContent = "Analyzing...";
-      try {
-        const res = await fetch("/analyze", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-user-agreement": "true"
-          },
-          body: JSON.stringify({ scene })
-        });
-        const data = await res.json();
-        document.getElementById("analyze-result").textContent = data.analysis || JSON.stringify(data);
-      } catch (err) {
-        document.getElementById("analyze-result").textContent = "Error during analysis.";
-      }
+      const res = await fetch("/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-agreement": "true"
+        },
+        body: JSON.stringify({ scene })
+      });
+      const data = await res.json();
+      const raw = data.analysis || "";
+      const formatted = raw
+        .replace(/\*\*Rationale:\*\*/g, "🟡 **Rationale**")
+        .replace(/\*\*Rewrite:\*\*/g, "\n✍️ **Rewrite**")
+        .replace(/\*\*Director['’]?s Note:\*\*/g, "\n🎬 **Director’s Note**");
+      document.getElementById("analyze-result").innerHTML = formatted
+        .replace(/\n/g, "<br>")
+        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\_\_(.*?)\_\_/g, "<em>$1</em>");
     }
 
+    let lastEdited = "";
     async function edit() {
       const scene = document.getElementById("scene-edit").value.trim();
       if (scene.length < 30) {
@@ -179,26 +190,28 @@
       lastEdited = scene;
 
       document.getElementById("edit-result").textContent = "Editing...";
-      try {
-        const res = await fetch("/edit", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-user-agreement": "true"
-          },
-          body: JSON.stringify({ scene })
-        });
-        const data = await res.json();
-        document.getElementById("edit-result").textContent = data.edit_suggestions || JSON.stringify(data);
-      } catch (err) {
-        document.getElementById("edit-result").textContent = "Error during editing.";
-      }
+      const res = await fetch("/edit", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-agreement": "true"
+        },
+        body: JSON.stringify({ scene })
+      });
+      const data = await res.json();
+      const raw = data.edit_suggestions || "";
+      const formatted = raw
+        .replace(/\*\*Rationale:\*\*/g, "🟡 **Rationale**")
+        .replace(/\*\*Rewrite:\*\*/g, "\n✍️ **Rewrite**")
+        .replace(/\*\*Director['’]?s Note:\*\*/g, "\n🎬 **Director’s Note**");
+      document.getElementById("edit-result").innerHTML = formatted
+        .replace(/\n/g, "<br>")
+        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\_\_(.*?)\_\_/g, "<em>$1</em>");
     }
 
-    // Disable right-click context menu
+    // Disable right-click and common shortcuts
     document.addEventListener('contextmenu', event => event.preventDefault());
-
-    // Disable Ctrl+C, Ctrl+A, Ctrl+S, Ctrl+P and Mac equivalents
     document.addEventListener('keydown', function (e) {
       const blocked = ['c', 'a', 's', 'p'];
       if ((e.ctrlKey || e.metaKey) && blocked.includes(e.key.toLowerCase())) {
