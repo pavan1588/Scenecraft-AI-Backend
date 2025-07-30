@@ -144,36 +144,43 @@
       document.getElementById(tab).classList.remove("hidden");
     }
 
-    let lastAnalyzed = "";
-    async function analyze() {
-      const scene = document.getElementById("scene-analyze").value.trim();
-      if (scene.length < 30) {
-        document.getElementById("analyze-result").textContent = "Scene too short.";
-        return;
-      }
-      if (scene === lastAnalyzed) return;
-      lastAnalyzed = scene;
+      async function analyze() {
+  const scene = document.getElementById("scene-analyze").value.trim();
+  const button = document.querySelector("#analyzer button.action");
+  if (scene.length < 30) {
+    document.getElementById("analyze-result").textContent = "Scene too short.";
+    return;
+  }
 
-      document.getElementById("analyze-result").textContent = "Analyzing...";
-      const res = await fetch("/analyze", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-agreement": "true"
-        },
-        body: JSON.stringify({ scene })
-      });
-      const data = await res.json();
-      const raw = data.analysis || "";
-      const formatted = raw
-        .replace(/\*\*Rationale:\*\*/g, "🟡 **Rationale**")
-        .replace(/\*\*Rewrite:\*\*/g, "\n✍️ **Rewrite**")
-        .replace(/\*\*Director['’]?s Note:\*\*/g, "\n🎬 **Director’s Note**");
-      document.getElementById("analyze-result").innerHTML = formatted
-        .replace(/\n/g, "<br>")
-        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-        .replace(/\_\_(.*?)\_\_/g, "<em>$1</em>");
-    }
+  document.getElementById("analyze-result").textContent = "Analyzing...";
+  button.disabled = true;
+
+  try {
+    const res = await fetch("/analyze", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-user-agreement": "true"
+      },
+      body: JSON.stringify({ scene })
+    });
+    const data = await res.json();
+    const raw = data.analysis || "";
+    const formatted = raw
+      .replace(/\*\*Rationale:\*\*/g, "🔶 <strong>Rationale</strong>")
+      .replace(/\*\*Rewrite:\*\*/g, "✍️ <strong>Rewrite</strong>")
+      .replace(/\*\*Director’s Note:\*\*/g, "🎬 <strong>Director’s Note</strong>")
+      .replace(/---/g, "<hr>")
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+      .replace(/_(.*?)_/g, "<em>$1</em>");
+
+    document.getElementById("analyze-result").innerHTML = formatted;
+  } catch (err) {
+    document.getElementById("analyze-result").textContent = "Error processing request.";
+  }
+
+  button.disabled = false;
+}
 
     let lastEdited = "";
     async function edit() {
