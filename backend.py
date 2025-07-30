@@ -97,24 +97,30 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
 
     response = await ask_openrouter(payload)
     return {"edit_suggestions": response}
+    
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+if not OPENROUTER_API_KEY:
+    raise HTTPException(500, "Missing OpenRouter API key.")
 
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}",
-                    "Content-Type": "application/json"
-                },
-                json=payload
-            )
-            resp.raise_for_status()
-            result = resp.json()
-            return {"edit_suggestions": result["choices"][0]["message"]["content"].strip()}
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(e.response.status_code, e.response.text)
-    except Exception as e:
-        raise HTTPException(500, str(e))
+try:
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        return {
+            "edit_suggestions": result["choices"][0]["message"]["content"].strip()
+        }
+except httpx.HTTPStatusError as e:
+    raise HTTPException(e.response.status_code, e.response.text)
+except Exception as e:
+    raise HTTPException(500, str(e))
 
 # ─── 8. Serve Frontend ───────────────────────────────────────────────────────
 FRONTEND = Path(__file__).parent / "frontend_dist"
