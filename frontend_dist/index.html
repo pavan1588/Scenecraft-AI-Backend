@@ -190,6 +190,7 @@ lastAnalyzed = scene;
 }
 
     let lastEdited = "";
+    let lastEditOutput = "";
     
     async function edit() {
   const scene = document.getElementById("scene-edit").value.trim();
@@ -205,10 +206,10 @@ lastAnalyzed = scene;
     return;
   }
 
-  if (scene === lastEdited) {
-    document.getElementById("edit-result").textContent = "You already got suggestions for this scene.";
-    return;
-  }
+if (scene === lastEdited && lastEditOutput) {
+  document.getElementById("edit-result").innerHTML = lastEditOutput;
+  return;
+}
 
   lastEdited = scene;
   document.getElementById("edit-result").textContent = "Editing...";
@@ -234,6 +235,8 @@ lastAnalyzed = scene;
       .replace(/---/g, "<hr>");
 
     document.getElementById("edit-result").innerHTML = formatted;
+    lastEdited = scene;
+    lastEditOutput = formatted;
   } catch (err) {
     document.getElementById("edit-result").textContent = "An error occurred.";
   }
