@@ -67,9 +67,9 @@ Return only Rationale, Rewrite, and Director’s Note in a clean, organized form
 
 Return your output in the following structure for each line or group of related lines in the input:
 
-🟡 Rationale (mention which input line or phrase you're referring to): [Explain clearly why that line needs improvement, using psychological, emotional, or cinematic reasons.]
+🟡 Rationale (mention which input line or phrase you're referring to): [Explain clearly why that line needs improvement, using psychological, emotional, cinematic reasons and other scene editor prompts.]
 
-✍️ Rewrite: [Improved version of the same line with formatting preserved.]
+✍️ Rewrite: [Keep it more in cinematic style and less novel writing style. Improved version of the same line with formatting preserved.]
 
 🎬 Director’s Note: [Optional. Add cinematic cue or visual suggestion if relevant.]
 
