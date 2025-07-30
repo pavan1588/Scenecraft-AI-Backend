@@ -73,21 +73,24 @@ async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = 
     return {"analysis": await analyze_scene(text)}
 
 # ─── 7. Scene Editor ─────────────────────────────────────────────────────────
+# 7. Scene Editor ____________________________________________
 @app.post("/edit")
 async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
     ip = request.client.host
     if not rate_limiter(ip):
         raise HTTPException(429, "Rate limit exceeded.")
+
     if x_user_agreement != "true":
         raise HTTPException(400, "You must accept the Terms & Conditions.")
+
     cleaned = data.scene.strip()
 
-# Split background from scene if a separator like "---" is used (optional future upgrade)
-# For now, treat everything as combined input
-if len(cleaned) < 30:
-    raise HTTPException(400, "Scene (including context) too short.")
-if len(cleaned.split()) > 650:  # small buffer for optional context
-    raise HTTPException(400, "Scene (including context) must be under 2 pages.")
+    # Optional future upgrade: split context if separator like "---" is used
+    # For now, treat entire text as one input (context + scene)
+    if len(cleaned) < 30:
+        raise HTTPException(400, "Scene (including context) too short.")
+    if len(cleaned.split()) > 650:
+        raise HTTPException(400, "Scene (including context) must be under 2 pages.")
 
     payload = {
         "model": "mistralai/mistral-7b-instruct",
