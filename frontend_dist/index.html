@@ -107,9 +107,14 @@
       </div>
 
       <div id="editor" class="tab hidden">
-        <label for="scene-context" style="color:white; font-weight:bold;">Optional: Add short background or context</label>
-        <textarea id="scene-context" placeholder="e.g., Leena just lost someone but hasn’t told Rafael. Their relationship is tense yet fragile." rows="3" style="width:100%; margin-bottom:10px;"></textarea>
-        <textarea id="scene-edit" placeholder="Paste your scene here (Max 2 pages)..."></textarea><br/>
+        <label for="scene-edit" style="color:white; font-weight:bold;">
+          Optional: Begin with a short background or scene context. Then paste your scene below.
+        </label>
+        <textarea id="scene-edit"
+                  placeholder="e.g., Leena just lost someone but hasn’t told Rafael. Their relationship is tense yet fragile.&#10;&#10;RAFAEL&#10;We need to rerun the test... (scene continues)"
+                  rows="20"
+                  style="width: 100%; font-family: monospace;">
+        </textarea>
         <button class="action" onclick="edit()">Edit Suggestion</button>
         <input type="file" />
         <pre id="edit-result"></pre>
