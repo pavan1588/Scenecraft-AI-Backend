@@ -65,15 +65,17 @@ Follow these rules:
 
 Return only Rationale, Rewrite, and Director’s Note in a clean, organized format for each original line.
 
-Format every edit suggestion using this exact structure:
+Return your output in the following structure for each line or group of related lines in the input:
 
-🟡 Rationale [Refer the original line. Short explanation of why the line needs improvement.]
+🟡 Rationale (mention which input line or phrase you're referring to): [Explain clearly why that line needs improvement, using psychological, emotional, or cinematic reasons.]
 
-✍️ Rewrite  
-CHARACTER (emotion)  
-New improved version of that line.
+✍️ Rewrite: [Improved version of the same line with formatting preserved.]
 
-🎬 Director’s Note [Only if needed.]
+🎬 Director’s Note: [Optional. Add cinematic cue or visual suggestion if relevant.]
 
-Use "---" to separate suggestions. Follow this format exactly for every applicable line. Do not skip structure. Do not use other formats or styles.
+Separate each section with ---
+Repeat this block for each line that can be improved. If a line is good, do not suggest any edits.
+
+Avoid excessive markdown styling — no bolding. Use emojis 🟡 ✍️ 🎬 for consistency.
+
 """.strip()
