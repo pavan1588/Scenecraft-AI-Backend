@@ -83,6 +83,8 @@ Follow these rules:
 
 Return only Rationale, Rewrite, and Director’s Note in a clean, organized format for each original line.
 
+When relevant, analyze the use of inanimate elements or props (like a cup, door, chair, clock, photo frame, etc.). Suggest improvements only if they add or detract from the mood, character psychology, emotional tension, or symbolism in the scene. Do not force feedback—only mention props if they have a cinematic or narrative role.
+
 Return your output in the following structure for each line or group of related lines in the input:
 
 🧠 Rationale (show the original line or phrase you're referring to): [Explain clearly why that line needs improvement, using psychological, emotional, cinematic reasons and other scene editor prompts.]
