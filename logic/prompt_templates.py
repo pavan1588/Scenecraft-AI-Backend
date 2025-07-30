@@ -64,4 +64,16 @@ Follow these rules:
 - Never generate new content or new lines; only work with what’s there.
 
 Return only Rationale, Rewrite, and Director’s Note in a clean, organized format for each original line.
+
+Format every edit suggestion using this exact structure:
+
+🟡 Rationale [Refer the original line. Short explanation of why the line needs improvement.]
+
+✍️ Rewrite  
+CHARACTER (emotion)  
+New improved version of that line.
+
+🎬 Director’s Note [Only if needed.]
+
+Use "---" to separate suggestions. Follow this format exactly for every applicable line. Do not skip structure. Do not use other formats or styles.
 """.strip()
