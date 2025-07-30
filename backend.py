@@ -116,4 +116,12 @@ FRONTEND = Path(__file__).parent / "frontend_dist"
 if not FRONTEND.exists():
     raise RuntimeError(f"Frontend build not found: {FRONTEND}")
 
+class PasswordRequest(BaseModel):
+    password: str
+
+@app.post("/validate-password")
+async def validate_password(data: PasswordRequest):
+    expected = os.getenv("SCENECRAFT_PASSWORD", "SCENECRAFT-2024")
+    return {"valid": data.password == expected}
+    
 app.mount("/", StaticFiles(directory="frontend_dist", html=True), name="frontend")
