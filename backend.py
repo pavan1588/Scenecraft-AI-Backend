@@ -121,7 +121,7 @@ class PasswordRequest(BaseModel):
 
 @app.post("/validate-password")
 async def validate_password(data: PasswordRequest):
-    expected = os.getenv("SCENECRAFT_PASSWORD", "prantasdatwanta")
+    expected = os.getenv("SCENECRAFT_PASSWORD", "ptantasdatwanta")
     return {"valid": data.password == expected}
-
+    
 app.mount("/", StaticFiles(directory="frontend_dist", html=True), name="frontend")
