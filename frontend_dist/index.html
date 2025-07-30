@@ -108,6 +108,8 @@
 
   <script>
     const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh"); 
+    let lastAnalyzed = "";
+    let lastEdited = "";
 
     function checkAccess() {
       const input = document.getElementById("access").value;
@@ -127,84 +129,82 @@
         if (id === "analyzer") {
           document.getElementById("scene-analyze").value = "";
           document.getElementById("analyze-result").textContent = "";
+          lastAnalyzed = "";
         } else if (id === "editor") {
           document.getElementById("scene-edit").value = "";
           document.getElementById("edit-result").textContent = "";
+          lastEdited = "";
         }
       });
       document.getElementById(tab).classList.remove("hidden");
     }
 
-   let lastAnalyzed = "";
+    async function analyze() {
+      const scene = document.getElementById("scene-analyze").value.trim();
+      if (scene.length < 30) {
+        document.getElementById("analyze-result").textContent = "Scene too short.";
+        return;
+      }
+      if (scene === lastAnalyzed) return;
+      lastAnalyzed = scene;
 
-async function analyze() {
-  const scene = document.getElementById("scene-analyze").value.trim();
-  if (scene.length < 30) {
-    document.getElementById("analyze-result").textContent = "Scene too short.";
-    return;
-  }
-  if (scene === lastAnalyzed) return;  // Prevent re-analysis of same scene
-  lastAnalyzed = scene;
-
-  document.getElementById("analyze-result").textContent = "Analyzing...";
-  const res = await fetch("/analyze", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-user-agreement": "true"
-    },
-    body: JSON.stringify({ scene })
-  });
-  const data = await res.json();
-  document.getElementById("analyze-result").textContent = data.analysis || JSON.stringify(data);
-}
-
-      const data = await res.json();
-      document.getElementById("analyze-result").textContent = data.analysis || JSON.stringify(data);
+      document.getElementById("analyze-result").textContent = "Analyzing...";
+      try {
+        const res = await fetch("/analyze", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-user-agreement": "true"
+          },
+          body: JSON.stringify({ scene })
+        });
+        const data = await res.json();
+        document.getElementById("analyze-result").textContent = data.analysis || JSON.stringify(data);
+      } catch (err) {
+        document.getElementById("analyze-result").textContent = "Error during analysis.";
+      }
     }
 
-    let lastEdited = "";
+    async function edit() {
+      const scene = document.getElementById("scene-edit").value.trim();
+      if (scene.length < 30) {
+        document.getElementById("edit-result").textContent = "Scene too short.";
+        return;
+      }
+      if (scene.split(/\s+/).length > 600) {
+        document.getElementById("edit-result").textContent = "Scene exceeds 2-page limit.";
+        return;
+      }
+      if (scene === lastEdited) return;
+      lastEdited = scene;
 
-async function edit() {
-  const scene = document.getElementById("scene-edit").value.trim();
-  if (scene.length < 30) {
-    document.getElementById("edit-result").textContent = "Scene too short.";
-    return;
-  }
-  if (scene.split(/\s+/).length > 600) {
-    document.getElementById("edit-result").textContent = "Scene exceeds 2-page limit.";
-    return;
-  }
-  if (scene === lastEdited) return;  // Prevent re-edit of same scene
-  lastEdited = scene;
-
-  document.getElementById("edit-result").textContent = "Editing...";
-  const res = await fetch("/edit", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-user-agreement": "true"
-    },
-    body: JSON.stringify({ scene })
-  });
-  const data = await res.json();
-  document.getElementById("edit-result").textContent = data.edit_suggestions || JSON.stringify(data);
-}
-
-      const data = await res.json();
-      document.getElementById("edit-result").textContent = data.edit_suggestions || JSON.stringify(data);
+      document.getElementById("edit-result").textContent = "Editing...";
+      try {
+        const res = await fetch("/edit", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-user-agreement": "true"
+          },
+          body: JSON.stringify({ scene })
+        });
+        const data = await res.json();
+        document.getElementById("edit-result").textContent = data.edit_suggestions || JSON.stringify(data);
+      } catch (err) {
+        document.getElementById("edit-result").textContent = "Error during editing.";
+      }
     }
-  
-  // Disable right-click context menu
-  document.addEventListener('contextmenu', event => event.preventDefault());
 
-  // Disable Ctrl+C, Ctrl+A, Ctrl+S, Ctrl+P and Mac equivalents
-  document.addEventListener('keydown', function (e) {
-    const blocked = ['c', 'a', 's', 'p'];
-    if ((e.ctrlKey || e.metaKey) && blocked.includes(e.key.toLowerCase())) {
-      e.preventDefault();
-    }
-  });
-</script>
+    // Disable right-click context menu
+    document.addEventListener('contextmenu', event => event.preventDefault());
+
+    // Disable Ctrl+C, Ctrl+A, Ctrl+S, Ctrl+P and Mac equivalents
+    document.addEventListener('keydown', function (e) {
+      const blocked = ['c', 'a', 's', 'p'];
+      if ((e.ctrlKey || e.metaKey) && blocked.includes(e.key.toLowerCase())) {
+        e.preventDefault();
+      }
+    });
+  </script>
 </body>
 </html>
