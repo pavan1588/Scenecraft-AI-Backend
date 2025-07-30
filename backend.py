@@ -58,6 +58,7 @@ def rate_limiter(ip: str) -> bool:
 # ─── 5. Input Schema ─────────────────────────────────────────────────────────
 class SceneRequest(BaseModel):
     scene: str
+    context: Optional[str] = ""
 
 # ─── 6. Scene Analyzer ───────────────────────────────────────────────────────
 @app.post("/analyze")
@@ -73,7 +74,6 @@ async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = 
     return {"analysis": await analyze_scene(text)}
 
 # ─── 7. Scene Editor ─────────────────────────────────────────────────────────
-# 7. Scene Editor ____________________________________________
 @app.post("/edit")
 async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
     ip = request.client.host
@@ -83,7 +83,9 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
     if x_user_agreement != "true":
         raise HTTPException(400, "You must accept the Terms & Conditions.")
 
-    cleaned = data.scene.strip()
+    background = data.context.strip() if data.context else ""
+    scene_text = data.scene.strip()
+    cleaned = f"{background}\n\n{scene_text}" if background else scene_text
 
     # Optional future upgrade: split context if separator like "---" is used
     # For now, treat entire text as one input (context + scene)
