@@ -82,45 +82,45 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
     if x_user_agreement != "true":
         raise HTTPException(400, "You must accept the Terms & Conditions.")
 
-    cleaned = data.scene.strip()
-
-    if len(cleaned) < 30:
+    scene_text = data.scene.strip()
+    
+    if len(scene_text) < 30:
         raise HTTPException(400, "Scene (including context) too short.")
-   
+
+    if len(scene_text.split()) > 650:
+        raise HTTPException(400, "Scene (including context) must be under 2 pages.")
+
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
             {"role": "system", "content": SCENE_EDITOR_PROMPT},
-            {"role": "user", "content": cleaned}
+            {"role": "user", "content": scene_text}
         ]
     }
 
-    response = await ask_openrouter(payload)
-    return {"edit_suggestions": response}
-    
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-if not OPENROUTER_API_KEY:
-    raise HTTPException(500, "Missing OpenRouter API key.")
+    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+    if not OPENROUTER_API_KEY:
+        raise HTTPException(500, "Missing OpenRouter API key.")
 
-try:
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-        )
-        resp.raise_for_status()
-        result = resp.json()
-        return {
-            "edit_suggestions": result["choices"][0]["message"]["content"].strip()
-        }
-except httpx.HTTPStatusError as e:
-    raise HTTPException(e.response.status_code, e.response.text)
-except Exception as e:
-    raise HTTPException(500, str(e))
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+            resp.raise_for_status()
+            result = resp.json()
+            return {
+                "edit_suggestions": result["choices"][0]["message"]["content"].strip()
+            }
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(e.response.status_code, e.response.text)
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 # ─── 8. Serve Frontend ───────────────────────────────────────────────────────
 FRONTEND = Path(__file__).parent / "frontend_dist"
