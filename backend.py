@@ -87,6 +87,13 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
     if len(scene_text) < 30:
         raise HTTPException(400, "Scene (including context) too short.")
 
+    # Block generation-style prompts for editor too
+    if STRIP_RE.match(scene_text.strip().lower()):
+        raise HTTPException(
+        status_code=400,
+        detail="SceneCraft does not generate scenes. Please submit your own scene or script for editing."
+    )
+
     if len(scene_text.split()) > 650:
         raise HTTPException(400, "Scene (including context) must be under 2 pages.")
 
