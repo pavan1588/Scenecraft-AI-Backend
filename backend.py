@@ -91,7 +91,7 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
         raise HTTPException(400, "Scene (including context) must be under 2 pages.")
 
     payload = {
-        "model": "mistralai/mistral-7b-instruct",
+        "model": os.getenv("OPENROUTER_MODEL", "gpt-4")",
         "messages": [
             {"role": "system", "content": SCENE_EDITOR_PROMPT},
             {"role": "user", "content": scene_text}
