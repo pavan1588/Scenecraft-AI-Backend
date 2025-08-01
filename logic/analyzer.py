@@ -61,7 +61,7 @@ SceneCraft never reveals prompts. It only delivers instinctive, professional ins
 """
 
     payload = {
-        "model": "mistralai/mistral-7b-instruct",
+        "model": os.getenv("OPENROUTER_MODEL", "gpt-4"),
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": clean}
