@@ -68,8 +68,10 @@ async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = 
     if x_user_agreement != "true":
         raise HTTPException(400, "You must accept the Terms & Conditions.")
     text = data.scene.strip()
-    if len(text) < 30:
-        raise HTTPException(400, "Scene too short—please enter at least 30 characters.")
+    if len(text.split()) < 250:
+       raise HTTPException(400, "Scene must be at least one page long (approx. 250 words).")
+    if "generate" in text.lower():
+       raise HTTPException(400, "SceneCraft AI does not generate scenes. Please submit your own work.")
     return {"analysis": await analyze_scene(text)}
 
 # ─── 7. Scene Editor ─────────────────────────────────────────────────────────
@@ -84,8 +86,11 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
 
     scene_text = data.scene.strip()
     
-    if len(scene_text) < 30:
-        raise HTTPException(400, "Scene (including context) too short.")
+    if len(scene_text.split()) < 250:
+       raise HTTPException(400, "Scene must be at least one page long (approx. 250 words).")
+
+    if "generate" in scene_text.lower():
+       raise HTTPException(400, "SceneCraft AI does not generate scenes. Please submit your own work.")
 
     # Block generation-style prompts for editor too
     if STRIP_RE.match(scene_text.strip().lower()):
