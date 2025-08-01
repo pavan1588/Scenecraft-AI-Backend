@@ -24,7 +24,7 @@ def clean_scene(text: str) -> str:
 
 async def analyze_scene(scene: str) -> str:
     clean = clean_scene(scene)
-    
+
     # Block generation-style prompts entirely
     if STRIP_RE.match(scene.strip().lower()):
         raise HTTPException(
@@ -32,7 +32,8 @@ async def analyze_scene(scene: str) -> str:
             detail="SceneCraft does not generate scenes. Please submit your own scene or script for analysis."
         )
 
-     # Require minimum 250 words for standard 1-page length
+    # Require minimum 250 words for standard 1-page length
+
     if len(clean.split()) < 250:
         raise HTTPException(
             status_code=400,
