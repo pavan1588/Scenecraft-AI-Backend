@@ -10,6 +10,7 @@ from typing import Optional
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS, HTTP_401_UNAUTHORIZED
 
 from logic.analyzer import analyze_scene
+from logic.analyzer import STRIP_RE
 from logic.prompt_templates import SCENE_EDITOR_PROMPT
 
 # ─── 1. App & Auth Setup ─────────────────────────────────────────────────────
