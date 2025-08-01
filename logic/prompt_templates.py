@@ -69,3 +69,4 @@ Avoid markdown formatting or bold text. Emojis 🧠 ✍️ 🎬 are enough.
 Keep tone intuitive. Use realism, contradiction, silence, tension, and empathy to shape better lines.
 
 """.strip()
+
