@@ -71,6 +71,4 @@ When props, objects, or inanimate details are present (e.g., cup, photo frame, d
 Avoid markdown formatting or bold text. Emojis 🧠 ✍️ 🎬 are enough.
 
 Keep tone intuitive. Use realism, contradiction, silence, tension, and empathy to shape better lines.
-
 """.strip()
-
