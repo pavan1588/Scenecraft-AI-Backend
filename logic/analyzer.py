@@ -27,7 +27,7 @@ async def analyze_scene(scene: str) -> str:
     if not clean:
         raise HTTPException(status_code=400, detail="Invalid scene content")
 
-   import os
+import os
 import httpx
 import re
 from fastapi import HTTPException
