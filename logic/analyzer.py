@@ -56,9 +56,7 @@ async def analyze_scene(scene: str) -> str:
     if not clean:
         raise HTTPException(status_code=400, detail="Invalid scene content")
 
-  system_prompt = """You are SceneCraft AI, a visionary cinematic consultant and story analyst.
-
-    system_prompt = """You are SceneCraft AI, a visionary cinematic consultant and story analyst.
+system_prompt = """You are SceneCraft AI, a visionary cinematic consultant and story analyst.
 
 You assess scenes as a human expert would—through emotional intuition, cinematic craft, and narrative intelligence.
 
