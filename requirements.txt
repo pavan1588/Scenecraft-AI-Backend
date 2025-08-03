@@ -8,3 +8,6 @@ asyncpg
 firebase-admin
 httpx
 python-dotenv
+numpy
+matplotlib
+seaborn
