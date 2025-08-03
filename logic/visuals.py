@@ -1,6 +1,5 @@
 # logic/visuals.py
 
-import seaborn as sns
 import io
 import base64
 import numpy as np
