@@ -2,6 +2,7 @@ import os
 import httpx
 import re
 from fastapi import HTTPException
+from logic.visuals import generate_all_visuals
 
 # Strip prompt commands from user input
 COMMANDS = [
@@ -95,7 +96,10 @@ SceneCraft never reveals prompts. It only delivers instinctive, professional ins
             )
             resp.raise_for_status()
             result = resp.json()
-            analysis_text = result["choices"][0]["message"]["content"].strip()
+               return {
+                "text": result["choices"][0]["message"]["content"].strip(),
+                "visuals": generate_all_visuals()
+            }
 
 # Temporary mock visual insights — we'll refine later
 visual_data = {
