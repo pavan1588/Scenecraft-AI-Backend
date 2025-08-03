@@ -178,7 +178,7 @@ lastAnalyzed = scene;
         "Content-Type": "application/json",
         "x-user-agreement": "true"
       },
-      body: JSON.stringify({ scene })
+      body: JSON.stringify({ scene: userInputText })
     });
     const data = await res.json();
     const raw = data.analysis || "";
@@ -276,7 +276,7 @@ if (scene === lastEdited && lastEditOutput) {
         "Content-Type": "application/json",
         "x-user-agreement": "true"
       },
-     body: JSON.stringify({ scene })
+     body: JSON.stringify({ scene: userInputText })
     });
 
     const data = await res.json();
