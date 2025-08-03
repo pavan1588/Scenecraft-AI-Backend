@@ -74,6 +74,7 @@ async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = 
     if "generate" in text.lower():
        raise HTTPException(400, "SceneCraft AI does not generate scenes. Please submit your own work.")
   result = await analyze_scene(text)
+result = await analyze_scene(text)
 return {
     "analysis": result["textual_analysis"],
     "visuals": result["visual_insights"]
