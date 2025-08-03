@@ -2,6 +2,8 @@
 
 import io
 import base64
+import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
 
 def generate_base64_chart(fig):
