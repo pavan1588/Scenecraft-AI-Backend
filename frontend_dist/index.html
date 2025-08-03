@@ -104,6 +104,7 @@
         <button class="action" onclick="analyze()">Analyze</button>
         <input type="file" />
         <pre id="analyze-result"></pre>
+        <div id="visual-summary" style="margin-top: 2rem;"></div>
       </div>
 
       <div id="editor" class="tab hidden">
@@ -180,6 +181,19 @@ lastAnalyzed = scene;
     });
     const data = await res.json();
     const raw = data.analysis || "";
+    const visuals = data.visuals || {};
+
+let visualsHTML = `
+  <h3>🎬 Visual Summary</h3>
+  <p><strong>Beat Progression:</strong> ${visuals.beat_graph?.join(" → ") || "N/A"}</p>
+  <p><strong>Emotion Curve:</strong> ${visuals.emotion_curve?.join(" → ") || "N/A"}</p>
+  <p><strong>Dialogue Naturalism:</strong> ${visuals.dialogue_naturalism || "N/A"}%</p>
+  <p><strong>Tension Index:</strong> ${visuals.tension_index || "N/A"}/100</p>
+  <p><strong>Cinematic Readiness:</strong> ${visuals.cinematic_readiness || "N/A"}/100</p>
+`;
+
+document.getElementById("visual-summary").innerHTML = visualsHTML;
+
     const formatted = raw
       .replace(/\*\*Rationale:\*\*/g, "🔶 <strong>Rationale</strong>")
       .replace(/\*\*Rewrite:\*\*/g, "✍️ <strong>Rewrite</strong>")
