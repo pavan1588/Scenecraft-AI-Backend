@@ -137,20 +137,21 @@
       }
     }
 
-    function showTab(tab) {
-      const tabs = ["home", "analyzer", "editor"];
-      tabs.forEach(id => {
-        document.getElementById(id).classList.add("hidden");
-        if (id === "analyzer") {
-          document.getElementById("scene-analyze").value = "";
-          document.getElementById("analyze-result").textContent = "";
-        } else if (id === "editor") {
-          document.getElementById("scene-edit").value = "";
-          document.getElementById("edit-result").textContent = "";
-        }
-      });
-      document.getElementById(tab).classList.remove("hidden");
+   function showTab(tab) {
+  const tabs = ["home", "analyzer", "editor"];
+  tabs.forEach(id => {
+    document.getElementById(id).classList.add("hidden");
+    if (id === "analyzer") {
+      document.getElementById("scene-analyze").value = "";
+      document.getElementById("analyze-result").textContent = "";
+      document.getElementById("visual-summary").innerHTML = "";
+    } else if (id === "editor") {
+      document.getElementById("scene-edit").value = "";
+      document.getElementById("edit-result").textContent = "";
     }
+  });
+  document.getElementById(tab).classList.remove("hidden");
+}
 
     let lastAnalyzed = "";
 
