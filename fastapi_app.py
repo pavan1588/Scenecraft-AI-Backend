@@ -77,7 +77,7 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
             resp.raise_for_status()
             result = resp.json()
             analysis = result["choices"][0]["message"]["content"].strip()
-            return {"edit_suggestions": analysis}
+            return {"edit_suggestion": analysis}
     except httpx.HTTPStatusError as e:
         raise HTTPException(e.response.status_code, e.response.text)
     except Exception as e:
