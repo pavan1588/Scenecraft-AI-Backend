@@ -64,6 +64,12 @@ class SceneRequest(BaseModel):
 @app.post("/analyze")
 async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
     ip = request.client.host
+    print("Headers:", request.headers)
+    try:
+        body = await request.json()
+        print("Scene Analyzer Body:", body)
+    except Exception as e:
+        raise HTTPException(400, f"Invalid analyzer request: {e}")
     if not rate_limiter(ip):
         raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "Rate limit exceeded.")
     if x_user_agreement != "true":
@@ -84,6 +90,13 @@ async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = 
 @app.post("/edit")
 async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
     ip = request.client.host
+    print("Headers:", request.headers)
+    try:
+        body = await request.json()
+        print("Scene Editor Body:", body)
+    except Exception as e:
+        raise HTTPException(400, f"Invalid editor request: {e}")
+
     print("Editor request received from:", ip)
     print("Scene text starts with:", data.scene.strip()[:100])
     
