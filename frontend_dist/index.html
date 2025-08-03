@@ -137,20 +137,21 @@
       }
     }
 
-    function showTab(tab) {
-      const tabs = ["home", "analyzer", "editor"];
-      tabs.forEach(id => {
-        document.getElementById(id).classList.add("hidden");
-        if (id === "analyzer") {
-          document.getElementById("scene-analyze").value = "";
-          document.getElementById("analyze-result").textContent = "";
-        } else if (id === "editor") {
-          document.getElementById("scene-edit").value = "";
-          document.getElementById("edit-result").textContent = "";
-        }
-      });
-      document.getElementById(tab).classList.remove("hidden");
+   function showTab(tab) {
+  const tabs = ["home", "analyzer", "editor"];
+  tabs.forEach(id => {
+    document.getElementById(id).classList.add("hidden");
+    if (id === "analyzer") {
+      document.getElementById("scene-analyze").value = "";
+      document.getElementById("analyze-result").textContent = "";
+      document.getElementById("visual-summary").innerHTML = "";
+    } else if (id === "editor") {
+      document.getElementById("scene-edit").value = "";
+      document.getElementById("edit-result").textContent = "";
     }
+  });
+  document.getElementById(tab).classList.remove("hidden");
+}
 
     let lastAnalyzed = "";
 
@@ -182,6 +183,38 @@ lastAnalyzed = scene;
     const data = await res.json();
     const raw = data.analysis || "";
     const visuals = data.visuals || {};
+    renderVisualSummary(visuals);
+    function renderVisualSummary(visuals) {
+  const { beats, emotion_curve, dialogue_naturalism, tension_index, cinematic_readiness } = visuals;
+  const visualHTML = `
+    <h3 style="color: gold;">🎥 Visual Summary</h3>
+
+    <p><strong>Scene Beats:</strong> ${beats.join(" → ")}</p>
+
+    <p><strong>Emotion Curve:</strong><br/>
+      <svg height="80" width="100%" viewBox="0 0 500 80">
+        <polyline fill="none" stroke="gold" stroke-width="2"
+          points="${emotion_curve.map((val, i) => `${i * 100},${80 - val * 0.8}`).join(" ")}" />
+      </svg>
+    </p>
+
+    <p><strong>Dialogue Naturalism:</strong> ${dialogue_naturalism}%</p>
+    <div style="background:#333; width:100%; height:10px;">
+      <div style="background:gold; height:10px; width:${dialogue_naturalism}%;"></div>
+    </div>
+
+    <p><strong>Tension Index:</strong> ${tension_index}/100</p>
+    <div style="background:#333; width:100%; height:10px;">
+      <div style="background:red; height:10px; width:${tension_index}%;"></div>
+    </div>
+
+    <p><strong>Cinematic Readiness:</strong> ${cinematic_readiness}/100</p>
+    <div style="background:#333; width:100%; height:10px;">
+      <div style="background:lightgreen; height:10px; width:${cinematic_readiness}%;"></div>
+    </div>
+  `;
+  document.getElementById("visual-summary").innerHTML = visualHTML;
+}
 
 let visualsHTML = `
   <h3>🎬 Visual Summary</h3>
