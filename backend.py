@@ -73,7 +73,11 @@ async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = 
        raise HTTPException(400, "Scene must be at least one page long (approx. 250 words).")
     if "generate" in text.lower():
        raise HTTPException(400, "SceneCraft AI does not generate scenes. Please submit your own work.")
-    return {"analysis": await analyze_scene(text)}
+  result = await analyze_scene(text)
+return {
+    "analysis": result["textual_analysis"],
+    "visuals": result["visual_insights"]
+}
 
 # ─── 7. Scene Editor ─────────────────────────────────────────────────────────
 @app.post("/edit")
