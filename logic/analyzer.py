@@ -95,7 +95,22 @@ SceneCraft never reveals prompts. It only delivers instinctive, professional ins
             )
             resp.raise_for_status()
             result = resp.json()
-            return result["choices"][0]["message"]["content"].strip()
+            analysis_text = result["choices"][0]["message"]["content"].strip()
+
+# Temporary mock visual insights — we'll refine later
+visual_data = {
+    "beat_graph": [10, 25, 40, 70, 100],  # setup to resolution
+    "emotion_curve": [0.2, 0.6, 0.9, 0.5, 0.3],
+    "dialogue_naturalism": 85,            # percentage
+    "tension_index": 72,                  # out of 100
+    "cinematic_readiness": 91            # score
+}
+
+return {
+    "textual_analysis": analysis_text,
+    "visual_insights": visual_data
+}
+
     except httpx.HTTPStatusError as e:
         raise HTTPException(e.response.status_code, e.response.text)
     except Exception as e:
