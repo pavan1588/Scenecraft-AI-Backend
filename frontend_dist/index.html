@@ -176,7 +176,7 @@ lastAnalyzed = scene;
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x_user_agreement": "true"
+        "x-user-agreement": "true"
       },
       body: JSON.stringify({ scene: scene })
     });
@@ -273,7 +273,7 @@ if (scene === lastEdited && lastEditOutput) {
  console.log("Sending to /edit:", {
   headers: {
     "Content-Type": "application/json",
-    "x_user_agreement": "true"
+    "x-user-agreement": "true"
   },
   body: JSON.stringify({ scene })
 });
@@ -281,7 +281,7 @@ if (scene === lastEdited && lastEditOutput) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x_user_agreement": "true"
+        "x-user-agreement": "true"
       },
      body: JSON.stringify({ scene: scene })
     });
