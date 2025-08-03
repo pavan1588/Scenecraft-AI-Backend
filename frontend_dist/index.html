@@ -289,12 +289,7 @@ if (scene === lastEdited && lastEditOutput) {
       .replace(/---/g, "<hr>");
 
     document.getElementById("edit-result").innerHTML = formatted;
-    const visualDiv = document.createElement("div");
-    visualDiv.id = "visual-summary";
-    visualDiv.innerHTML = visuals;
-    visualDiv.style.marginTop = "2rem";
-    document.getElementById("analyze-result").appendChild(visualDiv);
-
+    
     lastEdited = scene;
     lastEditOutput = formatted;
   } catch (err) {
