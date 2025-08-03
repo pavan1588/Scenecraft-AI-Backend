@@ -270,6 +270,13 @@ if (scene === lastEdited && lastEditOutput) {
   button.disabled = true;
 
   try {    
+ console.log("Sending to /edit:", {
+  headers: {
+    "Content-Type": "application/json",
+    "x-user-agreement": "true"
+  },
+  body: JSON.stringify({ scene })
+});
     const res = await fetch("/edit", {
       method: "POST",
       headers: {
