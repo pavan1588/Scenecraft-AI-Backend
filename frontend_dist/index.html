@@ -280,7 +280,7 @@ if (scene === lastEdited && lastEditOutput) {
     });
 
     const data = await res.json();
-    const raw = data.edit_suggestions || "";
+    const raw = data.edit_suggestion || "";
 
     const formatted = raw
       .replace(/\*\*Rationale:\*\*/g, "🔸 <strong>Rationale</strong>")
