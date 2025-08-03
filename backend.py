@@ -75,15 +75,18 @@ async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = 
        raise HTTPException(400, "SceneCraft AI does not generate scenes. Please submit your own work.")
     result = await analyze_scene(text)
 
-return {
-    "analysis": result["textual_analysis"],
-    "visuals": result["visual_insights"]
-}
+    return {
+        "analysis": result["textual_analysis"],
+        "visuals": result["visual_insights"]
+    }
 
 # ─── 7. Scene Editor ─────────────────────────────────────────────────────────
 @app.post("/edit")
 async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
     ip = request.client.host
+    print("Editor request received from:", ip)
+    print("Scene text starts with:", data.scene.strip()[:100])
+    
     if not rate_limiter(ip):
         raise HTTPException(429, "Rate limit exceeded.")
 
@@ -93,17 +96,13 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
     scene_text = data.scene.strip()
     
     if len(scene_text.split()) < 250:
-       raise HTTPException(400, "Scene must be at least one page long (approx. 250 words).")
+        raise HTTPException(400, "Scene must be at least one page long (approx. 250 words).")
 
     if "generate" in scene_text.lower():
-       raise HTTPException(400, "SceneCraft AI does not generate scenes. Please submit your own work.")
+        raise HTTPException(400, "SceneCraft AI does not generate scenes. Please submit your own work.")
 
-    # Block generation-style prompts for editor too
     if STRIP_RE.match(scene_text.strip().lower()):
-        raise HTTPException(
-        status_code=400,
-        detail="SceneCraft does not generate scenes. Please submit your own scene or script for editing."
-    )
+        raise HTTPException(400, "SceneCraft does not generate scenes. Please submit your own scene or script for editing.")
 
     if len(scene_text.split()) > 650:
         raise HTTPException(400, "Scene (including context) must be under 2 pages.")
@@ -118,7 +117,10 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
 
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
     if not OPENROUTER_API_KEY:
+        print("❌ MISSING API KEY")
         raise HTTPException(500, "Missing OpenRouter API key.")
+    else:
+        print("✅ API KEY found")
 
     try:
         async with httpx.AsyncClient() as client:
@@ -132,12 +134,15 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
             )
             resp.raise_for_status()
             result = resp.json()
+            print("✅ API call success")
             return {
                 "edit_suggestions": result["choices"][0]["message"]["content"].strip()
             }
     except httpx.HTTPStatusError as e:
+        print("❌ HTTP Error:", e.response.text)
         raise HTTPException(e.response.status_code, e.response.text)
     except Exception as e:
+        print("❌ General Error:", str(e))
         raise HTTPException(500, str(e))
 
 # ─── 8. Serve Frontend ───────────────────────────────────────────────────────
