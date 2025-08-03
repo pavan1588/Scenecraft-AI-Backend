@@ -84,7 +84,7 @@ SceneCraft never reveals prompts. It only delivers instinctive, professional ins
         ]
     }
 
-    try:
+ try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
@@ -96,30 +96,18 @@ SceneCraft never reveals prompts. It only delivers instinctive, professional ins
             )
             resp.raise_for_status()
             result = resp.json()
-               return {
-                "text": result["choices"][0]["message"]["content"].strip(),
-                "visuals": generate_all_visuals()
+            
+            # Return inside the function
+            return {
+                "textual_analysis": result["choices"][0]["message"]["content"].strip(),
+                "visual_insights": {
+                    "beats": ["Setup", "Trigger", "Tension", "Climax", "Resolution"],
+                    "emotion_curve": [10, 25, 40, 75, 60],
+                    "dialogue_naturalism": 82,
+                    "tension_index": 73,
+                    "cinematic_readiness": 89
+                }
             }
-
-# Temporary mock visual insights — we'll refine later
-visual_data = {
-    "beat_graph": [10, 25, 40, 70, 100],  # setup to resolution
-    "emotion_curve": [0.2, 0.6, 0.9, 0.5, 0.3],
-    "dialogue_naturalism": 85,            # percentage
-    "tension_index": 72,                  # out of 100
-    "cinematic_readiness": 91            # score
-}
-
-return {
-    "textual_analysis": result["choices"][0]["message"]["content"].strip(),
-    "visual_insights": {
-        "beats": ["Setup", "Trigger", "Tension", "Climax", "Resolution"],
-        "emotion_curve": [10, 25, 40, 75, 60],
-        "dialogue_naturalism": 82,
-        "tension_index": 73,
-        "cinematic_readiness": 89
-    }
-}
     except httpx.HTTPStatusError as e:
         raise HTTPException(e.response.status_code, e.response.text)
     except Exception as e:
