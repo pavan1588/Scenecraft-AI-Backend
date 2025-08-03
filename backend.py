@@ -136,7 +136,7 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
             result = resp.json()
             print("✅ API call success")
             return {
-                "edit_suggestions": result["choices"][0]["message"]["content"].strip()
+                "edit_suggestion": result["choices"][0]["message"]["content"].strip()
             }
     except httpx.HTTPStatusError as e:
         print("❌ HTTP Error:", e.response.text)
