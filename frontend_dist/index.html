@@ -1,3 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SceneCraft AI</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0e0e0e;
+      color: gold;
+      margin: 0;
+      padding: 2rem;
+    }
+    .container {
+      max-width: 900px;
+      margin: auto;
+    }
+    nav button {
+      margin-right: 1rem;
+      background: #1f1f1f;
+      color: gold;
+      border: 1px solid #555;
+      padding: 0.6rem 1rem;
+      cursor: pointer;
+    }
+    textarea {
+      width: 100%;
+      height: 200px;
+      margin-bottom: 1rem;
+      padding: 1rem;
+      font-size: 1rem;
+      background: #222;
+      color: #fff;
+      border: 1px solid #666;
+    }
+    input[type="file"] {
+      margin-top: 1rem;
+      color: gold;
+    }
+    button.action {
+      background: #333;
+      color: gold;
+      padding: 0.5rem 1rem;
+      border: 1px solid #444;
+      cursor: pointer;
+    }
+    pre {
+      background: #1a1a1a;
+      color: #fff;
+      padding: 1rem;
+      white-space: pre-wrap;
+      border-left: 4px solid gold;
+      margin-top: 1rem;
+      line-height: 1.6;
+      font-family: Consolas, monospace;
+    }
+    pre strong {
+      color: #ffd700;
+    }
+    pre em {
+      color: #ccc;
+      font-style: italic;
+    }
+    .hidden { display: none; }
+    .description { margin-bottom: 2rem; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="password-gate">
+      <h2>Enter Access Key</h2>
+      <input type="password" id="access" />
+      <button onclick="checkAccess()">Unlock</button>
+      <p id="access-error" style="color:red;"></p>
+    </div>
+
+    <div id="app" class="hidden">
+      <h1>🎬 SceneCraft AI</h1>
+
+      <nav>
+        <button onclick="showTab('home')">Home</button>
+        <button onclick="showTab('analyzer')">Scene Analyzer</button>
+        <button onclick="showTab('editor')">Scene Editor</button>
+        <button disabled>Full Script Writer</button>
+        <button disabled>Dashboard</button>
+        <button disabled>Pricing</button>
+      </nav>
+
+      <div id="home" class="tab">
+        <div class="description">
+          <p><strong>SceneCraft AI</strong> is your cinematic partner for evaluating and rewriting scenes with human-grade insight. We analyze story beats, emotional arcs, visual grammar, and realism using deep cinematic intelligence. Whether you're a beginner or a pro, SceneCraft helps your scenes hit harder.</p>
+          <ul>
+            <li><strong>Scene Analyzer</strong>: Understand your scene's strengths and cinematic weaknesses.</li>
+            <li><strong>Scene Editor</strong>: Get line-by-line rewrite suggestions to make your scenes sharper and smarter.</li>
+            <li><strong>Full Script Writer</strong>: (Coming Soon) AI-powered guidance for script development.</li>
+            <li><strong>Dashboard</strong>: (Coming Soon) Manage projects, uploads, and feedback history.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div id="analyzer" class="tab hidden">
+        <textarea id="scene-analyze" placeholder="Paste your scene here..."></textarea><br/>
+        <button class="action" onclick="analyze()">Analyze</button>
+        <input type="file" />
+        <pre id="analyze-result"></pre>
+      </div>
+
+      <div id="editor" class="tab hidden">
+        <label for="scene-edit" style="color:white; font-weight:bold;">
+          Optional: Begin with a short background or scene context. Then paste your scene below.
+        </label>
+        <textarea id="scene-edit"
+                  placeholder="e.g., Leena just lost someone but hasn’t told Rafael. Their relationship is tense yet fragile.&#10;&#10;RAFAEL&#10;We need to rerun the test... (scene continues)"
+                  rows="20"
+                  style="width: 100%; font-family: monospace;">
+        </textarea>
+        <button class="action" onclick="edit()">Edit Suggestion</button>
+        <input type="file" />
+        <pre id="edit-result"></pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh");
+
+    function checkAccess() {
+      const input = document.getElementById("access").value;
+      if (input === PASSWORD) {
+        document.getElementById("password-gate").classList.add("hidden");
+        document.getElementById("app").classList.remove("hidden");
+        showTab("home");
+      } else {
+        document.getElementById("access-error").innerText = "Access Denied";
+      }
+    }
+
+    function showTab(tab) {
+      const tabs = ["home", "analyzer", "editor"];
+      tabs.forEach(id => {
+        document.getElementById(id).classList.add("hidden");
+        if (id === "analyzer") {
+          document.getElementById("scene-analyze").value = "";
+          document.getElementById("analyze-result").textContent = "";
+        } else if (id === "editor") {
+          document.getElementById("scene-edit").value = "";
+          document.getElementById("edit-result").textContent = "";
+        }
+      });
+      document.getElementById(tab).classList.remove("hidden");
+    }
+
+    let lastAnalyzed = "";
+
+      async function analyze() {
+  const scene = document.getElementById("scene-analyze").value.trim();
+  const button = document.querySelector("#analyzer button.action");
+  if (scene.length < 30) {
+    document.getElementById("analyze-result").textContent = "Scene too short.";
+    return;
+  }
+
+ if (scene === lastAnalyzed) {
+  return;
+}
+lastAnalyzed = scene;
+
+  document.getElementById("analyze-result").textContent = "Analyzing...";
+  button.disabled = true;
+
+  try {
+    const res = await fetch("/analyze", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-user-agreement": "true"
+      },
+      body: JSON.stringify({ scene })
+    });
+    const data = await res.json();
+    const raw = data.analysis || "";
+    const formatted = raw
+      .replace(/\*\*Rationale:\*\*/g, "🔶 <strong>Rationale</strong>")
+      .replace(/\*\*Rewrite:\*\*/g, "✍️ <strong>Rewrite</strong>")
+      .replace(/\*\*Director’s Note:\*\*/g, "🎬 <strong>Director’s Note</strong>")
+      .replace(/---/g, "<hr>")
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+      .replace(/_(.*?)_/g, "<em>$1</em>");
+
+    document.getElementById("analyze-result").innerHTML = formatted;
+  } catch (err) {
+    document.getElementById("analyze-result").textContent = "Error processing request.";
+  }
+
+  button.disabled = false;
+}
+
+    let lastEdited = "";
+    let lastEditOutput = "";
+    
+    async function edit() {
+  const scene = document.getElementById("scene-edit").value.trim();
+  const button = document.querySelector("#editor button.action");
+
+  if (scene.length < 30) {
+    document.getElementById("edit-result").textContent = "Scene too short.";
+    return;
+  }
+
+  if (scene.split(/\s+/).length > 600) {
+    document.getElementById("edit-result").textContent = "Scene exceeds 2-page limit.";
+    return;
+  }
+
+if (scene === lastEdited && lastEditOutput) {
+  document.getElementById("edit-result").innerHTML = lastEditOutput;
+  return;
+}
+
+  lastEdited = scene;
+  document.getElementById("edit-result").textContent = "Editing...";
+  button.disabled = true;
+
+  try {    
+    const res = await fetch("/edit", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-user-agreement": "true"
+      },
+     body: JSON.stringify({ scene })
+    });
+
+    const data = await res.json();
+    const raw = data.edit_suggestions || "";
+
+    const formatted = raw
+      .replace(/\*\*Rationale:\*\*/g, "🔸 <strong>Rationale</strong>")
+      .replace(/\*\*Rewrite:\*\*/g, "✍️ <strong>Rewrite</strong>")
+      .replace(/\*\*Director.*?:\*\*/g, "🎬 <strong>Director’s Note</strong>")
+      .replace(/---/g, "<hr>");
+
+    document.getElementById("edit-result").innerHTML = formatted;
+    lastEdited = scene;
+    lastEditOutput = formatted;
+  } catch (err) {
+    document.getElementById("edit-result").textContent = "An error occurred.";
+  }
+=======
 import os, re, time, httpx
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, Header, Depends
