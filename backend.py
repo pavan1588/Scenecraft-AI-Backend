@@ -10,7 +10,7 @@ from typing import Optional
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS, HTTP_401_UNAUTHORIZED
 
 from logic.analyzer import analyze_scene
-from logic.analyzer import STRIP_RE
+from logic.analyzer import STRIP_RE, INTENT_ANYWHERE_RE  # ← added INTENT_ANYWHERE_RE
 from logic.prompt_templates import SCENE_EDITOR_PROMPT
 
 # ─── 1. App & Auth Setup ─────────────────────────────────────────────────────
@@ -93,12 +93,17 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
     if "generate" in scene_text.lower():
        raise HTTPException(400, "SceneCraft AI does not generate scenes. Please submit your own work.")
 
-    # Block generation-style prompts for editor too
+    # Block generation-style prompts for editor too (full-line and inline/heading)
     if STRIP_RE.match(scene_text.strip().lower()):
         raise HTTPException(
-        status_code=400,
-        detail="SceneCraft does not generate scenes. Please submit your own scene or script for editing."
-    )
+            status_code=400,
+            detail="SceneCraft does not generate scenes. Please submit your own scene or script for editing."
+        )
+    if INTENT_ANYWHERE_RE.search(scene_text):
+        raise HTTPException(
+            status_code=400,
+            detail="SceneCraft does not generate scenes. Please submit your own scene or script for editing."
+        )
 
     if len(scene_text.split()) > 650:
         raise HTTPException(400, "Scene (including context) must be under 2 pages.")
