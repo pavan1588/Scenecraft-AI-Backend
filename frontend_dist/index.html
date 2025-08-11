@@ -62,223 +62,123 @@
       color: #ccc;
       font-style: italic;
     }
-    .hidden { display: none; }
-    .description { margin-bottom: 2rem; line-height: 1.6; }
+    .hidden {
+      display: none;
+    }
+    .description {
+      margin-bottom: 2rem;
+      line-height: 1.6;
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div id="password-gate">
-      <h2>Enter Access Key</h2>
-      <input type="password" id="access" />
-      <button onclick="checkAccess()">Unlock</button>
-      <p id="access-error" style="color:red;"></p>
-    </div>
 
-    <div id="app" class="hidden">
-      <h1>🎬 SceneCraft AI</h1>
+<div id="password-gate" class="container">
+  <h2>Enter Access Key</h2>
+  <input type="password" id="access" />
+  <button onclick="checkAccess()">Unlock</button>
+  <p id="access-error" style="color: red;"></p>
+</div>
 
-      <nav>
-        <button onclick="showTab('home')">Home</button>
-        <button onclick="showTab('analyzer')">Scene Analyzer</button>
-        <button onclick="showTab('editor')">Scene Editor</button>
-        <button disabled>Full Script Writer</button>
-        <button disabled>Dashboard</button>
-        <button disabled>Pricing</button>
-      </nav>
+<div id="app" class="hidden container">
+  <nav>
+    <button onclick="showTab('home')">Home</button>
+    <button onclick="showTab('analyzer')">Scene Analyzer</button>
+    <button onclick="showTab('editor')">Scene Editor</button>
+    <button onclick="showTab('fullscript')">Full Script Writer</button>
+    <button onclick="showTab('dashboard')">Dashboard</button>
+    <button onclick="showTab('pricing')">Pricing</button>
+  </nav>
 
-      <div id="home" class="tab">
-        <div class="description">
-          <p><strong>SceneCraft AI</strong> is your cinematic partner for evaluating and rewriting scenes with human-grade insight. We analyze story beats, emotional arcs, visual grammar, and realism using deep cinematic intelligence. Whether you're a beginner or a pro, SceneCraft helps your scenes hit harder.</p>
-          <ul>
-            <li><strong>Scene Analyzer</strong>: Understand your scene's strengths and cinematic weaknesses.</li>
-            <li><strong>Scene Editor</strong>: Get line-by-line rewrite suggestions to make your scenes sharper and smarter.</li>
-            <li><strong>Full Script Writer</strong>: (Coming Soon) AI-powered guidance for script development.</li>
-            <li><strong>Dashboard</strong>: (Coming Soon) Manage projects, uploads, and feedback history.</li>
-          </ul>
-        </div>
-      </div>
-
-      <div id="analyzer" class="tab hidden">
-        <textarea id="scene-analyze" placeholder="Paste your scene here..."></textarea><br/>
-        <button class="action" onclick="analyze()">Analyze</button>
-        <input type="file" />
-        <pre id="analyze-result"></pre>
-      </div>
-
-      <div id="editor" class="tab hidden">
-        <label for="scene-edit" style="color:white; font-weight:bold;">
-          Optional: Begin with a short background or scene context. Then paste your scene below.
-        </label>
-        <textarea id="scene-edit"
-                  placeholder="e.g., Leena just lost someone but hasn’t told Rafael. Their relationship is tense yet fragile.&#10;&#10;RAFAEL&#10;We need to rerun the test... (scene continues)"
-                  rows="20"
-                  style="width: 100%; font-family: monospace;">
-        </textarea>
-        <button class="action" onclick="edit()">Edit Suggestion</button>
-        <input type="file" />
-        <pre id="edit-result"></pre>
-      </div>
-    </div>
+  <div id="home" class="tab">
+    <h1>Welcome to SceneCraft AI</h1>
+    <p class="description">Your cinematic intelligence companion for scene analysis, editing, and script refinement.</p>
   </div>
 
-  <script>
-const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh");
+  <div id="analyzer" class="tab hidden">
+    <h2>Scene Analyzer</h2>
+    <textarea id="scene-input" placeholder="Paste your scene here..."></textarea>
+    <button class="action" onclick="analyzeScene()">Analyze</button>
+    <input type="file" id="file-input" />
+    <pre id="analysis-output"></pre>
+  </div>
 
-function checkAccess() {
-  const input = document.getElementById("access").value;
-  if (input === PASSWORD) {
-    document.getElementById("password-gate").classList.add("hidden");
-    document.getElementById("app").classList.remove("hidden");
-    showTab("home");
-  } else {
-    document.getElementById("access-error").innerText = "Access Denied";
-  }
-}
+  <div id="editor" class="tab hidden">
+    <h2>Scene Editor</h2>
+    <textarea id="edit-input" placeholder="Paste your scene here..."></textarea>
+    <button class="action" onclick="editScene()">Edit</button>
+    <input type="file" id="edit-file-input" />
+    <pre id="edit-output"></pre>
+  </div>
 
-function showTab(tab) {
-  const tabs = ["home", "analyzer", "editor"];
-  tabs.forEach(id => {
-    document.getElementById(id).classList.add("hidden");
-    if (id === "analyzer") {
-      document.getElementById("scene-analyze").value = "";
-      document.getElementById("analyze-result").textContent = "";
-    } else if (id === "editor") {
-      document.getElementById("scene-edit").value = "";
-      document.getElementById("edit-result").textContent = "";
+  <div id="fullscript" class="tab hidden">
+    <h2>Full Script Writer</h2>
+    <p>Coming soon...</p>
+  </div>
+
+  <div id="dashboard" class="tab hidden">
+    <h2>Dashboard</h2>
+    <p>Coming soon...</p>
+  </div>
+
+  <div id="pricing" class="tab hidden">
+    <h2>Pricing</h2>
+    <p>Coming soon...</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  if (window.__SCENECRAFT_INIT__) return;
+  window.__SCENECRAFT_INIT__ = true;
+
+  const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh");
+
+  window.checkAccess = function () {
+    const input = document.getElementById("access").value;
+    if (input === PASSWORD) {
+      document.getElementById("password-gate").classList.add("hidden");
+      document.getElementById("app").classList.remove("hidden");
+      showTab("home");
+    } else {
+      document.getElementById("access-error").innerText = "Access Denied";
     }
-  });
-  document.getElementById(tab).classList.remove("hidden");
-}
+  };
 
-// ---- Caches
-const analyzeCache = new Map();
-const editCache = new Map();
+  window.showTab = function (tabId) {
+    document.querySelectorAll('.tab').forEach(tab => tab.classList.add('hidden'));
+    document.getElementById(tabId).classList.remove('hidden');
+  };
 
-// --- helper: strict word count (matches backend logic more closely) ---
-function wordCount(txt){ return (txt.trim().match(/\b\w+\b/g) || []).length; }
+  window.analyzeScene = async function () {
+    const scene = document.getElementById("scene-input").value;
+    const file = document.getElementById("file-input").files[0];
+    const formData = new FormData();
+    formData.append("scene", scene);
+    if (file) formData.append("file", file);
 
-// --- UPDATED analyze() with 250-word check + clearer error surfacing ---
-async function analyze() {
-  const scene = document.getElementById("scene-analyze").value.trim();
-  const button = document.querySelector("#analyzer button.action");
-  const out = document.getElementById("analyze-result");
-
-  const wc = wordCount(scene);
-  if (wc < 250) {
-    out.textContent = `Scene too short. ${wc}/250 words. Add ${250 - wc} more words.`;
-    return;
-  }
-
-  if (analyzeCache.has(scene)) {
-    out.innerHTML = analyzeCache.get(scene);
-    return;
-  }
-
-  out.textContent = "Analyzing...";
-  button.disabled = true;
-
-  try {
     const res = await fetch("/analyze", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-user-agreement": "true"
-      },
-      body: JSON.stringify({ scene })
+      body: formData
     });
+    document.getElementById("analysis-output").innerText = await res.text();
+  };
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      out.textContent = `Error: ${err.detail || res.statusText} (HTTP ${res.status})`;
-      return;
-    }
+  window.editScene = async function () {
+    const scene = document.getElementById("edit-input").value;
+    const file = document.getElementById("edit-file-input").files[0];
+    const formData = new FormData();
+    formData.append("scene", scene);
+    if (file) formData.append("file", file);
 
-    const data = await res.json();
-    const raw = data.analysis || "";
-    const formatted = raw
-      .replace(/\*\*Rationale:\*\*/g, "🔶 <strong>Rationale</strong>")
-      .replace(/\*\*Rewrite:\*\*/g, "✍️ <strong>Rewrite</strong>")
-      .replace(/\*\*Director’s Note:\*\*/g, "🎬 <strong>Director’s Note</strong>")
-      .replace(/---/g, "<hr>")
-      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-      .replace(/_(.*?)_/g, "<em>$1</em>");
-
-    analyzeCache.set(scene, formatted);
-    out.innerHTML = formatted;
-  } catch (err) {
-    out.textContent = `Network error: ${err.message || err}`;
-  } finally {
-    button.disabled = false;
-  }
-}
-
-// --- UPDATED edit() with 250-word check + clearer error surfacing ---
-async function edit() {
-  const scene = document.getElementById("scene-edit").value.trim();
-  const button = document.querySelector("#editor button.action");
-  const out = document.getElementById("edit-result");
-
-  const wc = wordCount(scene);
-  if (wc < 250) {
-    out.textContent = `Scene too short. ${wc}/250 words. Add ${250 - wc} more words.`;
-    return;
-  }
-
-  if (editCache.has(scene)) {
-    out.innerHTML = editCache.get(scene);
-    return;
-  }
-
-  out.textContent = "Editing...";
-  button.disabled = true;
-
-  try {
     const res = await fetch("/edit", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-user-agreement": "true"
-      },
-      body: JSON.stringify({ scene })
+      body: formData
     });
+    document.getElementById("edit-output").innerText = await res.text();
+  };
+})();
+</script>
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      out.textContent = `Error: ${err.detail || res.statusText} (HTTP ${res.status})`;
-      return;
-    }
-
-    const data = await res.json();
-    const raw = data.edit_suggestions || "";
-    const formatted = raw
-      .replace(/\*\*Rationale:\*\*/g, "🧠 <strong>Rationale</strong>")
-      .replace(/\*\*Rewrite:\*\*/g, "🖍️ <strong>Rewrite</strong>")
-      .replace(/\*\*Director’s Note:\*\*/g, "🎮 <strong>Director’s Note</strong>")
-      .replace(/---/g, "<hr>")
-      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-      .replace(/_(.*?)_/g, "<em>$1</em>");
-
-    editCache.set(scene, formatted);
-    out.innerHTML = formatted;
-  } catch (err) {
-    out.textContent = `Network error: ${err.message || err}`;
-  } finally {
-    button.disabled = false;
-  }
-}
-
-window.analyze = analyze;
-window.edit = edit;
-
-// Disable right-click and shortcuts
-document.addEventListener('contextmenu', event => event.preventDefault());
-document.addEventListener('keydown', function (e) {
-  const blocked = ['c', 'a', 's', 'p'];
-  if ((e.ctrlKey || e.metaKey) && blocked.includes(e.key.toLowerCase())) {
-    e.preventDefault();
-  }
-});
-  </script>
 </body>
 </html>
