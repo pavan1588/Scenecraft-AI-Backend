@@ -151,47 +151,59 @@
       document.getElementById(tab).classList.remove("hidden");
     }
 
-async function analyze() {
-  const scene = document.getElementById("scene-analyze").value.trim();
-  const button = document.querySelector("#analyzer button.action");
+    // ---- NEW: per-session cache for analyzer outputs (scene -> formatted HTML)
+    const analyzeCache = new Map();
 
-  if (scene.length < 30) {
-    document.getElementById("analyze-result").textContent = "Scene too short.";
-    return;
-  }
+    async function analyze() {
+      const scene = document.getElementById("scene-analyze").value.trim();
+      const button = document.querySelector("#analyzer button.action");
 
-  document.getElementById("analyze-result").textContent = "Analyzing...";
-  button.disabled = true;
+      if (scene.length < 30) {
+        document.getElementById("analyze-result").textContent = "Scene too short.";
+        return;
+      }
 
-  try {
-    const res = await fetch("/analyze", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-user-agreement": "true"
-      },
-      // add a tiny nonce to avoid any intermediate cache (optional)
-      body: JSON.stringify({ scene, _ts: Date.now() })
-    });
+      // Serve cached result if this exact scene was analyzed before
+      if (analyzeCache.has(scene)) {
+        document.getElementById("analyze-result").innerHTML = analyzeCache.get(scene);
+        return;
+      }
 
-    const data = await res.json();
-    const raw = data.analysis || "";
-    const formatted = raw
-      .replace(/\*\*Rationale:\*\*/g, "🔶 <strong>Rationale</strong>")
-      .replace(/\*\*Rewrite:\*\*/g, "✍️ <strong>Rewrite</strong>")
-      .replace(/\*\*Director’s Note:\*\*/g, "🎬 <strong>Director’s Note</strong>")
-      .replace(/---/g, "<hr>")
-      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-      .replace(/_(.*?)_/g, "<em>$1</em>");
+      document.getElementById("analyze-result").textContent = "Analyzing...";
+      button.disabled = true;
 
-    document.getElementById("analyze-result").innerHTML = formatted;
-  } catch (err) {
-    document.getElementById("analyze-result").textContent = "Error processing request.";
-  } finally {
-    button.disabled = false;
-  }
-}
-window.analyze = analyze;
+      try {
+        const res = await fetch("/analyze", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-user-agreement": "true"
+          },
+          // keep the small nonce; only used on first call, cached thereafter
+          body: JSON.stringify({ scene, _ts: Date.now() })
+        });
+
+        const data = await res.json();
+        const raw = data.analysis || "";
+        const formatted = raw
+          .replace(/\*\*Rationale:\*\*/g, "🔶 <strong>Rationale</strong>")
+          .replace(/\*\*Rewrite:\*\*/g, "✍️ <strong>Rewrite</strong>")
+          .replace(/\*\*Director’s Note:\*\*/g, "🎬 <strong>Director’s Note</strong>")
+          .replace(/---/g, "<hr>")
+          .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+          .replace(/_(.*?)_/g, "<em>$1</em>");
+
+        // cache the first output for this exact scene
+        analyzeCache.set(scene, formatted);
+
+        document.getElementById("analyze-result").innerHTML = formatted;
+      } catch (err) {
+        document.getElementById("analyze-result").textContent = "Error processing request.";
+      } finally {
+        button.disabled = false;
+      }
+    }
+    window.analyze = analyze;
     
     // Disable right-click and common shortcuts
     document.addEventListener('contextmenu', event => event.preventDefault());
