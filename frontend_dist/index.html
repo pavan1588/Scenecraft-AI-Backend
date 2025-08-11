@@ -55,20 +55,10 @@
       line-height: 1.6;
       font-family: Consolas, monospace;
     }
-    pre strong {
-      color: #ffd700;
-    }
-    pre em {
-      color: #ccc;
-      font-style: italic;
-    }
-    .hidden {
-      display: none;
-    }
-    .description {
-      margin-bottom: 2rem;
-      line-height: 1.6;
-    }
+    pre strong { color: #ffd700; }
+    pre em { color: #ccc; font-style: italic; }
+    .hidden { display: none; }
+    .description { margin-bottom: 2rem; line-height: 1.6; }
   </style>
 </head>
 <body>
@@ -134,6 +124,8 @@
 
   const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh");
 
+  function wordCount(txt){ return (txt.trim().match(/\b\w+\b/g) || []).length; }
+
   window.checkAccess = function () {
     const input = document.getElementById("access").value;
     if (input === PASSWORD) {
@@ -151,31 +143,65 @@
   };
 
   window.analyzeScene = async function () {
-    const scene = document.getElementById("scene-input").value;
-    const file = document.getElementById("file-input").files[0];
-    const formData = new FormData();
-    formData.append("scene", scene);
-    if (file) formData.append("file", file);
+    const scene = document.getElementById("scene-input").value.trim();
+    const out = document.getElementById("analysis-output");
 
-    const res = await fetch("/analyze", {
-      method: "POST",
-      body: formData
-    });
-    document.getElementById("analysis-output").innerText = await res.text();
+    const wc = wordCount(scene);
+    if (wc < 250) {
+      out.textContent = `Scene too short. ${wc}/250 words. Add ${250 - wc} more words.`;
+      return;
+    }
+
+    out.textContent = "Analyzing...";
+    try {
+      const res = await fetch("/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-agreement": "true"
+        },
+        body: JSON.stringify({ scene })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        out.textContent = `Error: ${data.detail || res.statusText} (HTTP ${res.status})`;
+        return;
+      }
+      out.textContent = data.analysis || "";
+    } catch (e) {
+      out.textContent = `Network error: ${e.message || e}`;
+    }
   };
 
   window.editScene = async function () {
-    const scene = document.getElementById("edit-input").value;
-    const file = document.getElementById("edit-file-input").files[0];
-    const formData = new FormData();
-    formData.append("scene", scene);
-    if (file) formData.append("file", file);
+    const scene = document.getElementById("edit-input").value.trim();
+    const out = document.getElementById("edit-output");
 
-    const res = await fetch("/edit", {
-      method: "POST",
-      body: formData
-    });
-    document.getElementById("edit-output").innerText = await res.text();
+    const wc = wordCount(scene);
+    if (wc < 250) {
+      out.textContent = `Scene too short. ${wc}/250 words. Add ${250 - wc} more words.`;
+      return;
+    }
+
+    out.textContent = "Editing...";
+    try {
+      const res = await fetch("/edit", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-agreement": "true"
+        },
+        body: JSON.stringify({ scene })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        out.textContent = `Error: ${data.detail || res.statusText} (HTTP ${res.status})`;
+        return;
+      }
+      out.textContent = data.edit_suggestions || "";
+    } catch (e) {
+      out.textContent = `Network error: ${e.message || e}`;
+    }
   };
 })();
 </script>
