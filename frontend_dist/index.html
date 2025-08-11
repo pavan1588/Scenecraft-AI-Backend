@@ -155,21 +155,27 @@ function showTab(tab) {
 const analyzeCache = new Map();
 const editCache = new Map();
 
+// --- helper: strict word count (matches backend logic more closely) ---
+function wordCount(txt){ return (txt.trim().match(/\b\w+\b/g) || []).length; }
+
+// --- UPDATED analyze() with 250-word check + clearer error surfacing ---
 async function analyze() {
   const scene = document.getElementById("scene-analyze").value.trim();
   const button = document.querySelector("#analyzer button.action");
+  const out = document.getElementById("analyze-result");
 
-  if (scene.length < 30) {
-    document.getElementById("analyze-result").textContent = "Scene too short.";
+  const wc = wordCount(scene);
+  if (wc < 250) {
+    out.textContent = `Scene too short. ${wc}/250 words. Add ${250 - wc} more words.`;
     return;
   }
 
   if (analyzeCache.has(scene)) {
-    document.getElementById("analyze-result").innerHTML = analyzeCache.get(scene);
+    out.innerHTML = analyzeCache.get(scene);
     return;
   }
 
-  document.getElementById("analyze-result").textContent = "Analyzing...";
+  out.textContent = "Analyzing...";
   button.disabled = true;
 
   try {
@@ -179,8 +185,14 @@ async function analyze() {
         "Content-Type": "application/json",
         "x-user-agreement": "true"
       },
-      body: JSON.stringify({ scene, _ts: Date.now() })
+      body: JSON.stringify({ scene })
     });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      out.textContent = `Error: ${err.detail || res.statusText} (HTTP ${res.status})`;
+      return;
+    }
 
     const data = await res.json();
     const raw = data.analysis || "";
@@ -193,29 +205,32 @@ async function analyze() {
       .replace(/_(.*?)_/g, "<em>$1</em>");
 
     analyzeCache.set(scene, formatted);
-    document.getElementById("analyze-result").innerHTML = formatted;
+    out.innerHTML = formatted;
   } catch (err) {
-    document.getElementById("analyze-result").textContent = "Error processing request.";
+    out.textContent = `Network error: ${err.message || err}`;
   } finally {
     button.disabled = false;
   }
 }
 
+// --- UPDATED edit() with 250-word check + clearer error surfacing ---
 async function edit() {
   const scene = document.getElementById("scene-edit").value.trim();
   const button = document.querySelector("#editor button.action");
+  const out = document.getElementById("edit-result");
 
-  if (scene.length < 30) {
-    document.getElementById("edit-result").textContent = "Scene too short.";
+  const wc = wordCount(scene);
+  if (wc < 250) {
+    out.textContent = `Scene too short. ${wc}/250 words. Add ${250 - wc} more words.`;
     return;
   }
 
   if (editCache.has(scene)) {
-    document.getElementById("edit-result").innerHTML = editCache.get(scene);
+    out.innerHTML = editCache.get(scene);
     return;
   }
 
-  document.getElementById("edit-result").textContent = "Editing...";
+  out.textContent = "Editing...";
   button.disabled = true;
 
   try {
@@ -225,8 +240,14 @@ async function edit() {
         "Content-Type": "application/json",
         "x-user-agreement": "true"
       },
-      body: JSON.stringify({ scene, _ts: Date.now() })
+      body: JSON.stringify({ scene })
     });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      out.textContent = `Error: ${err.detail || res.statusText} (HTTP ${res.status})`;
+      return;
+    }
 
     const data = await res.json();
     const raw = data.edit_suggestions || "";
@@ -239,9 +260,9 @@ async function edit() {
       .replace(/_(.*?)_/g, "<em>$1</em>");
 
     editCache.set(scene, formatted);
-    document.getElementById("edit-result").innerHTML = formatted;
+    out.innerHTML = formatted;
   } catch (err) {
-    document.getElementById("edit-result").textContent = "Error processing request.";
+    out.textContent = `Network error: ${err.message || err}`;
   } finally {
     button.disabled = false;
   }
