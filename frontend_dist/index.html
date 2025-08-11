@@ -123,96 +123,141 @@
   </div>
 
   <script>
-    const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh");
+const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh");
 
-    function checkAccess() {
-      const input = document.getElementById("access").value;
-      if (input === PASSWORD) {
-        document.getElementById("password-gate").classList.add("hidden");
-        document.getElementById("app").classList.remove("hidden");
-        showTab("home");
-      } else {
-        document.getElementById("access-error").innerText = "Access Denied";
-      }
+function checkAccess() {
+  const input = document.getElementById("access").value;
+  if (input === PASSWORD) {
+    document.getElementById("password-gate").classList.add("hidden");
+    document.getElementById("app").classList.remove("hidden");
+    showTab("home");
+  } else {
+    document.getElementById("access-error").innerText = "Access Denied";
+  }
+}
+
+function showTab(tab) {
+  const tabs = ["home", "analyzer", "editor"];
+  tabs.forEach(id => {
+    document.getElementById(id).classList.add("hidden");
+    if (id === "analyzer") {
+      document.getElementById("scene-analyze").value = "";
+      document.getElementById("analyze-result").textContent = "";
+    } else if (id === "editor") {
+      document.getElementById("scene-edit").value = "";
+      document.getElementById("edit-result").textContent = "";
     }
+  });
+  document.getElementById(tab).classList.remove("hidden");
+}
 
-    function showTab(tab) {
-      const tabs = ["home", "analyzer", "editor"];
-      tabs.forEach(id => {
-        document.getElementById(id).classList.add("hidden");
-        if (id === "analyzer") {
-          document.getElementById("scene-analyze").value = "";
-          document.getElementById("analyze-result").textContent = "";
-        } else if (id === "editor") {
-          document.getElementById("scene-edit").value = "";
-          document.getElementById("edit-result").textContent = "";
-        }
-      });
-      document.getElementById(tab).classList.remove("hidden");
-    }
+// ---- Caches
+const analyzeCache = new Map();
+const editCache = new Map();
 
-    // ---- NEW: per-session cache for analyzer outputs (scene -> formatted HTML)
-    const analyzeCache = new Map();
+async function analyze() {
+  const scene = document.getElementById("scene-analyze").value.trim();
+  const button = document.querySelector("#analyzer button.action");
 
-    async function analyze() {
-      const scene = document.getElementById("scene-analyze").value.trim();
-      const button = document.querySelector("#analyzer button.action");
+  if (scene.length < 30) {
+    document.getElementById("analyze-result").textContent = "Scene too short.";
+    return;
+  }
 
-      if (scene.length < 30) {
-        document.getElementById("analyze-result").textContent = "Scene too short.";
-        return;
-      }
+  if (analyzeCache.has(scene)) {
+    document.getElementById("analyze-result").innerHTML = analyzeCache.get(scene);
+    return;
+  }
 
-      // Serve cached result if this exact scene was analyzed before
-      if (analyzeCache.has(scene)) {
-        document.getElementById("analyze-result").innerHTML = analyzeCache.get(scene);
-        return;
-      }
+  document.getElementById("analyze-result").textContent = "Analyzing...";
+  button.disabled = true;
 
-      document.getElementById("analyze-result").textContent = "Analyzing...";
-      button.disabled = true;
-
-      try {
-        const res = await fetch("/analyze", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-user-agreement": "true"
-          },
-          // keep the small nonce; only used on first call, cached thereafter
-          body: JSON.stringify({ scene, _ts: Date.now() })
-        });
-
-        const data = await res.json();
-        const raw = data.analysis || "";
-        const formatted = raw
-          .replace(/\*\*Rationale:\*\*/g, "🔶 <strong>Rationale</strong>")
-          .replace(/\*\*Rewrite:\*\*/g, "✍️ <strong>Rewrite</strong>")
-          .replace(/\*\*Director’s Note:\*\*/g, "🎬 <strong>Director’s Note</strong>")
-          .replace(/---/g, "<hr>")
-          .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-          .replace(/_(.*?)_/g, "<em>$1</em>");
-
-        // cache the first output for this exact scene
-        analyzeCache.set(scene, formatted);
-
-        document.getElementById("analyze-result").innerHTML = formatted;
-      } catch (err) {
-        document.getElementById("analyze-result").textContent = "Error processing request.";
-      } finally {
-        button.disabled = false;
-      }
-    }
-    window.analyze = analyze;
-    
-    // Disable right-click and common shortcuts
-    document.addEventListener('contextmenu', event => event.preventDefault());
-    document.addEventListener('keydown', function (e) {
-      const blocked = ['c', 'a', 's', 'p'];
-      if ((e.ctrlKey || e.metaKey) && blocked.includes(e.key.toLowerCase())) {
-        e.preventDefault();
-      }
+  try {
+    const res = await fetch("/analyze", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-user-agreement": "true"
+      },
+      body: JSON.stringify({ scene, _ts: Date.now() })
     });
+
+    const data = await res.json();
+    const raw = data.analysis || "";
+    const formatted = raw
+      .replace(/\*\*Rationale:\*\*/g, "🔶 <strong>Rationale</strong>")
+      .replace(/\*\*Rewrite:\*\*/g, "✍️ <strong>Rewrite</strong>")
+      .replace(/\*\*Director’s Note:\*\*/g, "🎬 <strong>Director’s Note</strong>")
+      .replace(/---/g, "<hr>")
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+      .replace(/_(.*?)_/g, "<em>$1</em>");
+
+    analyzeCache.set(scene, formatted);
+    document.getElementById("analyze-result").innerHTML = formatted;
+  } catch (err) {
+    document.getElementById("analyze-result").textContent = "Error processing request.";
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function edit() {
+  const scene = document.getElementById("scene-edit").value.trim();
+  const button = document.querySelector("#editor button.action");
+
+  if (scene.length < 30) {
+    document.getElementById("edit-result").textContent = "Scene too short.";
+    return;
+  }
+
+  if (editCache.has(scene)) {
+    document.getElementById("edit-result").innerHTML = editCache.get(scene);
+    return;
+  }
+
+  document.getElementById("edit-result").textContent = "Editing...";
+  button.disabled = true;
+
+  try {
+    const res = await fetch("/edit", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-user-agreement": "true"
+      },
+      body: JSON.stringify({ scene, _ts: Date.now() })
+    });
+
+    const data = await res.json();
+    const raw = data.edit_suggestions || "";
+    const formatted = raw
+      .replace(/\*\*Rationale:\*\*/g, "🧠 <strong>Rationale</strong>")
+      .replace(/\*\*Rewrite:\*\*/g, "🖍️ <strong>Rewrite</strong>")
+      .replace(/\*\*Director’s Note:\*\*/g, "🎮 <strong>Director’s Note</strong>")
+      .replace(/---/g, "<hr>")
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+      .replace(/_(.*?)_/g, "<em>$1</em>");
+
+    editCache.set(scene, formatted);
+    document.getElementById("edit-result").innerHTML = formatted;
+  } catch (err) {
+    document.getElementById("edit-result").textContent = "Error processing request.";
+  } finally {
+    button.disabled = false;
+  }
+}
+
+window.analyze = analyze;
+window.edit = edit;
+
+// Disable right-click and shortcuts
+document.addEventListener('contextmenu', event => event.preventDefault());
+document.addEventListener('keydown', function (e) {
+  const blocked = ['c', 'a', 's', 'p'];
+  if ((e.ctrlKey || e.metaKey) && blocked.includes(e.key.toLowerCase())) {
+    e.preventDefault();
+  }
+});
   </script>
 </body>
 </html>
