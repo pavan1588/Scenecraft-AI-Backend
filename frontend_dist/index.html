@@ -151,20 +151,14 @@
       document.getElementById(tab).classList.remove("hidden");
     }
 
-    let lastAnalyzed = "";
-
-      async function analyze() {
+async function analyze() {
   const scene = document.getElementById("scene-analyze").value.trim();
   const button = document.querySelector("#analyzer button.action");
+
   if (scene.length < 30) {
     document.getElementById("analyze-result").textContent = "Scene too short.";
     return;
   }
-
- if (scene === lastAnalyzed) {
-  return;
-}
-lastAnalyzed = scene;
 
   document.getElementById("analyze-result").textContent = "Analyzing...";
   button.disabled = true;
@@ -176,8 +170,10 @@ lastAnalyzed = scene;
         "Content-Type": "application/json",
         "x-user-agreement": "true"
       },
-      body: JSON.stringify({ scene })
+      // add a tiny nonce to avoid any intermediate cache (optional)
+      body: JSON.stringify({ scene, _ts: Date.now() })
     });
+
     const data = await res.json();
     const raw = data.analysis || "";
     const formatted = raw
@@ -191,65 +187,12 @@ lastAnalyzed = scene;
     document.getElementById("analyze-result").innerHTML = formatted;
   } catch (err) {
     document.getElementById("analyze-result").textContent = "Error processing request.";
+  } finally {
+    button.disabled = false;
   }
-
-  button.disabled = false;
 }
-
-    let lastEdited = "";
-    let lastEditOutput = "";
+window.analyze = analyze;
     
-    async function edit() {
-  const scene = document.getElementById("scene-edit").value.trim();
-  const button = document.querySelector("#editor button.action");
-
-  if (scene.length < 30) {
-    document.getElementById("edit-result").textContent = "Scene too short.";
-    return;
-  }
-
-  if (scene.split(/\s+/).length > 600) {
-    document.getElementById("edit-result").textContent = "Scene exceeds 2-page limit.";
-    return;
-  }
-
-if (scene === lastEdited && lastEditOutput) {
-  document.getElementById("edit-result").innerHTML = lastEditOutput;
-  return;
-}
-
-  lastEdited = scene;
-  document.getElementById("edit-result").textContent = "Editing...";
-  button.disabled = true;
-
-  try {    
-    const res = await fetch("/edit", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-user-agreement": "true"
-      },
-     body: JSON.stringify({ scene })
-    });
-
-    const data = await res.json();
-    const raw = data.edit_suggestions || "";
-
-    const formatted = raw
-      .replace(/\*\*Rationale:\*\*/g, "🔸 <strong>Rationale</strong>")
-      .replace(/\*\*Rewrite:\*\*/g, "✍️ <strong>Rewrite</strong>")
-      .replace(/\*\*Director.*?:\*\*/g, "🎬 <strong>Director’s Note</strong>")
-      .replace(/---/g, "<hr>");
-
-    document.getElementById("edit-result").innerHTML = formatted;
-    lastEdited = scene;
-    lastEditOutput = formatted;
-  } catch (err) {
-    document.getElementById("edit-result").textContent = "An error occurred.";
-  }
-
-  button.disabled = false;
-}
     // Disable right-click and common shortcuts
     document.addEventListener('contextmenu', event => event.preventDefault());
     document.addEventListener('keydown', function (e) {
