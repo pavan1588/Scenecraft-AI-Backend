@@ -1,263 +1,151 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>SceneCraft AI</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #0e0e0e;
-      color: gold;
-      margin: 0;
-      padding: 2rem;
-    }
-    .container {
-      max-width: 900px;
-      margin: auto;
-    }
-    nav button {
-      margin-right: 1rem;
-      background: #1f1f1f;
-      color: gold;
-      border: 1px solid #555;
-      padding: 0.6rem 1rem;
-      cursor: pointer;
-    }
-    textarea {
-      width: 100%;
-      height: 200px;
-      margin-bottom: 1rem;
-      padding: 1rem;
-      font-size: 1rem;
-      background: #222;
-      color: #fff;
-      border: 1px solid #666;
-    }
-    input[type="file"] {
-      margin-top: 1rem;
-      color: gold;
-    }
-    button.action {
-      background: #333;
-      color: gold;
-      padding: 0.5rem 1rem;
-      border: 1px solid #444;
-      cursor: pointer;
-    }
-    pre {
-      background: #1a1a1a;
-      color: #fff;
-      padding: 1rem;
-      white-space: pre-wrap;
-      border-left: 4px solid gold;
-      margin-top: 1rem;
-      line-height: 1.6;
-      font-family: Consolas, monospace;
-    }
-    pre strong {
-      color: #ffd700;
-    }
-    pre em {
-      color: #ccc;
-      font-style: italic;
-    }
-    .hidden { display: none; }
-    .description { margin-bottom: 2rem; line-height: 1.6; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div id="password-gate">
-      <h2>Enter Access Key</h2>
-      <input type="password" id="access" />
-      <button onclick="checkAccess()">Unlock</button>
-      <p id="access-error" style="color:red;"></p>
-    </div>
+import os, re, time, httpx
+from pathlib import Path
+from fastapi import FastAPI, HTTPException, Request, Header, Depends
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from pydantic import BaseModel
+from typing import Optional
+from starlette.status import HTTP_429_TOO_MANY_REQUESTS, HTTP_401_UNAUTHORIZED
 
-    <div id="app" class="hidden">
-      <h1>🎬 SceneCraft AI</h1>
+from logic.analyzer import analyze_scene
+from logic.analyzer import STRIP_RE
+from logic.prompt_templates import SCENE_EDITOR_PROMPT
 
-      <nav>
-        <button onclick="showTab('home')">Home</button>
-        <button onclick="showTab('analyzer')">Scene Analyzer</button>
-        <button onclick="showTab('editor')">Scene Editor</button>
-        <button disabled>Full Script Writer</button>
-        <button disabled>Dashboard</button>
-        <button disabled>Pricing</button>
-      </nav>
+# ─── 1. App & Auth Setup ─────────────────────────────────────────────────────
+app = FastAPI()
+security = HTTPBasic()
+ADMIN_USER = "admin"
+ADMIN_PASS = os.getenv("ADMIN_PASS", "prantasdatwanta")
 
-      <div id="home" class="tab">
-        <div class="description">
-          <p><strong>SceneCraft AI</strong> is your cinematic partner for evaluating and rewriting scenes with human-grade insight. We analyze story beats, emotional arcs, visual grammar, and realism using deep cinematic intelligence. Whether you're a beginner or a pro, SceneCraft helps your scenes hit harder.</p>
-          <ul>
-            <li><strong>Scene Analyzer</strong>: Understand your scene's strengths and cinematic weaknesses.</li>
-            <li><strong>Scene Editor</strong>: Get line-by-line rewrite suggestions to make your scenes sharper and smarter.</li>
-            <li><strong>Full Script Writer</strong>: (Coming Soon) AI-powered guidance for script development.</li>
-            <li><strong>Dashboard</strong>: (Coming Soon) Manage projects, uploads, and feedback history.</li>
-          </ul>
-        </div>
-      </div>
+def require_auth(creds: HTTPBasicCredentials = Depends(security)):
+    if creds.username != ADMIN_USER or creds.password != ADMIN_PASS:
+        raise HTTPException(
+            status_code=HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return True
 
-      <div id="analyzer" class="tab hidden">
-        <textarea id="scene-analyze" placeholder="Paste your scene here..."></textarea><br/>
-        <button class="action" onclick="analyze()">Analyze</button>
-        <input type="file" />
-        <pre id="analyze-result"></pre>
-      </div>
+# ─── 2. CORS ─────────────────────────────────────────────────────────────────
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Lock this to your production domains
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-      <div id="editor" class="tab hidden">
-        <label for="scene-edit" style="color:white; font-weight:bold;">
-          Optional: Begin with a short background or scene context. Then paste your scene below.
-        </label>
-        <textarea id="scene-edit"
-                  placeholder="e.g., Leena just lost someone but hasn’t told Rafael. Their relationship is tense yet fragile.&#10;&#10;RAFAEL&#10;We need to rerun the test... (scene continues)"
-                  rows="20"
-                  style="width: 100%; font-family: monospace;">
-        </textarea>
-        <button class="action" onclick="edit()">Edit Suggestion</button>
-        <input type="file" />
-        <pre id="edit-result"></pre>
-      </div>
-    </div>
-  </div>
+# ─── 3. Health Check ─────────────────────────────────────────────────────────
+@app.get("/health")
+@app.head("/health")
+def health():
+    return {"status": "ok"}
 
-  <script>
-    const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh");
+# ─── 4. Rate Limiting ────────────────────────────────────────────────────────
+RATE_LIMIT = {}
+WINDOW, MAX_CALLS = 60, 10
 
-    function checkAccess() {
-      const input = document.getElementById("access").value;
-      if (input === PASSWORD) {
-        document.getElementById("password-gate").classList.add("hidden");
-        document.getElementById("app").classList.remove("hidden");
-        showTab("home");
-      } else {
-        document.getElementById("access-error").innerText = "Access Denied";
-      }
-    }
+def rate_limiter(ip: str) -> bool:
+    now = time.time()
+    calls = RATE_LIMIT.setdefault(ip, [])
+    RATE_LIMIT[ip] = [t for t in calls if now - t < WINDOW]
+    if len(RATE_LIMIT[ip]) >= MAX_CALLS:
+        return False
+    RATE_LIMIT[ip].append(now)
+    return True
 
-    function showTab(tab) {
-      const tabs = ["home", "analyzer", "editor"];
-      tabs.forEach(id => {
-        document.getElementById(id).classList.add("hidden");
-        if (id === "analyzer") {
-          document.getElementById("scene-analyze").value = "";
-          document.getElementById("analyze-result").textContent = "";
-        } else if (id === "editor") {
-          document.getElementById("scene-edit").value = "";
-          document.getElementById("edit-result").textContent = "";
-        }
-      });
-      document.getElementById(tab).classList.remove("hidden");
-    }
-
-    let lastAnalyzed = "";
-
-      async function analyze() {
-  const scene = document.getElementById("scene-analyze").value.trim();
-  const button = document.querySelector("#analyzer button.action");
-  if (scene.length < 30) {
-    document.getElementById("analyze-result").textContent = "Scene too short.";
-    return;
-  }
-
- if (scene === lastAnalyzed) {
-  return;
-}
-lastAnalyzed = scene;
-
-  document.getElementById("analyze-result").textContent = "Analyzing...";
-  button.disabled = true;
-
-  try {
-    const res = await fetch("/analyze", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-user-agreement": "true"
-      },
-      body: JSON.stringify({ scene })
-    });
-    const data = await res.json();
-    const raw = data.analysis || "";
-    const formatted = raw
-      .replace(/\*\*Rationale:\*\*/g, "🔶 <strong>Rationale</strong>")
-      .replace(/\*\*Rewrite:\*\*/g, "✍️ <strong>Rewrite</strong>")
-      .replace(/\*\*Director’s Note:\*\*/g, "🎬 <strong>Director’s Note</strong>")
-      .replace(/---/g, "<hr>")
-      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-      .replace(/_(.*?)_/g, "<em>$1</em>");
-
-    document.getElementById("analyze-result").innerHTML = formatted;
-  } catch (err) {
-    document.getElementById("analyze-result").textContent = "Error processing request.";
-  }
-
-  button.disabled = false;
-}
-
-    let lastEdited = "";
-    let lastEditOutput = "";
+# ─── 5. Input Schema ─────────────────────────────────────────────────────────
+class SceneRequest(BaseModel):
+    scene: str
     
-    async function edit() {
-  const scene = document.getElementById("scene-edit").value.trim();
-  const button = document.querySelector("#editor button.action");
+# ─── 6. Scene Analyzer ───────────────────────────────────────────────────────
+@app.post("/analyze")
+async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
+    ip = request.client.host
+    if not rate_limiter(ip):
+        raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "Rate limit exceeded.")
+    if x_user_agreement != "true":
+        raise HTTPException(400, "You must accept the Terms & Conditions.")
+    text = data.scene.strip()
+    if len(text.split()) < 250:
+       raise HTTPException(400, "Scene must be at least one page long (approx. 250 words).")
+    if "generate" in text.lower():
+       raise HTTPException(400, "SceneCraft AI does not generate scenes. Please submit your own work.")
+    return {"analysis": await analyze_scene(text)}
 
-  if (scene.length < 30) {
-    document.getElementById("edit-result").textContent = "Scene too short.";
-    return;
-  }
+# ─── 7. Scene Editor ─────────────────────────────────────────────────────────
+@app.post("/edit")
+async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
+    ip = request.client.host
+    if not rate_limiter(ip):
+        raise HTTPException(429, "Rate limit exceeded.")
 
-  if (scene.split(/\s+/).length > 600) {
-    document.getElementById("edit-result").textContent = "Scene exceeds 2-page limit.";
-    return;
-  }
+    if x_user_agreement != "true":
+        raise HTTPException(400, "You must accept the Terms & Conditions.")
 
-if (scene === lastEdited && lastEditOutput) {
-  document.getElementById("edit-result").innerHTML = lastEditOutput;
-  return;
-}
+    scene_text = data.scene.strip()
+    
+    if len(scene_text.split()) < 250:
+       raise HTTPException(400, "Scene must be at least one page long (approx. 250 words).")
 
-  lastEdited = scene;
-  document.getElementById("edit-result").textContent = "Editing...";
-  button.disabled = true;
+    if "generate" in scene_text.lower():
+       raise HTTPException(400, "SceneCraft AI does not generate scenes. Please submit your own work.")
 
-  try {    
-    const res = await fetch("/edit", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-user-agreement": "true"
-      },
-     body: JSON.stringify({ scene })
-    });
+    # Block generation-style prompts for editor too
+    if STRIP_RE.match(scene_text.strip().lower()):
+        raise HTTPException(
+        status_code=400,
+        detail="SceneCraft does not generate scenes. Please submit your own scene or script for editing."
+    )
 
-    const data = await res.json();
-    const raw = data.edit_suggestions || "";
+    if len(scene_text.split()) > 650:
+        raise HTTPException(400, "Scene (including context) must be under 2 pages.")
 
-    const formatted = raw
-      .replace(/\*\*Rationale:\*\*/g, "🔸 <strong>Rationale</strong>")
-      .replace(/\*\*Rewrite:\*\*/g, "✍️ <strong>Rewrite</strong>")
-      .replace(/\*\*Director.*?:\*\*/g, "🎬 <strong>Director’s Note</strong>")
-      .replace(/---/g, "<hr>");
+    payload = {
+        "model": os.getenv("OPENROUTER_MODEL", "gpt-4"),
+        "messages": [
+            {"role": "system", "content": SCENE_EDITOR_PROMPT},
+            {"role": "user", "content": scene_text}
+        ]
+    }
 
-    document.getElementById("edit-result").innerHTML = formatted;
-    lastEdited = scene;
-    lastEditOutput = formatted;
-  } catch (err) {
-    document.getElementById("edit-result").textContent = "An error occurred.";
-  }
+    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+    if not OPENROUTER_API_KEY:
+        raise HTTPException(500, "Missing OpenRouter API key.")
 
-  button.disabled = false;
-}
-    // Disable right-click and common shortcuts
-    document.addEventListener('contextmenu', event => event.preventDefault());
-    document.addEventListener('keydown', function (e) {
-      const blocked = ['c', 'a', 's', 'p'];
-      if ((e.ctrlKey || e.metaKey) && blocked.includes(e.key.toLowerCase())) {
-        e.preventDefault();
-      }
-    });
-  </script>
-</body>
-</html>
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+            resp.raise_for_status()
+            result = resp.json()
+            return {
+                "edit_suggestions": result["choices"][0]["message"]["content"].strip()
+            }
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(e.response.status_code, e.response.text)
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+# ─── 8. Serve Frontend ───────────────────────────────────────────────────────
+FRONTEND = Path(__file__).parent / "frontend_dist"
+if not FRONTEND.exists():
+    raise RuntimeError(f"Frontend build not found: {FRONTEND}")
+
+class PasswordRequest(BaseModel):
+    password: str
+
+@app.post("/validate-password")
+async def validate_password(data: PasswordRequest):
+    expected = os.getenv("SCENECRAFT_PASSWORD", "prantasdatwanta")
+    return {"valid": data.password == expected}
+    
+app.mount("/", StaticFiles(directory="frontend_dist", html=True), name="frontend")
