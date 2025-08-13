@@ -1,4 +1,4 @@
-import os, re, time, httpx
+import os, re, time, httpx, hmac
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, Header, Depends
 from fastapi.responses import JSONResponse
@@ -10,7 +10,7 @@ from typing import Optional
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS, HTTP_401_UNAUTHORIZED
 
 from logic.analyzer import analyze_scene
-from logic.analyzer import STRIP_RE, INTENT_INLINE_CMD_RE  # inline = targeted scene/script commands
+from logic.analyzer import STRIP_RE, INTENT_INLINE_CMD_RE
 from logic.prompt_templates import SCENE_EDITOR_PROMPT
 
 # ─── 1. App & Auth Setup ─────────────────────────────────────────────────────
@@ -60,6 +60,9 @@ def rate_limiter(ip: str) -> bool:
 class SceneRequest(BaseModel):
     scene: str
 
+class PasswordRequest(BaseModel):
+    password: str
+
 # ─── 6. Scene Analyzer ───────────────────────────────────────────────────────
 @app.post("/analyze")
 async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
@@ -68,29 +71,22 @@ async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = 
         raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "Rate limit exceeded.")
     if x_user_agreement != "true":
         raise HTTPException(400, "You must accept the Terms & Conditions.")
-
     text = data.scene.strip()
-
     if len(text.split()) < 250:
         raise HTTPException(400, "Scene must be at least one page long (approx. 250 words).")
-
     if "generate" in text.lower():
         raise HTTPException(400, "SceneCraft AI does not generate scenes. Please submit your own work.")
-
     # Block generation-style prompts:
-    # 1) Full-line commands (e.g., "rewrite scene")
     if STRIP_RE.match(text.lower()):
         raise HTTPException(
             status_code=400,
             detail="SceneCraft does not generate scenes. Please submit your own scene or script for analysis."
         )
-    # 2) Inline targeted phrases (e.g., "please improve this scene")
     if INTENT_INLINE_CMD_RE.search(text):
         raise HTTPException(
             status_code=400,
             detail="SceneCraft does not generate scenes. Please submit your own scene or script for analysis."
         )
-
     return {"analysis": await analyze_scene(text)}
 
 # ─── 7. Scene Editor ─────────────────────────────────────────────────────────
@@ -156,17 +152,15 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
     except Exception as e:
         raise HTTPException(500, str(e))
 
-# ─── 8. Serve Frontend ───────────────────────────────────────────────────────
+# ─── 8. Password Validation (backend-side; hides secret from frontend) ───────
+@app.post("/validate-password")
+def validate_password(data: PasswordRequest):
+    expected = os.getenv("SCENECRAFT_PASSWORD", "prantasdatwanta")
+    return {"valid": hmac.compare_digest(data.password, expected)}
+
+# ─── 9. Serve Frontend ───────────────────────────────────────────────────────
 FRONTEND = Path(__file__).parent / "frontend_dist"
 if not FRONTEND.exists():
     raise RuntimeError(f"Frontend build not found: {FRONTEND}")
-
-class PasswordRequest(BaseModel):
-    password: str
-
-@app.post("/validate-password")
-async def validate_password(data: PasswordRequest):
-    expected = os.getenv("SCENECRAFT_PASSWORD", "prantasdatwanta")
-    return {"valid": data.password == expected}
 
 app.mount("/", StaticFiles(directory="frontend_dist", html=True), name="frontend")
