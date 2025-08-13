@@ -12,10 +12,7 @@
       margin: 0;
       padding: 2rem;
     }
-    .container {
-      max-width: 900px;
-      margin: auto;
-    }
+    .container { max-width: 900px; margin: auto; }
     nav button {
       margin-right: 1rem;
       background: #1f1f1f;
@@ -34,39 +31,21 @@
       color: #fff;
       border: 1px solid #666;
     }
-    input[type="file"] {
-      margin-top: 1rem;
-      color: gold;
-    }
+    input[type="file"] { margin-top: 1rem; color: gold; }
     button.action {
-      background: #333;
-      color: gold;
-      padding: 0.5rem 1rem;
-      border: 1px solid #444;
-      cursor: pointer;
+      background: #333; color: gold; padding: 0.5rem 1rem;
+      border: 1px solid #444; cursor: pointer;
     }
     pre {
-      background: #1a1a1a;
-      color: #fff;
-      padding: 1rem;
-      white-space: pre-wrap;
-      border-left: 4px solid gold;
-      margin-top: 1rem;
-      line-height: 1.6;
+      background: #1a1a1a; color: #fff; padding: 1rem; white-space: pre-wrap;
+      border-left: 4px solid gold; margin-top: 1rem; line-height: 1.6;
       font-family: Consolas, monospace;
     }
     pre strong { color: #ffd700; }
     pre em { color: #ccc; font-style: italic; }
     .hidden { display: none; }
     .description { margin-bottom: 2rem; line-height: 1.6; }
-
-    /* Make outputs harder to copy/select */
-    .nocopy {
-      user-select: none;
-      -webkit-user-select: none;
-      -ms-user-select: none;
-      -moz-user-select: none;
-    }
+    .nocopy { user-select: none; -webkit-user-select: none; -ms-user-select: none; -moz-user-select: none; }
   </style>
 </head>
 <body>
@@ -130,8 +109,6 @@
   if (window.__SCENECRAFT_INIT__) return;
   window.__SCENECRAFT_INIT__ = true;
 
-  const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh");
-
   // ---- helpers
   function wordCount(txt){ return (txt.trim().match(/\b\w+\b/g) || []).length; }
   async function hashText(text) {
@@ -153,18 +130,29 @@
   // In-flight guards so we don't issue parallel fetches for same scene
   const inFlight = new Set();
 
-  window.checkAccess = function () {
+  // ✅ Password check moved to backend; no secret in client code
+  window.checkAccess = async function () {
     const input = document.getElementById("access").value;
-    if (input === PASSWORD) {
-      document.getElementById("password-gate").classList.add("hidden");
-      document.getElementById("app").classList.remove("hidden");
-      showTab("home");
-    } else {
-      document.getElementById("access-error").innerText = "Access Denied";
+    try {
+      const res = await fetch("/validate-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: input })
+      });
+      const data = await res.json();
+      if (data.valid) {
+        document.getElementById("password-gate").classList.add("hidden");
+        document.getElementById("app").classList.remove("hidden");
+        showTab("home");
+      } else {
+        document.getElementById("access-error").innerText = "Access Denied";
+      }
+    } catch {
+      document.getElementById("access-error").innerText = "Network error";
     }
   };
 
-  // ---- Input reset on navigation (keeps everything else the same)
+  // ---- Input reset on navigation (fresh every visit)
   window.showTab = function (tabId) {
     // Hide all tabs
     document.querySelectorAll('.tab').forEach(tab => tab.classList.add('hidden'));
@@ -203,7 +191,6 @@
       return;
     }
 
-    // Prevent multiple fetches for same scene during a session
     if (inFlight.has(key)) {
       out.textContent = "Using best available result…";
       return;
@@ -252,7 +239,6 @@
     const key = "ed:" + await hashText(scene);
     const cache = loadCache(EDIT_CACHE_KEY);
 
-    // If we already have a result, ALWAYS reuse it (consistency forever)
     if (cache[key]) {
       out.textContent = cache[key];
       return;
@@ -281,7 +267,6 @@
         return;
       }
 
-      // Save the FIRST result and never overwrite it.
       cache[key] = data.edit_suggestions || "";
       saveCache(EDIT_CACHE_KEY, cache);
 
@@ -293,20 +278,14 @@
     }
   };
 
-  // ---------------------------
   // Copy protection on OUTPUTS
-  // ---------------------------
   const analysisOut = document.getElementById("analysis-output");
   const editOut = document.getElementById("edit-output");
 
-  // Block right-click context menu on outputs
   [analysisOut, editOut].forEach(el => {
     el.addEventListener('contextmenu', e => e.preventDefault());
-    // Block selection starting inside outputs
     el.addEventListener('selectstart', e => e.preventDefault());
-    // Prevent copy event from outputs
     el.addEventListener('copy', e => e.preventDefault());
-    // Make sure elements can receive focus for key handling
     el.setAttribute('tabindex', '0');
   });
 
@@ -317,14 +296,12 @@
     return analysisOut.contains(node) || editOut.contains(node);
   }
 
-  // Block Ctrl/Cmd+A and Ctrl/Cmd+C when selection/focus is inside outputs
   document.addEventListener('keydown', (e) => {
     const isMod = e.ctrlKey || e.metaKey;
     const k = e.key.toLowerCase();
     const active = document.activeElement;
     const focusedInside = analysisOut.contains(active) || editOut.contains(active);
     const selInside = selectionInsideOutputs();
-
     if (isMod && (k === 'a' || k === 'c') && (focusedInside || selInside)) {
       e.preventDefault();
     }
