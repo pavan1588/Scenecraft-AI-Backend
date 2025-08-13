@@ -164,8 +164,23 @@
     }
   };
 
+  // ---- Input reset on navigation (keeps everything else the same)
   window.showTab = function (tabId) {
+    // Hide all tabs
     document.querySelectorAll('.tab').forEach(tab => tab.classList.add('hidden'));
+
+    // Always reset Analyzer & Editor inputs/outputs so they’re fresh on every visit
+    const analyzeInput = document.getElementById('scene-input');
+    const analyzeOut = document.getElementById('analysis-output');
+    const editInput = document.getElementById('edit-input');
+    const editOut = document.getElementById('edit-output');
+
+    if (analyzeInput) analyzeInput.value = '';
+    if (analyzeOut) analyzeOut.textContent = '';
+    if (editInput) editInput.value = '';
+    if (editOut) editOut.textContent = '';
+
+    // Show the requested tab
     document.getElementById(tabId).classList.remove('hidden');
   };
 
