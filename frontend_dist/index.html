@@ -210,6 +210,9 @@
     const inFlight = new Set();
 
     const el = id => document.getElementById(id);
+
+   const wc = t => (t.trim().match(/\b\w+\b/g) || []).length;
+
     const wc = t => (t.trim().match(/\b\w+\b/g) || []).length;
 
     // Password (backend validation)
