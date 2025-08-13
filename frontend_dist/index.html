@@ -59,6 +59,14 @@
     pre em { color: #ccc; font-style: italic; }
     .hidden { display: none; }
     .description { margin-bottom: 2rem; line-height: 1.6; }
+
+    /* Make outputs harder to copy/select */
+    .nocopy {
+      user-select: none;
+      -webkit-user-select: none;
+      -ms-user-select: none;
+      -moz-user-select: none;
+    }
   </style>
 </head>
 <body>
@@ -90,7 +98,7 @@
     <textarea id="scene-input" placeholder="Paste your scene here..."></textarea>
     <button class="action" onclick="analyzeScene()">Analyze</button>
     <input type="file" id="file-input" />
-    <pre id="analysis-output"></pre>
+    <pre id="analysis-output" class="nocopy" tabindex="0"></pre>
   </div>
 
   <div id="editor" class="tab hidden">
@@ -98,7 +106,7 @@
     <textarea id="edit-input" placeholder="Paste your scene here..."></textarea>
     <button class="action" onclick="editScene()">Edit</button>
     <input type="file" id="edit-file-input" />
-    <pre id="edit-output"></pre>
+    <pre id="edit-output" class="nocopy" tabindex="0"></pre>
   </div>
 
   <div id="fullscript" class="tab hidden">
@@ -124,7 +132,26 @@
 
   const PASSWORD = atob("cHJhbnRhc2RhdHdhbnRh");
 
+  // ---- helpers
   function wordCount(txt){ return (txt.trim().match(/\b\w+\b/g) || []).length; }
+  async function hashText(text) {
+    const enc = new TextEncoder().encode(text);
+    const buf = await crypto.subtle.digest('SHA-256', enc);
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+  }
+
+  // ---- persistent caches (never overwrite once set)
+  const ANALYZE_CACHE_KEY = "sc_analyze_cache_v1";
+  const EDIT_CACHE_KEY = "sc_edit_cache_v1";
+  function loadCache(name){
+    try { return JSON.parse(localStorage.getItem(name) || "{}"); } catch { return {}; }
+  }
+  function saveCache(name, obj){
+    try { localStorage.setItem(name, JSON.stringify(obj)); } catch {}
+  }
+
+  // In-flight guards so we don't issue parallel fetches for same scene
+  const inFlight = new Set();
 
   window.checkAccess = function () {
     const input = document.getElementById("access").value;
@@ -152,7 +179,24 @@
       return;
     }
 
+    const key = "an:" + await hashText(scene);
+    const cache = loadCache(ANALYZE_CACHE_KEY);
+
+    // If we already have a result, ALWAYS reuse it (consistency forever)
+    if (cache[key]) {
+      out.textContent = cache[key];
+      return;
+    }
+
+    // Prevent multiple fetches for same scene during a session
+    if (inFlight.has(key)) {
+      out.textContent = "Using best available result…";
+      return;
+    }
+
+    inFlight.add(key);
     out.textContent = "Analyzing...";
+
     try {
       const res = await fetch("/analyze", {
         method: "POST",
@@ -167,9 +211,16 @@
         out.textContent = `Error: ${data.detail || res.statusText} (HTTP ${res.status})`;
         return;
       }
-      out.textContent = data.analysis || "";
+
+      // Save the FIRST result and never overwrite it.
+      cache[key] = data.analysis || "";
+      saveCache(ANALYZE_CACHE_KEY, cache);
+
+      out.textContent = cache[key];
     } catch (e) {
       out.textContent = `Network error: ${e.message || e}`;
+    } finally {
+      inFlight.delete(key);
     }
   };
 
@@ -183,7 +234,23 @@
       return;
     }
 
+    const key = "ed:" + await hashText(scene);
+    const cache = loadCache(EDIT_CACHE_KEY);
+
+    // If we already have a result, ALWAYS reuse it (consistency forever)
+    if (cache[key]) {
+      out.textContent = cache[key];
+      return;
+    }
+
+    if (inFlight.has(key)) {
+      out.textContent = "Using best available result…";
+      return;
+    }
+
+    inFlight.add(key);
     out.textContent = "Editing...";
+
     try {
       const res = await fetch("/edit", {
         method: "POST",
@@ -198,11 +265,56 @@
         out.textContent = `Error: ${data.detail || res.statusText} (HTTP ${res.status})`;
         return;
       }
-      out.textContent = data.edit_suggestions || "";
+
+      // Save the FIRST result and never overwrite it.
+      cache[key] = data.edit_suggestions || "";
+      saveCache(EDIT_CACHE_KEY, cache);
+
+      out.textContent = cache[key];
     } catch (e) {
       out.textContent = `Network error: ${e.message || e}`;
+    } finally {
+      inFlight.delete(key);
     }
   };
+
+  // ---------------------------
+  // Copy protection on OUTPUTS
+  // ---------------------------
+  const analysisOut = document.getElementById("analysis-output");
+  const editOut = document.getElementById("edit-output");
+
+  // Block right-click context menu on outputs
+  [analysisOut, editOut].forEach(el => {
+    el.addEventListener('contextmenu', e => e.preventDefault());
+    // Block selection starting inside outputs
+    el.addEventListener('selectstart', e => e.preventDefault());
+    // Prevent copy event from outputs
+    el.addEventListener('copy', e => e.preventDefault());
+    // Make sure elements can receive focus for key handling
+    el.setAttribute('tabindex', '0');
+  });
+
+  function selectionInsideOutputs() {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return false;
+    const node = sel.anchorNode;
+    return analysisOut.contains(node) || editOut.contains(node);
+  }
+
+  // Block Ctrl/Cmd+A and Ctrl/Cmd+C when selection/focus is inside outputs
+  document.addEventListener('keydown', (e) => {
+    const isMod = e.ctrlKey || e.metaKey;
+    const k = e.key.toLowerCase();
+    const active = document.activeElement;
+    const focusedInside = analysisOut.contains(active) || editOut.contains(active);
+    const selInside = selectionInsideOutputs();
+
+    if (isMod && (k === 'a' || k === 'c') && (focusedInside || selInside)) {
+      e.preventDefault();
+    }
+  });
+
 })();
 </script>
 
