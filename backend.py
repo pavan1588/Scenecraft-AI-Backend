@@ -10,8 +10,7 @@ from typing import Optional
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS, HTTP_401_UNAUTHORIZED
 
 from logic.analyzer import analyze_scene
-# from logic.analyzer import STRIP_RE, INTENT_ANYWHERE_RE
-from logic.analyzer import STRIP_RE, INTENT_INLINE_CMD_RE
+from logic.analyzer import STRIP_RE, INTENT_INLINE_CMD_RE  # inline = targeted scene/script commands
 from logic.prompt_templates import SCENE_EDITOR_PROMPT
 
 # ─── 1. App & Auth Setup ─────────────────────────────────────────────────────
@@ -60,7 +59,7 @@ def rate_limiter(ip: str) -> bool:
 # ─── 5. Input Schema ─────────────────────────────────────────────────────────
 class SceneRequest(BaseModel):
     scene: str
-    
+
 # ─── 6. Scene Analyzer ───────────────────────────────────────────────────────
 @app.post("/analyze")
 async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
@@ -69,11 +68,29 @@ async def analyze(request: Request, data: SceneRequest, x_user_agreement: str = 
         raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "Rate limit exceeded.")
     if x_user_agreement != "true":
         raise HTTPException(400, "You must accept the Terms & Conditions.")
+
     text = data.scene.strip()
+
     if len(text.split()) < 250:
-       raise HTTPException(400, "Scene must be at least one page long (approx. 250 words).")
+        raise HTTPException(400, "Scene must be at least one page long (approx. 250 words).")
+
     if "generate" in text.lower():
-       raise HTTPException(400, "SceneCraft AI does not generate scenes. Please submit your own work.")
+        raise HTTPException(400, "SceneCraft AI does not generate scenes. Please submit your own work.")
+
+    # Block generation-style prompts:
+    # 1) Full-line commands (e.g., "rewrite scene")
+    if STRIP_RE.match(text.lower()):
+        raise HTTPException(
+            status_code=400,
+            detail="SceneCraft does not generate scenes. Please submit your own scene or script for analysis."
+        )
+    # 2) Inline targeted phrases (e.g., "please improve this scene")
+    if INTENT_INLINE_CMD_RE.search(text):
+        raise HTTPException(
+            status_code=400,
+            detail="SceneCraft does not generate scenes. Please submit your own scene or script for analysis."
+        )
+
     return {"analysis": await analyze_scene(text)}
 
 # ─── 7. Scene Editor ─────────────────────────────────────────────────────────
@@ -87,12 +104,12 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
         raise HTTPException(400, "You must accept the Terms & Conditions.")
 
     scene_text = data.scene.strip()
-    
+
     if len(scene_text.split()) < 250:
-       raise HTTPException(400, "Scene must be at least one page long (approx. 250 words).")
+        raise HTTPException(400, "Scene must be at least one page long (approx. 250 words).")
 
     if "generate" in scene_text.lower():
-       raise HTTPException(400, "SceneCraft AI does not generate scenes. Please submit your own work.")
+        raise HTTPException(400, "SceneCraft AI does not generate scenes. Please submit your own work.")
 
     # Block generation-style prompts for editor too (full-line and inline/heading)
     if STRIP_RE.match(scene_text.strip().lower()):
@@ -100,13 +117,11 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
             status_code=400,
             detail="SceneCraft does not generate scenes. Please submit your own scene or script for editing."
         )
-    # Inline/heading generation phrases (now stricter)
     if INTENT_INLINE_CMD_RE.search(scene_text):
         raise HTTPException(
             status_code=400,
             detail="SceneCraft does not generate scenes. Please submit your own scene or script for editing."
-    )
-
+        )
 
     if len(scene_text.split()) > 650:
         raise HTTPException(400, "Scene (including context) must be under 2 pages.")
@@ -135,9 +150,7 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
             )
             resp.raise_for_status()
             result = resp.json()
-            return {
-                "edit_suggestions": result["choices"][0]["message"]["content"].strip()
-            }
+            return {"edit_suggestions": result["choices"][0]["message"]["content"].strip()}
     except httpx.HTTPStatusError as e:
         raise HTTPException(e.response.status_code, e.response.text)
     except Exception as e:
@@ -155,5 +168,5 @@ class PasswordRequest(BaseModel):
 async def validate_password(data: PasswordRequest):
     expected = os.getenv("SCENECRAFT_PASSWORD", "prantasdatwanta")
     return {"valid": data.password == expected}
-    
+
 app.mount("/", StaticFiles(directory="frontend_dist", html=True), name="frontend")
