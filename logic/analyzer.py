@@ -19,11 +19,15 @@ INTENT_LINE_RE = re.compile(
     rf"^\s*(?:please\s+)?(?:the\s+)?(?:{'|'.join(COMMANDS)})\s*$",
     re.IGNORECASE
 )
-# Anywhere in a line
-INTENT_ANYWHERE_RE = re.compile(rf"\b({'|'.join(COMMANDS)})\b", re.IGNORECASE)
+# Anywhere in a line — but ONLY when clearly instructing to modify/generate a scene/script
+INTENT_INLINE_CMD_RE = re.compile(
+    r"\b(?:rewrite|regenerate|compose|fix|improve|polish|reword|make)\s+(?:this|the)?\s*(?:scene|script)\b",
+    re.IGNORECASE
+)
 
 # --- Backward compatibility for backend imports ---
 STRIP_RE = INTENT_LINE_RE
+
 
 MIN_WORDS = 250
 MAX_WORDS = 3500
@@ -43,7 +47,8 @@ def clean_scene(text: str) -> str:
             continue
         if INTENT_LINE_RE.match(line):
             continue
-        line = INTENT_ANYWHERE_RE.sub("", line).strip(" :-\t")
+        # was: line = INTENT_ANYWHERE_RE.sub("", line)...
+        line = INTENT_INLINE_CMD_RE.sub("", line).strip(" :-\t")
         if line:
             cleaned_lines.append(line)
     return "\n".join(cleaned_lines).strip()
