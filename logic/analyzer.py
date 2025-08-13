@@ -158,12 +158,13 @@ async def analyze_scene(scene: str) -> str:
 
     payload = {
         "model": os.getenv("OPENROUTER_MODEL", "gpt-4o"),
-        "temperature": 0.6,
+        "temperature": 0.5,
+        "response_format": {"type": "json_object"},  # ← enforce JSON
         "messages": [
-            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": _system_prompt()},
             {"role": "user", "content": clean}
-        ]
-    }
+    ]
+}
 
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
