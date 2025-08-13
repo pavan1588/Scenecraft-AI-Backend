@@ -15,13 +15,14 @@ COMMANDS = [
     r"make(?:\s+scene)?"
 ]
 
-# Full-line intent
+# Full-line intent (exact command lines only)
 INTENT_LINE_RE = re.compile(
     rf"^\s*(?:please\s+)?(?:the\s+)?(?:{'|'.join(COMMANDS)})\s*$",
     re.IGNORECASE
 )
 
-# Anywhere in a line — but ONLY when clearly instructing to modify/generate a scene/script
+# Inline — ONLY when clearly instructing to modify/generate a scene/script
+# e.g., "please improve this scene", "rewrite the script"
 INTENT_INLINE_CMD_RE = re.compile(
     r"\b(?:rewrite|regenerate|compose|fix|improve|polish|reword|make)\s+(?:this|the)?\s*(?:scene|script)\b",
     re.IGNORECASE
@@ -29,6 +30,7 @@ INTENT_INLINE_CMD_RE = re.compile(
 
 # --- Backward compatibility for backend imports ---
 STRIP_RE = INTENT_LINE_RE
+INTENT_ANYWHERE_RE = INTENT_INLINE_CMD_RE  # alias for legacy import paths
 
 MIN_WORDS = 250
 MAX_WORDS = 3500
@@ -46,9 +48,10 @@ def clean_scene(text: str) -> str:
     for line in text.split("\n"):
         if not line:
             continue
+        # Remove full-line commands entirely
         if INTENT_LINE_RE.match(line):
             continue
-        # Only strip explicit inline generation commands
+        # Remove only explicit inline "modify this scene/script" commands
         line = INTENT_INLINE_CMD_RE.sub("", line).strip(" :-\t")
         if line:
             cleaned_lines.append(line)
@@ -57,7 +60,7 @@ def clean_scene(text: str) -> str:
 def _ensure_sections(output: str) -> str:
     text = output.strip()
     has_suggestions = re.search(r"^\s*Suggestions\s*[:\-]", text, re.IGNORECASE | re.MULTILINE)
-    has_analytics = re.search(r"^\s*Analytics\s+Summary\s*[:\-]", text, re.IGNORECASE | re.MULTILINE)
+    has_analytics  = re.search(r"^\s*Analytics\s+Summary\s*[:\-]", text, re.IGNORECASE | re.MULTILINE)
 
     appended = []
     if not has_suggestions:
@@ -87,7 +90,15 @@ async def analyze_scene(scene: str) -> str:
     raw = scene or ""
     clean = clean_scene(raw)
 
+    # Block full-line commands outright
     if INTENT_LINE_RE.match(raw.strip()):
+        raise HTTPException(
+            status_code=400,
+            detail="SceneCraft does not generate scenes. Please submit your own scene or script for analysis."
+        )
+
+    # Optionally: if inline targeted commands slipped in anywhere, block as well
+    if INTENT_INLINE_CMD_RE.search(raw):
         raise HTTPException(
             status_code=400,
             detail="SceneCraft does not generate scenes. Please submit your own scene or script for analysis."
