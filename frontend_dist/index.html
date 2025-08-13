@@ -9,8 +9,8 @@
       --bg:#f6fbff;
       --panel:#ffffff;
       --text:#0f2647;
-      --accent:#5aa9ff;
-      --accent-soft:#b3d9ff;
+      --accent:#5aa9ff;      /* fixed */
+      --accent-soft:#b3d9ff; /* fixed */
       --border:#d7e9ff;
       --muted:#5c6f8a;
       --danger:#bb2d3b;
@@ -252,9 +252,8 @@
       }
     };
 
-    // Copy-protect outputs (null-safe)
+    // Copy-protect outputs
     function guard(node){
-      if(!node) return;
       node.addEventListener('contextmenu', e=>e.preventDefault());
       node.addEventListener('selectstart', e=>e.preventDefault());
       node.addEventListener('copy', e=>e.preventDefault());
@@ -265,9 +264,7 @@
       const isMod = e.ctrlKey || e.metaKey;
       const k = e.key.toLowerCase();
       const active = document.activeElement;
-      const area = el('analysis-area');
-      const edit = el('edit-result');
-      const protectedArea = (!!area && area.contains(active)) || (!!edit && edit.contains(active));
+      const protectedArea = el('analysis-area').contains(active) || el('edit-result').contains(active);
       if(isMod && (k==='a' || k==='c') && protectedArea){ e.preventDefault(); }
     });
 
@@ -277,7 +274,7 @@
 
     // Mood gauge helper
     function setGauge(val){
-      const circ = 2*Math.PI*52; // r=52
+      const circ = 2*Math.PI*52; // r=52 -> circumference ~ 326.7
       const off = circ * (1 - (val/100));
       el('moodArc').setAttribute('stroke-dashoffset', String(off));
       el('moodVal').textContent = Math.round(val);
@@ -295,10 +292,8 @@
       el('readiness').textContent = '';
       el('comparison').textContent = '';
       el('moodWords').textContent = '';
-      const a = el('ambience');
-      const b = el('audioBtn');
-      if (a){ a.pause(); a.removeAttribute('src'); }
-      if (b){ b.disabled = true; b.textContent = 'Play ambience'; }
+      el('audioBtn').disabled = true;
+      el('ambience').pause();
     }
 
     // Immersive reader (typewriter for summary)
@@ -307,7 +302,7 @@
       dest.textContent = '';
       for(const ch of text){
         dest.textContent += ch;
-        await new Promise(r=>setTimeout(r, 8));
+        await new Promise(r=>setTimeout(r, 8)); // subtle
       }
     }
 
@@ -315,19 +310,17 @@
     let audioOn = false;
     window.toggleAudio = function(){
       const a = el('ambience');
-      const btn = el('audioBtn');
-      if(!a || !a.src) return;
-      if(audioOn){ a.pause(); btn.textContent = 'Play ambience'; }
-      else { a.play().catch(()=>{}); btn.textContent = 'Pause ambience'; }
+      if(!a.src) return;
+      if(audioOn){ a.pause(); el('audioBtn').textContent = 'Play ambience'; }
+      else { a.play().catch(()=>{}); el('audioBtn').textContent = 'Pause ambience'; }
       audioOn = !audioOn;
     };
 
     // Render structured analysis JSON
     function renderAnalysis(obj){
-      // Theme color
-      const col = (obj?.theme?.color)||'#b3d9ff';
+      // --- Lock UI colors (no dynamic theming) ---
       document.documentElement.style.setProperty('--accent', '#5aa9ff');
-      document.documentElement.style.setProperty('--accent-soft', col);
+      document.documentElement.style.setProperty('--accent-soft', '#b3d9ff');
 
       // Summary (typewriter)
       typeSummary(obj.summary || 'Analysis');
@@ -369,50 +362,43 @@
       el('comparison').textContent = obj.comparison||'';
       el('moodWords').textContent = (obj.theme?.mood_words||[]).join(', ');
 
-      // ===== Ambience: prefer remote URL, fallback to local slug =====
+      // Audio source: prefer remote URL, fallback to local slug
       const audioTag = el('ambience');
       const audioBtn = el('audioBtn');
 
-      // reset
+      // Clean previous
       audioOn = false;
-      if (audioTag) { audioTag.pause(); audioTag.removeAttribute('src'); }
-      if (audioBtn) { audioBtn.textContent = 'Play ambience'; audioBtn.disabled = true; }
+      audioTag.pause();
+      audioTag.removeAttribute('src');
+      audioBtn.textContent = 'Play ambience';
+      audioBtn.disabled = true;
 
+      // Build a playable source
       const theme = obj?.theme || {};
       const remoteUrl = theme.audio_url && String(theme.audio_url).trim();
       const key = theme.audio && String(theme.audio).trim();
 
       function slugify(s){
-        return s.toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '');
+        return s.toLowerCase()
+                .replace(/[^a-z0-9]+/gi, '-')
+                .replace(/^-+|-+$/g, '');
       }
 
       let chosen = '';
       if (remoteUrl) {
-        chosen = remoteUrl; // e.g., https://.../file.mp3
+        chosen = remoteUrl; // e.g., https://freesound.org/.../file.mp3
       } else if (key) {
         chosen = `/audio/${slugify(key)}.mp3`; // e.g., /audio/rainy-night.mp3
       }
 
-      if (audioTag && audioBtn) {
-        audioTag.oncanplay = null;
-        audioTag.onerror = null;
-
-        if (chosen) {
-          audioTag.oncanplay = () => {
-            audioBtn.disabled = false;
-            audioBtn.title = 'Ambient hook based on mood';
-          };
-          audioTag.onerror = () => {
-            audioBtn.disabled = true;
-            audioBtn.title = 'Audio unavailable';
-          };
-          audioTag.src = chosen;
-        } else {
-          audioBtn.disabled = true;
-          audioBtn.title = 'No ambience available';
-        }
+      if (chosen) {
+        audioTag.oncanplay = ()=>{ audioBtn.disabled = false; audioBtn.title = 'Ambient hook based on mood'; };
+        audioTag.onerror   = ()=>{ audioBtn.disabled = true;  audioBtn.title = 'Audio unavailable'; };
+        audioTag.src = chosen;
+      } else {
+        audioBtn.disabled = true;
+        audioBtn.title = 'No ambience available';
       }
-      // ===============================================================
     }
 
     // Hash helper (stable cache keys)
@@ -452,7 +438,7 @@
           return;
         }
         const obj = d.analysis || {};
-        analyzeCache.set(key, obj); // persist first
+        analyzeCache.set(key, obj); // FIRST result persisted forever
         renderAnalysis(obj);
       }catch(e){
         el('summaryText').textContent = `Network error: ${e.message||e}`;
