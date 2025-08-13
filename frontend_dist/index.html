@@ -183,7 +183,7 @@
             </div>
           </div>
 
-          <audio id="ambience" loop></audio>
+          <audio id="ambience" loop preload="none" crossorigin="anonymous"></audio>
         </div>
 
         <div id="editor" class="tab">
@@ -319,7 +319,8 @@
       if(audioOn){ a.pause(); el('audioBtn').textContent = 'Play ambience'; }
       else { a.play().catch(()=>{}); el('audioBtn').textContent = 'Pause ambience'; }
       audioOn = !audioOn;
-    };
+   };
+
 
     // Render structured analysis JSON
     function renderAnalysis(obj){
@@ -368,19 +369,58 @@
       el('comparison').textContent = obj.comparison||'';
       el('moodWords').textContent = (obj.theme?.mood_words||[]).join(', ');
 
-      // Audio source if provided (you can map keys to hosted files)
-      const audioKey = obj?.theme?.audio || '';
+      // Audio source: prefer remote URL, fallback to local slug
       const audioTag = el('ambience');
-      audioTag.src = '';
-      if(audioKey){
-        // You can host small loops in /frontend_dist/audio/
-        audioTag.src = `/audio/${audioKey}.mp3`;
-        el('audioBtn').disabled = false;
-      }else{
-        el('audioBtn').disabled = true;
-      }
-    }
+      const audioBtn = el('audioBtn');
 
+      // Clean previous
+      audioOn = false;
+      audioTag.pause();
+      audioTag.removeAttribute('src');
+      audioBtn.textContent = 'Play ambience';
+      audioBtn.disabled = true;
+
+      // Build a playable source
+      const theme = obj?.theme || {};
+      const remoteUrl = theme.audio_url && String(theme.audio_url).trim();
+      const key = theme.audio && String(theme.audio).trim();
+
+      // Helper: slugify for local fallback
+      function slugify(s){
+        return s.toLowerCase()
+                .replace(/[^a-z0-9]+/gi, '-')
+                .replace(/^-+|-+$/g, '');
+      }
+
+      // Pick source: remote first, then local slug if key provided
+      let chosen = '';
+      if (remoteUrl) {
+        chosen = remoteUrl; // e.g., https://freesound.org/.../file.mp3
+      } else if (key) {
+        chosen = `/audio/${slugify(key)}.mp3`; // e.g., /audio/rainy-night.mp3
+      }
+
+      // Wire up media and button states
+      if (chosen) {
+        // Ensure listeners are clean
+        audioTag.oncanplay = null;
+        audioTag.onerror = null;
+
+        audioTag.oncanplay = () => {
+          audioBtn.disabled = false;
+          audioBtn.title = 'Ambient hook based on mood';
+        };
+        audioTag.onerror = () => {
+          audioBtn.disabled = true;
+          audioBtn.title = 'Audio unavailable';
+        };
+
+        audioTag.src = chosen;
+      } else {
+        audioBtn.disabled = true;
+        audioBtn.title = 'No ambience available';
+      }
+      
     // Hash helper (stable cache keys)
     async function sha(text){
       const enc = new TextEncoder().encode(text);
