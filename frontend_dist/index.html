@@ -1,277 +1,257 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>SceneCraft AI</title>
-  <style>
-    /* your CSS unchanged */
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SceneCraft AI</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #0e0e0e;
+    color: gold;
+    margin: 0;
+    padding: 2rem;
+  }
+  .container {
+    max-width: 900px;
+    margin: auto;
+  }
+  nav button {
+    margin-right: 1rem;
+    background: #1f1f1f;
+    color: gold;
+    border: 1px solid #555;
+    padding: 0.6rem 1rem;
+    cursor: pointer;
+  }
+  textarea {
+    width: 100%;
+    height: 200px;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    font-size: 1rem;
+    background: #222;
+    color: #fff;
+    border: 1px solid #444;
+  }
+  .pill {
+    background: var(--accent, #5aa9ff);
+    color: #000;
+    padding: 2px 8px;
+    border-radius: 20px;
+  }
+  details summary {
+    cursor: pointer;
+    font-weight: bold;
+  }
+  .retry-btn {
+    background: #ff4444;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    margin-top: 10px;
+    cursor: pointer;
+    border-radius: 4px;
+    display: none;
+  }
+</style>
 </head>
 <body>
-  <div class="container">
-    <div id="password-gate" class="gate">
-      <h2>Enter Access Key</h2>
-      <div class="row">
-        <input type="password" id="access" placeholder="Password" style="flex:1; padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#fbfdff;color:var(--text)"/>
-        <button class="btn" onclick="checkAccess()">Unlock</button>
-      </div>
-      <div id="access-error" class="error small" style="margin-top:8px"></div>
-    </div>
+<div class="container">
+  <nav>
+    <button onclick="showSection('analyzer')">Scene Analyzer</button>
+    <button onclick="showSection('editor')">Scene Editor</button>
+  </nav>
 
-    <div id="app" class="hidden">
-      <!-- rest of your HTML unchanged -->
-    </div>
-  </div>
+  <!-- Scene Analyzer Section -->
+  <section id="analyzer">
+    <h2>Scene Analyzer</h2>
+    <textarea id="scene-analyze" placeholder="Paste your scene here..."></textarea>
+    <div id="anWC">0 words</div>
+    <button id="analyzeBtn" onclick="analyze()">Analyze</button>
+    <button id="retryAnalyze" class="retry-btn" onclick="retryAnalyzeFn()">Retry</button>
+    <div id="summaryText"></div>
+    <div id="beats"></div>
+    <div id="suggestions"></div>
+    <svg height="120" width="120">
+      <circle id="moodArc" cx="60" cy="60" r="52" stroke="gold" stroke-width="4" fill="none" stroke-dasharray="326.7"></circle>
+    </svg>
+    <span id="moodVal"></span>
+  </section>
 
-  <script>
-  (function(){
-    if (window.__initSC__) return; window.__initSC__ = true;
+  <!-- Scene Editor Section -->
+  <section id="editor" style="display:none;">
+    <h2>Scene Editor</h2>
+    <textarea id="scene-edit" placeholder="Paste your scene here..."></textarea>
+    <div id="edWC">0 words</div>
+    <button id="editBtn" onclick="editScene()">Edit</button>
+    <button id="retryEdit" class="retry-btn" onclick="retryEditFn()">Retry</button>
+    <div id="editOutput"></div>
+  </section>
 
-    const analyzeCache = new Map();
-    const editCache = new Map();
-    const inFlight = new Set();
+  <audio id="ambience" loop></audio>
+  <button id="audioBtn" disabled onclick="toggleAudio()">Play ambience</button>
+</div>
 
-    const el = id => document.getElementById(id);
+<script>
+const el = id => document.getElementById(id);
+const wc = t => t.trim() ? t.trim().split(/\s+/).length : 0;
+const analyzeCache = new Map();
+const inFlight = new Set();
+let lastAnalyzeScene = '';
+let lastEditScene = '';
 
-    // Word counter (single declaration)
-    const wc = t => (t.trim().match(/\b\w+\b/g) || []).length;
+// Word counters
+el('scene-analyze').addEventListener('input', ()=> el('anWC').textContent = wc(el('scene-analyze').value)+' words');
+el('scene-edit').addEventListener('input', ()=> el('edWC').textContent = wc(el('scene-edit').value)+' words');
 
-    // Password (backend validation)
-    window.checkAccess = async function(){
-      const pass = el('access').value;
-      try{
-        const r = await fetch('/validate-password', {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({password:pass})
-        });
-        const d = await r.json();
-        if(d.valid){
-          el('password-gate').classList.add('hidden');
-          el('app').classList.remove('hidden');
-          showTab('home');
-        }else{
-          el('access-error').textContent = 'Access Denied';
-        }
-      }catch{
-        el('access-error').textContent = 'Network error';
-      }
-    };
+// Mood gauge helper
+function setGauge(val){
+  const circ = 2*Math.PI*52;
+  const off = circ * (1 - (val/100));
+  el('moodArc').setAttribute('stroke-dashoffset', String(off));
+  el('moodVal').textContent = Math.round(val);
+}
 
-    // Tabs + input reset
-    window.showTab = function(id){
-      document.querySelectorAll('.tabs .tab').forEach(t=>t.classList.remove('active'));
-      el(id).classList.add('active');
+// Immersive reader
+async function typeSummary(text){
+  const dest = el('summaryText');
+  dest.textContent = '';
+  for(const ch of text){
+    dest.textContent += ch;
+    await new Promise(r=>setTimeout(r, 8));
+  }
+}
 
-      if (id !== 'analyzer'){
-        el('scene-analyze').value = '';
-        el('anWC').textContent = '0 words';
-        clearAnalysisUI();
-      }
-      if (id !== 'editor'){
-        el('scene-edit').value = '';
-        el('edWC').textContent = '0 words';
-        el('edit-result').textContent = '';
-      }
-    };
+function clearAnalysisUI(){
+  el('summaryText').textContent = '';
+  el('beats').innerHTML = '';
+  el('suggestions').innerHTML = '';
+  setGauge(0);
+  el('audioBtn').disabled = true;
+  el('ambience').pause();
+  el('retryAnalyze').style.display = 'none';
+}
 
-    // Copy-protect outputs
-    function guard(node){
-      node.addEventListener('contextmenu', e=>e.preventDefault());
-      node.addEventListener('selectstart', e=>e.preventDefault());
-      node.addEventListener('copy', e=>e.preventDefault());
-    }
-    guard(el('analysis-area'));
-    guard(el('edit-result'));
-    document.addEventListener('keydown', (e)=>{
-      const isMod = e.ctrlKey || e.metaKey;
-      const k = e.key.toLowerCase();
-      const active = document.activeElement;
-      const protectedArea = el('analysis-area').contains(active) || el('edit-result').contains(active);
-      if(isMod && (k==='a' || k==='c') && protectedArea){ e.preventDefault(); }
+window.toggleAudio = function(){
+  const a = el('ambience');
+  if(!a.src) return;
+  if(a.paused){ a.play(); el('audioBtn').textContent = 'Pause ambience'; }
+  else { a.pause(); el('audioBtn').textContent = 'Play ambience'; }
+};
+
+function renderAnalysis(obj){
+  const col = (obj?.theme?.color)||'#b3d9ff';
+  document.documentElement.style.setProperty('--accent', '#5aa9ff');
+  document.documentElement.style.setProperty('--accent-soft', col);
+  typeSummary(obj.summary || 'Analysis');
+
+  el('beats').innerHTML = '';
+  (obj.beats||[]).forEach(b=>{
+    const d = document.createElement('div');
+    d.innerHTML = `<div class="small"><span class="pill">${b.title||'Beat'}</span> ${(b.insight||'')}</div>`;
+    el('beats').appendChild(d);
+  });
+
+  el('suggestions').innerHTML = '';
+  (obj.suggestions||[]).forEach(s=>{
+    const dt = document.createElement('details');
+    const sum = document.createElement('summary');
+    sum.textContent = s.title || 'Suggestion';
+    const body = document.createElement('div');
+    body.innerHTML = `<div class="small"><strong>Rationale:</strong> ${s.rationale||''}</div>` +
+                     (s.rewrite_example ? `<div class="small"><strong>Rewrite:</strong> ${s.rewrite_example}</div>` : '') +
+                     `<div class="small muted"><strong>Director’s Note:</strong> ${s.director_note||''}</div>`;
+    dt.appendChild(sum); dt.appendChild(body);
+    el('suggestions').appendChild(dt);
+  });
+
+  setGauge(Number(obj.analytics?.mood||0));
+}
+
+async function sha(text){
+  const enc = new TextEncoder().encode(text);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+window.analyze = async function(){
+  const scene = el('scene-analyze').value.trim();
+  lastAnalyzeScene = scene;
+  const btn = el('analyzeBtn');
+  const words = wc(scene);
+  if(words < 250){ clearAnalysisUI(); el('summaryText').textContent = `Scene too short: ${words}/250 words.`; return; }
+  const key = 'an:'+await sha(scene);
+
+  inFlight.add(key);
+  btn.disabled = true;
+  clearAnalysisUI();
+  el('summaryText').textContent = 'Analyzing…';
+
+  try{
+    const r = await fetch('/analyze', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-user-agreement':'true'},
+      body: JSON.stringify({scene})
     });
-
-    // Word counters
-    el('scene-analyze').addEventListener('input', ()=>{ el('anWC').textContent = wc(el('scene-analyze').value)+' words';});
-    el('scene-edit').addEventListener('input', ()=>{ el('edWC').textContent = wc(el('scene-edit').value)+' words';});
-
-    // Mood gauge helper
-    function setGauge(val){
-      const circ = 2*Math.PI*52;
-      const off = circ * (1 - (val/100));
-      el('moodArc').setAttribute('stroke-dashoffset', String(off));
-      el('moodVal').textContent = Math.round(val);
+    const d = await r.json().catch(()=> ({}));
+    if (!r.ok){
+      el('summaryText').textContent = `Error: ${d.detail||r.statusText}`;
+      el('retryAnalyze').style.display = 'inline-block';
+      return;
     }
+    const obj = d.analysis || {};
+    analyzeCache.set(key, obj);
+    renderAnalysis(obj);
+  }catch(e){
+    el('summaryText').textContent = `Network issue — please retry.`;
+    el('retryAnalyze').style.display = 'inline-block';
+  }finally{
+    inFlight.delete(key);
+    btn.disabled = false;
+  }
+};
 
-    function clearAnalysisUI(){
-      el('summaryText').textContent = '';
-      el('beats').innerHTML = '';
-      el('suggestions').innerHTML = '';
-      setGauge(0);
-      el('pacing').textContent = '';
-      el('realism').textContent = '';
-      el('stakes').textContent = '';
-      el('dialogue').textContent = '';
-      el('readiness').textContent = '';
-      el('comparison').textContent = '';
-      el('moodWords').textContent = '';
-      el('audioBtn').disabled = true;
-      el('ambience').pause();
+window.retryAnalyzeFn = function(){
+  if(lastAnalyzeScene) analyze();
+};
+
+window.editScene = async function(){
+  const scene = el('scene-edit').value.trim();
+  lastEditScene = scene;
+  const btn = el('editBtn');
+  if(wc(scene) < 50){ el('editOutput').textContent = `Scene too short.`; return; }
+  btn.disabled = true;
+  el('editOutput').textContent = 'Editing…';
+  try{
+    const r = await fetch('/edit', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-user-agreement':'true'},
+      body: JSON.stringify({scene})
+    });
+    const d = await r.json().catch(()=> ({}));
+    if (!r.ok){
+      el('editOutput').textContent = `Error: ${d.detail||r.statusText}`;
+      el('retryEdit').style.display = 'inline-block';
+      return;
     }
+    el('editOutput').textContent = d.suggestions ? JSON.stringify(d.suggestions, null, 2) : 'No suggestions found.';
+  }catch(e){
+    el('editOutput').textContent = `Network issue — please retry.`;
+    el('retryEdit').style.display = 'inline-block';
+  }finally{
+    btn.disabled = false;
+  }
+};
 
-    async function typeSummary(text){
-      const dest = el('summaryText');
-      dest.textContent = '';
-      for(const ch of text){
-        dest.textContent += ch;
-        await new Promise(r=>setTimeout(r, 8));
-      }
-    }
+window.retryEditFn = function(){
+  if(lastEditScene) editScene();
+};
 
-    let audioOn = false;
-    window.toggleAudio = function(){
-      const a = el('ambience');
-      if(!a.src) return;
-      if(audioOn){ a.pause(); el('audioBtn').textContent = 'Play ambience'; }
-      else { a.play().catch(()=>{}); el('audioBtn').textContent = 'Pause ambience'; }
-      audioOn = !audioOn;
-    };
-
-    function renderAnalysis(obj){
-      const col = (obj?.theme?.color)||'#b3d9ff';
-      document.documentElement.style.setProperty('--accent', '#5aa9ff');
-      document.documentElement.style.setProperty('--accent-soft', col);
-
-      typeSummary(obj.summary || 'Analysis');
-
-      el('beats').innerHTML = '';
-      (obj.beats||[]).forEach(b=>{
-        const d = document.createElement('div');
-        d.innerHTML = `<div class="small"><span class="pill" style="margin-right:6px">${b.title||'Beat'}</span>${(b.insight||'').replace(/</g,'&lt;')}</div>`;
-        el('beats').appendChild(d);
-      });
-
-      el('suggestions').innerHTML = '';
-      (obj.suggestions||[]).forEach(s=>{
-        const dt = document.createElement('details');
-        const sum = document.createElement('summary');
-        sum.textContent = s.title || 'Suggestion';
-        const body = document.createElement('div');
-        body.innerHTML = `
-          <div class="small"><strong>Rationale:</strong> ${(s.rationale||'').replace(/</g,'&lt;')}</div>
-          ${s.rewrite_example ? `<div class="small mono" style="margin-top:6px"><strong>Rewrite:</strong> ${(s.rewrite_example||'').replace(/</g,'&lt;')}</div>`:''}
-          <div class="small muted" style="margin-top:6px"><strong>Director’s Note:</strong> ${(s.director_note||'').replace(/</g,'&lt;')}</div>
-        `;
-        dt.appendChild(sum); dt.appendChild(body);
-        el('suggestions').appendChild(dt);
-      });
-
-      const A = obj.analytics||{};
-      setGauge(Number(A.mood||0));
-      el('pacing').textContent = A.pacing||'';
-      el('realism').textContent = Number(A.realism||0);
-      el('stakes').textContent = A.stakes||'';
-      el('dialogue').textContent = A.dialogue_naturalism||'';
-      el('readiness').textContent = A.cinematic_readiness||'';
-
-      el('comparison').textContent = obj.comparison||'';
-      el('moodWords').textContent = (obj.theme?.mood_words||[]).join(', ');
-
-      const audioKey = obj?.theme?.audio || '';
-      const audioTag = el('ambience');
-      audioTag.src = '';
-      if(audioKey){
-        audioTag.src = `/audio/${audioKey}.mp3`;
-        el('audioBtn').disabled = false;
-      }else{
-        el('audioBtn').disabled = true;
-      }
-    }
-
-    async function sha(text){
-      const enc = new TextEncoder().encode(text);
-      const buf = await crypto.subtle.digest('SHA-256', enc);
-      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-    }
-
-    window.analyze = async function(){
-      const scene = el('scene-analyze').value.trim();
-      const btn = el('analyzeBtn');
-      const words = wc(scene);
-      if (words < 250){ clearAnalysisUI(); el('summaryText').textContent = `Scene too short: ${words}/250 words.`; return; }
-
-      const key = 'an:'+await sha(scene);
-      if (analyzeCache.has(key)){
-        renderAnalysis(analyzeCache.get(key));
-        return;
-      }
-      if (inFlight.has(key)){ el('summaryText').textContent = 'Using best available result…'; return; }
-
-      inFlight.add(key);
-      btn.disabled = true;
-      clearAnalysisUI();
-      el('summaryText').textContent = 'Analyzing…';
-
-      try{
-        const r = await fetch('/analyze', {
-          method:'POST',
-          headers:{'Content-Type':'application/json','x-user-agreement':'true'},
-          body: JSON.stringify({scene})
-        });
-        const d = await r.json().catch(()=> ({}));
-        if (!r.ok){
-          el('summaryText').textContent = `Error: ${d.detail||r.statusText} (HTTP ${r.status})`;
-          return;
-        }
-        const obj = d.analysis || {};
-        analyzeCache.set(key, obj);
-        renderAnalysis(obj);
-      }catch(e){
-        el('summaryText').textContent = `Network error: ${e.message||e}`;
-      }finally{
-        inFlight.delete(key);
-        btn.disabled = false;
-      }
-    };
-
-    window.edit = async function(){
-      const scene = el('scene-edit').value.trim();
-      const btn = el('editBtn');
-      const words = wc(scene);
-      if (words < 250){ el('edit-result').textContent = `Scene too short: ${words}/250 words.`; return; }
-
-      const key = 'ed:'+await sha(scene);
-      if (editCache.has(key)){ el('edit-result').textContent = editCache.get(key); return; }
-      if (inFlight.has(key)){ el('edit-result').textContent = 'Using best available result…'; return; }
-
-      inFlight.add(key);
-      btn.disabled = true;
-      el('edit-result').textContent = 'Editing…';
-
-      try{
-        const r = await fetch('/edit', {
-          method:'POST',
-          headers:{'Content-Type':'application/json','x-user-agreement':'true'},
-          body: JSON.stringify({scene})
-        });
-        const d = await r.json().catch(()=> ({}));
-        if (!r.ok){
-          el('edit-result').textContent = `Error: ${d.detail||r.statusText} (HTTP ${r.status})`;
-          return;
-        }
-        const out = d.edit_suggestions || '';
-        editCache.set(key, out);
-        el('edit-result').textContent = out;
-      }catch(e){
-        el('edit-result').textContent = `Network error: ${e.message||e}`;
-      }finally{
-        inFlight.delete(key);
-        btn.disabled = false;
-      }
-    };
-
-  })();
-  </script>
+function showSection(sec){
+  el('analyzer').style.display = sec==='analyzer' ? '' : 'none';
+  el('editor').style.display = sec==='editor' ? '' : 'none';
+}
+</script>
 </body>
 </html>
