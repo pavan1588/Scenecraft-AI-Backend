@@ -183,7 +183,7 @@
             </div>
           </div>
 
-          <audio id="ambience" loop preload="none" crossorigin="anonymous"></audio>
+          <audio id="ambience" loop></audio>
         </div>
 
         <div id="editor" class="tab">
@@ -210,8 +210,7 @@
     const inFlight = new Set();
 
     const el = id => document.getElementById(id);
-    // ✅ FIX: proper JS regex (no double escaping)
-    const wc = t => (t.trim().match(/\b\w+\b/g) || []).length;
+    const wc = t => (t.trim().match(/\b\w+\b/g)||[]).length;
 
     // Password (backend validation)
     window.checkAccess = async function(){
@@ -253,7 +252,7 @@
       }
     };
 
-    // Copy-protect outputs (only if nodes exist)
+    // Copy-protect outputs (null-safe)
     function guard(node){
       if(!node) return;
       node.addEventListener('contextmenu', e=>e.preventDefault());
@@ -262,14 +261,13 @@
     }
     guard(el('analysis-area'));
     guard(el('edit-result'));
-
     document.addEventListener('keydown', (e)=>{
       const isMod = e.ctrlKey || e.metaKey;
       const k = e.key.toLowerCase();
       const active = document.activeElement;
-      const analysisArea = el('analysis-area');
-      const editRes = el('edit-result');
-      const protectedArea = (analysisArea && analysisArea.contains(active)) || (editRes && editRes.contains(active));
+      const area = el('analysis-area');
+      const edit = el('edit-result');
+      const protectedArea = (!!area && area.contains(active)) || (!!edit && edit.contains(active));
       if(isMod && (k==='a' || k==='c') && protectedArea){ e.preventDefault(); }
     });
 
@@ -279,7 +277,7 @@
 
     // Mood gauge helper
     function setGauge(val){
-      const circ = 2*Math.PI*52; // r=52 -> circumference ~ 326.7
+      const circ = 2*Math.PI*52; // r=52
       const off = circ * (1 - (val/100));
       el('moodArc').setAttribute('stroke-dashoffset', String(off));
       el('moodVal').textContent = Math.round(val);
@@ -297,8 +295,10 @@
       el('readiness').textContent = '';
       el('comparison').textContent = '';
       el('moodWords').textContent = '';
-      el('audioBtn').disabled = true;
-      el('ambience').pause();
+      const a = el('ambience');
+      const b = el('audioBtn');
+      if (a){ a.pause(); a.removeAttribute('src'); }
+      if (b){ b.disabled = true; b.textContent = 'Play ambience'; }
     }
 
     // Immersive reader (typewriter for summary)
@@ -307,7 +307,7 @@
       dest.textContent = '';
       for(const ch of text){
         dest.textContent += ch;
-        await new Promise(r=>setTimeout(r, 8)); // subtle
+        await new Promise(r=>setTimeout(r, 8));
       }
     }
 
@@ -315,12 +315,12 @@
     let audioOn = false;
     window.toggleAudio = function(){
       const a = el('ambience');
-      if(!a.src) return;
-      if(audioOn){ a.pause(); el('audioBtn').textContent = 'Play ambience'; }
-      else { a.play().catch(()=>{}); el('audioBtn').textContent = 'Pause ambience'; }
+      const btn = el('audioBtn');
+      if(!a || !a.src) return;
+      if(audioOn){ a.pause(); btn.textContent = 'Play ambience'; }
+      else { a.play().catch(()=>{}); btn.textContent = 'Pause ambience'; }
       audioOn = !audioOn;
-   };
-
+    };
 
     // Render structured analysis JSON
     function renderAnalysis(obj){
@@ -369,58 +369,52 @@
       el('comparison').textContent = obj.comparison||'';
       el('moodWords').textContent = (obj.theme?.mood_words||[]).join(', ');
 
-      // Audio source: prefer remote URL, fallback to local slug
+      // ===== Ambience: prefer remote URL, fallback to local slug =====
       const audioTag = el('ambience');
       const audioBtn = el('audioBtn');
 
-      // Clean previous
+      // reset
       audioOn = false;
-      audioTag.pause();
-      audioTag.removeAttribute('src');
-      audioBtn.textContent = 'Play ambience';
-      audioBtn.disabled = true;
+      if (audioTag) { audioTag.pause(); audioTag.removeAttribute('src'); }
+      if (audioBtn) { audioBtn.textContent = 'Play ambience'; audioBtn.disabled = true; }
 
-      // Build a playable source
       const theme = obj?.theme || {};
       const remoteUrl = theme.audio_url && String(theme.audio_url).trim();
       const key = theme.audio && String(theme.audio).trim();
 
-      // Helper: slugify for local fallback
       function slugify(s){
-        return s.toLowerCase()
-                .replace(/[^a-z0-9]+/gi, '-')
-                .replace(/^-+|-+$/g, '');
+        return s.toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '');
       }
 
-      // Pick source: remote first, then local slug if key provided
       let chosen = '';
       if (remoteUrl) {
-        chosen = remoteUrl; // e.g., https://freesound.org/.../file.mp3
+        chosen = remoteUrl; // e.g., https://.../file.mp3
       } else if (key) {
         chosen = `/audio/${slugify(key)}.mp3`; // e.g., /audio/rainy-night.mp3
       }
 
-      // Wire up media and button states
-      if (chosen) {
-        // Ensure listeners are clean
+      if (audioTag && audioBtn) {
         audioTag.oncanplay = null;
         audioTag.onerror = null;
 
-        audioTag.oncanplay = () => {
-          audioBtn.disabled = false;
-          audioBtn.title = 'Ambient hook based on mood';
-        };
-        audioTag.onerror = () => {
+        if (chosen) {
+          audioTag.oncanplay = () => {
+            audioBtn.disabled = false;
+            audioBtn.title = 'Ambient hook based on mood';
+          };
+          audioTag.onerror = () => {
+            audioBtn.disabled = true;
+            audioBtn.title = 'Audio unavailable';
+          };
+          audioTag.src = chosen;
+        } else {
           audioBtn.disabled = true;
-          audioBtn.title = 'Audio unavailable';
-        };
-
-        audioTag.src = chosen;
-      } else {
-        audioBtn.disabled = true;
-        audioBtn.title = 'No ambience available';
+          audioBtn.title = 'No ambience available';
+        }
       }
-      
+      // ===============================================================
+    }
+
     // Hash helper (stable cache keys)
     async function sha(text){
       const enc = new TextEncoder().encode(text);
@@ -458,7 +452,7 @@
           return;
         }
         const obj = d.analysis || {};
-        analyzeCache.set(key, obj); // FIRST result persisted forever
+        analyzeCache.set(key, obj); // persist first
         renderAnalysis(obj);
       }catch(e){
         el('summaryText').textContent = `Network error: ${e.message||e}`;
