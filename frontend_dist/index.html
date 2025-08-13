@@ -1,257 +1,470 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>SceneCraft AI</title>
-<style>
-  body {
-    font-family: Arial, sans-serif;
-    background: #0e0e0e;
-    color: gold;
-    margin: 0;
-    padding: 2rem;
-  }
-  .container {
-    max-width: 900px;
-    margin: auto;
-  }
-  nav button {
-    margin-right: 1rem;
-    background: #1f1f1f;
-    color: gold;
-    border: 1px solid #555;
-    padding: 0.6rem 1rem;
-    cursor: pointer;
-  }
-  textarea {
-    width: 100%;
-    height: 200px;
-    margin-bottom: 1rem;
-    padding: 1rem;
-    font-size: 1rem;
-    background: #222;
-    color: #fff;
-    border: 1px solid #444;
-  }
-  .pill {
-    background: var(--accent, #5aa9ff);
-    color: #000;
-    padding: 2px 8px;
-    border-radius: 20px;
-  }
-  details summary {
-    cursor: pointer;
-    font-weight: bold;
-  }
-  .retry-btn {
-    background: #ff4444;
-    color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    margin-top: 10px;
-    cursor: pointer;
-    border-radius: 4px;
-    display: none;
-  }
-</style>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SceneCraft AI</title>
+  <style>
+    :root{
+      --bg:#f6fbff;
+      --panel:#ffffff;
+      --text:#0f2647;
+      --accent:#5aa9ff;
+      --accent-soft:#b3d9ff;
+      --border:#d7e9ff;
+      --muted:#5c6f8a;
+      --danger:#bb2d3b;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji";
+      background:var(--bg);
+      color:var(--text);
+    }
+    .container{max-width:1100px;margin:0 auto;padding:24px}
+    h1{margin:0 0 16px 0;font-weight:700;color:var(--text)}
+    nav{display:flex;gap:10px;margin:12px 0 24px}
+    nav button{
+      background:var(--panel);border:1px solid var(--border);color:var(--text);
+      padding:10px 14px;border-radius:10px;cursor:pointer;transition:all .2s ease;
+    }
+    nav button:hover{border-color:var(--accent)}
+    .gate, .panel{
+      background:var(--panel);border:1px solid var(--border);border-radius:16px;
+      padding:18px 16px;box-shadow:0 10px 24px rgba(30,60,120,.06);
+    }
+    .row{display:flex;gap:16px;flex-wrap:wrap}
+    textarea{
+      width:100%;min-height:220px;padding:12px 14px;border-radius:12px;border:1px solid var(--border);
+      background:#fbfdff;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;line-height:1.45;
+    }
+    .btn{
+      background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 16px;cursor:pointer;
+      box-shadow:0 6px 16px rgba(90,169,255,.25);
+    }
+    .btn.secondary{background:#e9f4ff;color:var(--text)}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .hidden{display:none}
+    .tabs .tab{display:none}
+    .tabs .tab.active{display:block}
+
+    /* Output layout */
+    .grid{display:grid;gap:16px}
+    @media (min-width:980px){
+      .grid{
+        grid-template-columns: 1.15fr 0.85fr;
+      }
+    }
+    .card{
+      background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px 18px;
+    }
+    .card h3{margin:2px 0 10px 0}
+    .muted{color:var(--muted)}
+    .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:var(--accent-soft);color:#0b2a55;font-size:13px}
+    .mono{font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .copyGuard{user-select:none;-webkit-user-select:none}
+    .divider{height:1px;background:var(--border);margin:12px 0}
+
+    /* Mood gauge (circular) */
+    .gauge{
+      width:120px;height:120px;position:relative;display:inline-block
+    }
+    .gauge svg{transform:rotate(-90deg)}
+    .gauge .center{
+      position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+      font-weight:700;color:#0b2a55;
+    }
+
+    details{
+      border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:#fbfdff
+    }
+    details+details{margin-top:10px}
+    summary{cursor:pointer;font-weight:600}
+
+    .right{display:flex;gap:8px;align-items:center}
+    .small{font-size:13px}
+    .error{color:var(--danger)}
+  </style>
 </head>
 <body>
-<div class="container">
-  <nav>
-    <button onclick="showSection('analyzer')">Scene Analyzer</button>
-    <button onclick="showSection('editor')">Scene Editor</button>
-  </nav>
+  <div class="container">
+    <div id="password-gate" class="gate">
+      <h2>Enter Access Key</h2>
+      <div class="row">
+        <input type="password" id="access" placeholder="Password" style="flex:1; padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#fbfdff;color:var(--text)"/>
+        <button class="btn" onclick="checkAccess()">Unlock</button>
+      </div>
+      <div id="access-error" class="error small" style="margin-top:8px"></div>
+    </div>
 
-  <!-- Scene Analyzer Section -->
-  <section id="analyzer">
-    <h2>Scene Analyzer</h2>
-    <textarea id="scene-analyze" placeholder="Paste your scene here..."></textarea>
-    <div id="anWC">0 words</div>
-    <button id="analyzeBtn" onclick="analyze()">Analyze</button>
-    <button id="retryAnalyze" class="retry-btn" onclick="retryAnalyzeFn()">Retry</button>
-    <div id="summaryText"></div>
-    <div id="beats"></div>
-    <div id="suggestions"></div>
-    <svg height="120" width="120">
-      <circle id="moodArc" cx="60" cy="60" r="52" stroke="gold" stroke-width="4" fill="none" stroke-dasharray="326.7"></circle>
-    </svg>
-    <span id="moodVal"></span>
-  </section>
+    <div id="app" class="hidden">
+      <h1>SceneCraft AI</h1>
+      <nav>
+        <button onclick="showTab('home')">Home</button>
+        <button onclick="showTab('analyzer')">Scene Analyzer</button>
+        <button onclick="showTab('editor')">Scene Editor</button>
+      </nav>
 
-  <!-- Scene Editor Section -->
-  <section id="editor" style="display:none;">
-    <h2>Scene Editor</h2>
-    <textarea id="scene-edit" placeholder="Paste your scene here..."></textarea>
-    <div id="edWC">0 words</div>
-    <button id="editBtn" onclick="editScene()">Edit</button>
-    <button id="retryEdit" class="retry-btn" onclick="retryEditFn()">Retry</button>
-    <div id="editOutput"></div>
-  </section>
+      <div class="tabs">
+        <div id="home" class="tab active">
+          <div class="panel">
+            <p>Analyze scenes with a cinematic brain. Get an engaging breakdown (beats, mood, pacing, realism), an immersive reader mode, contextual comparisons, and strong, director-ready suggestions.</p>
+          </div>
+        </div>
 
-  <audio id="ambience" loop></audio>
-  <button id="audioBtn" disabled onclick="toggleAudio()">Play ambience</button>
-</div>
+        <div id="analyzer" class="tab">
+          <div class="panel">
+            <textarea id="scene-analyze" placeholder="Paste your scene (~250+ words)"></textarea>
+            <div class="right" style="margin-top:10px">
+              <button class="btn" id="analyzeBtn" onclick="analyze()">Analyze</button>
+              <span id="anWC" class="small muted mono">0 words</span>
+            </div>
+          </div>
 
-<script>
-const el = id => document.getElementById(id);
-const wc = t => t.trim() ? t.trim().split(/\s+/).length : 0;
-const analyzeCache = new Map();
-const inFlight = new Set();
-let lastAnalyzeScene = '';
-let lastEditScene = '';
+          <div id="analysis-area" class="grid copyGuard" style="margin-top:16px">
+            <!-- Left: Summary + Beats + Suggestions -->
+            <div class="left">
+              <div class="card" id="summary-card">
+                <h3>Scene Summary</h3>
+                <div id="summaryText" class="mono"></div>
+              </div>
 
-// Word counters
-el('scene-analyze').addEventListener('input', ()=> el('anWC').textContent = wc(el('scene-analyze').value)+' words');
-el('scene-edit').addEventListener('input', ()=> el('edWC').textContent = wc(el('scene-edit').value)+' words');
+              <div class="card" id="beats-card">
+                <h3>Beats</h3>
+                <div id="beats"></div>
+              </div>
 
-// Mood gauge helper
-function setGauge(val){
-  const circ = 2*Math.PI*52;
-  const off = circ * (1 - (val/100));
-  el('moodArc').setAttribute('stroke-dashoffset', String(off));
-  el('moodVal').textContent = Math.round(val);
-}
+              <div class="card" id="suggestions-card">
+                <h3>Suggestions</h3>
+                <div id="suggestions"></div>
+              </div>
+            </div>
 
-// Immersive reader
-async function typeSummary(text){
-  const dest = el('summaryText');
-  dest.textContent = '';
-  for(const ch of text){
-    dest.textContent += ch;
-    await new Promise(r=>setTimeout(r, 8));
-  }
-}
+            <!-- Right: Analytics + Comparisons + Audio -->
+            <div class="right-col">
+              <div class="card">
+                <h3>Analytics Summary</h3>
+                <div class="row" style="align-items:center">
+                  <div class="gauge" title="Mood">
+                    <svg width="120" height="120">
+                      <circle cx="60" cy="60" r="52" stroke="#e6f2ff" stroke-width="12" fill="none"/>
+                      <circle id="moodArc" cx="60" cy="60" r="52" stroke="#5aa9ff" stroke-width="12" fill="none" stroke-linecap="round" stroke-dasharray="327" stroke-dashoffset="327"/>
+                    </svg>
+                    <div class="center"><span id="moodVal">--</span>%</div>
+                  </div>
+                  <div style="flex:1">
+                    <div class="row small">
+                      <span class="pill">Pacing: <strong id="pacing" style="margin-left:6px"></strong></span>
+                      <span class="pill">Realism: <strong id="realism" style="margin-left:6px"></strong>%</span>
+                    </div>
+                    <div class="row small" style="margin-top:6px">
+                      <span class="pill">Stakes: <strong id="stakes" style="margin-left:6px"></strong></span>
+                      <span class="pill">Dialogue: <strong id="dialogue" style="margin-left:6px"></strong></span>
+                      <span class="pill">Readiness: <strong id="readiness" style="margin-left:6px"></strong></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-function clearAnalysisUI(){
-  el('summaryText').textContent = '';
-  el('beats').innerHTML = '';
-  el('suggestions').innerHTML = '';
-  setGauge(0);
-  el('audioBtn').disabled = true;
-  el('ambience').pause();
-  el('retryAnalyze').style.display = 'none';
-}
+              <div class="card">
+                <h3>Contextual Comparison</h3>
+                <div id="comparison" class="muted"></div>
+                <div class="divider"></div>
+                <div class="row small muted">
+                  <span>Mood words:</span>
+                  <span id="moodWords" class="mono"></span>
+                </div>
+                <div class="row" style="margin-top:8px;align-items:center">
+                  <button id="audioBtn" class="btn secondary small" onclick="toggleAudio()" disabled>Play ambience</button>
+                  <span class="small muted">Ambient hook based on mood</span>
+                </div>
+              </div>
+            </div>
+          </div>
 
-window.toggleAudio = function(){
-  const a = el('ambience');
-  if(!a.src) return;
-  if(a.paused){ a.play(); el('audioBtn').textContent = 'Pause ambience'; }
-  else { a.pause(); el('audioBtn').textContent = 'Play ambience'; }
-};
+          <audio id="ambience" loop></audio>
+        </div>
 
-function renderAnalysis(obj){
-  const col = (obj?.theme?.color)||'#b3d9ff';
-  document.documentElement.style.setProperty('--accent', '#5aa9ff');
-  document.documentElement.style.setProperty('--accent-soft', col);
-  typeSummary(obj.summary || 'Analysis');
+        <div id="editor" class="tab">
+          <div class="panel">
+            <textarea id="scene-edit" placeholder="Optional: short context on top; then paste your scene (~250+ words)"></textarea>
+            <div class="right" style="margin-top:10px">
+              <button class="btn" id="editBtn" onclick="edit()">Edit</button>
+              <span id="edWC" class="small muted mono">0 words</span>
+            </div>
+          </div>
 
-  el('beats').innerHTML = '';
-  (obj.beats||[]).forEach(b=>{
-    const d = document.createElement('div');
-    d.innerHTML = `<div class="small"><span class="pill">${b.title||'Beat'}</span> ${(b.insight||'')}</div>`;
-    el('beats').appendChild(d);
-  });
+          <div class="card copyGuard" id="edit-result" style="margin-top:16px;min-height:64px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-  el('suggestions').innerHTML = '';
-  (obj.suggestions||[]).forEach(s=>{
-    const dt = document.createElement('details');
-    const sum = document.createElement('summary');
-    sum.textContent = s.title || 'Suggestion';
-    const body = document.createElement('div');
-    body.innerHTML = `<div class="small"><strong>Rationale:</strong> ${s.rationale||''}</div>` +
-                     (s.rewrite_example ? `<div class="small"><strong>Rewrite:</strong> ${s.rewrite_example}</div>` : '') +
-                     `<div class="small muted"><strong>Director’s Note:</strong> ${s.director_note||''}</div>`;
-    dt.appendChild(sum); dt.appendChild(body);
-    el('suggestions').appendChild(dt);
-  });
+  <script>
+  (function(){
+    if (window.__initSC__) return; window.__initSC__ = true;
 
-  setGauge(Number(obj.analytics?.mood||0));
-}
+    const analyzeCache = new Map();
+    const editCache = new Map();
+    const inFlight = new Set();
 
-async function sha(text){
-  const enc = new TextEncoder().encode(text);
-  const buf = await crypto.subtle.digest('SHA-256', enc);
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
+    const el = id => document.getElementById(id);
+    // ✅ FIX: proper JS regex (no double escaping)
+    const wc = t => (t.trim().match(/\b\w+\b/g) || []).length;
 
-window.analyze = async function(){
-  const scene = el('scene-analyze').value.trim();
-  lastAnalyzeScene = scene;
-  const btn = el('analyzeBtn');
-  const words = wc(scene);
-  if(words < 250){ clearAnalysisUI(); el('summaryText').textContent = `Scene too short: ${words}/250 words.`; return; }
-  const key = 'an:'+await sha(scene);
+    // Password (backend validation)
+    window.checkAccess = async function(){
+      const pass = el('access').value;
+      try{
+        const r = await fetch('/validate-password', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({password:pass})
+        });
+        const d = await r.json();
+        if(d.valid){
+          el('password-gate').classList.add('hidden');
+          el('app').classList.remove('hidden');
+          showTab('home');
+        }else{
+          el('access-error').textContent = 'Access Denied';
+        }
+      }catch{
+        el('access-error').textContent = 'Network error';
+      }
+    };
 
-  inFlight.add(key);
-  btn.disabled = true;
-  clearAnalysisUI();
-  el('summaryText').textContent = 'Analyzing…';
+    // Tabs + input reset
+    window.showTab = function(id){
+      document.querySelectorAll('.tabs .tab').forEach(t=>t.classList.remove('active'));
+      el(id).classList.add('active');
 
-  try{
-    const r = await fetch('/analyze', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-user-agreement':'true'},
-      body: JSON.stringify({scene})
-    });
-    const d = await r.json().catch(()=> ({}));
-    if (!r.ok){
-      el('summaryText').textContent = `Error: ${d.detail||r.statusText}`;
-      el('retryAnalyze').style.display = 'inline-block';
-      return;
+      // Always reset analyzer/editor inputs & outputs when switching tabs
+      if (id !== 'analyzer'){
+        el('scene-analyze').value = '';
+        el('anWC').textContent = '0 words';
+        clearAnalysisUI();
+      }
+      if (id !== 'editor'){
+        el('scene-edit').value = '';
+        el('edWC').textContent = '0 words';
+        el('edit-result').textContent = '';
+      }
+    };
+
+    // Copy-protect outputs (only if nodes exist)
+    function guard(node){
+      if(!node) return;
+      node.addEventListener('contextmenu', e=>e.preventDefault());
+      node.addEventListener('selectstart', e=>e.preventDefault());
+      node.addEventListener('copy', e=>e.preventDefault());
     }
-    const obj = d.analysis || {};
-    analyzeCache.set(key, obj);
-    renderAnalysis(obj);
-  }catch(e){
-    el('summaryText').textContent = `Network issue — please retry.`;
-    el('retryAnalyze').style.display = 'inline-block';
-  }finally{
-    inFlight.delete(key);
-    btn.disabled = false;
-  }
-};
+    guard(el('analysis-area'));
+    guard(el('edit-result'));
 
-window.retryAnalyzeFn = function(){
-  if(lastAnalyzeScene) analyze();
-};
-
-window.editScene = async function(){
-  const scene = el('scene-edit').value.trim();
-  lastEditScene = scene;
-  const btn = el('editBtn');
-  if(wc(scene) < 50){ el('editOutput').textContent = `Scene too short.`; return; }
-  btn.disabled = true;
-  el('editOutput').textContent = 'Editing…';
-  try{
-    const r = await fetch('/edit', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-user-agreement':'true'},
-      body: JSON.stringify({scene})
+    document.addEventListener('keydown', (e)=>{
+      const isMod = e.ctrlKey || e.metaKey;
+      const k = e.key.toLowerCase();
+      const active = document.activeElement;
+      const analysisArea = el('analysis-area');
+      const editRes = el('edit-result');
+      const protectedArea = (analysisArea && analysisArea.contains(active)) || (editRes && editRes.contains(active));
+      if(isMod && (k==='a' || k==='c') && protectedArea){ e.preventDefault(); }
     });
-    const d = await r.json().catch(()=> ({}));
-    if (!r.ok){
-      el('editOutput').textContent = `Error: ${d.detail||r.statusText}`;
-      el('retryEdit').style.display = 'inline-block';
-      return;
+
+    // Word counters
+    el('scene-analyze').addEventListener('input', ()=>{ el('anWC').textContent = wc(el('scene-analyze').value)+' words';});
+    el('scene-edit').addEventListener('input', ()=>{ el('edWC').textContent = wc(el('scene-edit').value)+' words';});
+
+    // Mood gauge helper
+    function setGauge(val){
+      const circ = 2*Math.PI*52; // r=52 -> circumference ~ 326.7
+      const off = circ * (1 - (val/100));
+      el('moodArc').setAttribute('stroke-dashoffset', String(off));
+      el('moodVal').textContent = Math.round(val);
     }
-    el('editOutput').textContent = d.suggestions ? JSON.stringify(d.suggestions, null, 2) : 'No suggestions found.';
-  }catch(e){
-    el('editOutput').textContent = `Network issue — please retry.`;
-    el('retryEdit').style.display = 'inline-block';
-  }finally{
-    btn.disabled = false;
-  }
-};
 
-window.retryEditFn = function(){
-  if(lastEditScene) editScene();
-};
+    function clearAnalysisUI(){
+      el('summaryText').textContent = '';
+      el('beats').innerHTML = '';
+      el('suggestions').innerHTML = '';
+      setGauge(0);
+      el('pacing').textContent = '';
+      el('realism').textContent = '';
+      el('stakes').textContent = '';
+      el('dialogue').textContent = '';
+      el('readiness').textContent = '';
+      el('comparison').textContent = '';
+      el('moodWords').textContent = '';
+      el('audioBtn').disabled = true;
+      el('ambience').pause();
+    }
 
-function showSection(sec){
-  el('analyzer').style.display = sec==='analyzer' ? '' : 'none';
-  el('editor').style.display = sec==='editor' ? '' : 'none';
-}
-</script>
+    // Immersive reader (typewriter for summary)
+    async function typeSummary(text){
+      const dest = el('summaryText');
+      dest.textContent = '';
+      for(const ch of text){
+        dest.textContent += ch;
+        await new Promise(r=>setTimeout(r, 8)); // subtle
+      }
+    }
+
+    // Audio hook
+    let audioOn = false;
+    window.toggleAudio = function(){
+      const a = el('ambience');
+      if(!a.src) return;
+      if(audioOn){ a.pause(); el('audioBtn').textContent = 'Play ambience'; }
+      else { a.play().catch(()=>{}); el('audioBtn').textContent = 'Pause ambience'; }
+      audioOn = !audioOn;
+    };
+
+    // Render structured analysis JSON
+    function renderAnalysis(obj){
+      // Theme color
+      const col = (obj?.theme?.color)||'#b3d9ff';
+      document.documentElement.style.setProperty('--accent', '#5aa9ff');
+      document.documentElement.style.setProperty('--accent-soft', col);
+
+      // Summary (typewriter)
+      typeSummary(obj.summary || 'Analysis');
+
+      // Beats
+      el('beats').innerHTML = '';
+      (obj.beats||[]).forEach(b=>{
+        const d = document.createElement('div');
+        d.innerHTML = `<div class="small"><span class="pill" style="margin-right:6px">${b.title||'Beat'}</span>${(b.insight||'').replace(/</g,'&lt;')}</div>`;
+        el('beats').appendChild(d);
+      });
+
+      // Suggestions (collapsible)
+      el('suggestions').innerHTML = '';
+      (obj.suggestions||[]).forEach(s=>{
+        const dt = document.createElement('details');
+        const sum = document.createElement('summary');
+        sum.textContent = s.title || 'Suggestion';
+        const body = document.createElement('div');
+        body.innerHTML = `
+          <div class="small"><strong>Rationale:</strong> ${(s.rationale||'').replace(/</g,'&lt;')}</div>
+          ${s.rewrite_example ? `<div class="small mono" style="margin-top:6px"><strong>Rewrite:</strong> ${(s.rewrite_example||'').replace(/</g,'&lt;')}</div>`:''}
+          <div class="small muted" style="margin-top:6px"><strong>Director’s Note:</strong> ${(s.director_note||'').replace(/</g,'&lt;')}</div>
+        `;
+        dt.appendChild(sum); dt.appendChild(body);
+        el('suggestions').appendChild(dt);
+      });
+
+      // Analytics
+      const A = obj.analytics||{};
+      setGauge(Number(A.mood||0));
+      el('pacing').textContent = A.pacing||'';
+      el('realism').textContent = Number(A.realism||0);
+      el('stakes').textContent = A.stakes||'';
+      el('dialogue').textContent = A.dialogue_naturalism||'';
+      el('readiness').textContent = A.cinematic_readiness||'';
+
+      // Comparison + mood words
+      el('comparison').textContent = obj.comparison||'';
+      el('moodWords').textContent = (obj.theme?.mood_words||[]).join(', ');
+
+      // Audio source if provided (you can map keys to hosted files)
+      const audioKey = obj?.theme?.audio || '';
+      const audioTag = el('ambience');
+      audioTag.src = '';
+      if(audioKey){
+        // You can host small loops in /frontend_dist/audio/
+        audioTag.src = `/audio/${audioKey}.mp3`;
+        el('audioBtn').disabled = false;
+      }else{
+        el('audioBtn').disabled = true;
+      }
+    }
+
+    // Hash helper (stable cache keys)
+    async function sha(text){
+      const enc = new TextEncoder().encode(text);
+      const buf = await crypto.subtle.digest('SHA-256', enc);
+      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+
+    window.analyze = async function(){
+      const scene = el('scene-analyze').value.trim();
+      const btn = el('analyzeBtn');
+      const words = wc(scene);
+      if (words < 250){ clearAnalysisUI(); el('summaryText').textContent = `Scene too short: ${words}/250 words.`; return; }
+
+      const key = 'an:'+await sha(scene);
+      if (analyzeCache.has(key)){
+        renderAnalysis(analyzeCache.get(key));
+        return;
+      }
+      if (inFlight.has(key)){ el('summaryText').textContent = 'Using best available result…'; return; }
+
+      inFlight.add(key);
+      btn.disabled = true;
+      clearAnalysisUI();
+      el('summaryText').textContent = 'Analyzing…';
+
+      try{
+        const r = await fetch('/analyze', {
+          method:'POST',
+          headers:{'Content-Type':'application/json','x-user-agreement':'true'},
+          body: JSON.stringify({scene})
+        });
+        const d = await r.json().catch(()=> ({}));
+        if (!r.ok){
+          el('summaryText').textContent = `Error: ${d.detail||r.statusText} (HTTP ${r.status})`;
+          return;
+        }
+        const obj = d.analysis || {};
+        analyzeCache.set(key, obj); // FIRST result persisted forever
+        renderAnalysis(obj);
+      }catch(e){
+        el('summaryText').textContent = `Network error: ${e.message||e}`;
+      }finally{
+        inFlight.delete(key);
+        btn.disabled = false;
+      }
+    };
+
+    window.edit = async function(){
+      const scene = el('scene-edit').value.trim();
+      const btn = el('editBtn');
+      const words = wc(scene);
+      if (words < 250){ el('edit-result').textContent = `Scene too short: ${words}/250 words.`; return; }
+
+      const key = 'ed:'+await sha(scene);
+      if (editCache.has(key)){ el('edit-result').textContent = editCache.get(key); return; }
+      if (inFlight.has(key)){ el('edit-result').textContent = 'Using best available result…'; return; }
+
+      inFlight.add(key);
+      btn.disabled = true;
+      el('edit-result').textContent = 'Editing…';
+
+      try{
+        const r = await fetch('/edit', {
+          method:'POST',
+          headers:{'Content-Type':'application/json','x-user-agreement':'true'},
+          body: JSON.stringify({scene})
+        });
+        const d = await r.json().catch(()=> ({}));
+        if (!r.ok){
+          el('edit-result').textContent = `Error: ${d.detail||r.statusText} (HTTP ${r.status})`;
+          return;
+        }
+        const out = d.edit_suggestions || '';
+        editCache.set(key, out);
+        el('edit-result').textContent = out;
+      }catch(e){
+        el('edit-result').textContent = `Network error: ${e.message||e}`;
+      }finally{
+        inFlight.delete(key);
+        btn.disabled = false;
+      }
+    };
+
+  })();
+  </script>
 </body>
 </html>
