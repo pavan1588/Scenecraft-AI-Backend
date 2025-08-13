@@ -1,314 +1,465 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SceneCraft AI</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #0e0e0e;
-      color: gold;
-      margin: 0;
-      padding: 2rem;
+    :root{
+      --bg:#f6fbff;
+      --panel:#ffffff;
+      --text:#0f2647;
+      --accent:#5aa9ff;
+      --accent-soft:#b3d9ff;
+      --border:#d7e9ff;
+      --muted:#5c6f8a;
+      --danger:#bb2d3b;
     }
-    .container { max-width: 900px; margin: auto; }
-    nav button {
-      margin-right: 1rem;
-      background: #1f1f1f;
-      color: gold;
-      border: 1px solid #555;
-      padding: 0.6rem 1rem;
-      cursor: pointer;
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji";
+      background:var(--bg);
+      color:var(--text);
     }
-    textarea {
-      width: 100%;
-      height: 200px;
-      margin-bottom: 1rem;
-      padding: 1rem;
-      font-size: 1rem;
-      background: #222;
-      color: #fff;
-      border: 1px solid #666;
+    .container{max-width:1100px;margin:0 auto;padding:24px}
+    h1{margin:0 0 16px 0;font-weight:700;color:var(--text)}
+    nav{display:flex;gap:10px;margin:12px 0 24px}
+    nav button{
+      background:var(--panel);border:1px solid var(--border);color:var(--text);
+      padding:10px 14px;border-radius:10px;cursor:pointer;transition:all .2s ease;
     }
-    input[type="file"] { margin-top: 1rem; color: gold; }
-    button.action {
-      background: #333; color: gold; padding: 0.5rem 1rem;
-      border: 1px solid #444; cursor: pointer;
+    nav button:hover{border-color:var(--accent)}
+    .gate, .panel{
+      background:var(--panel);border:1px solid var(--border);border-radius:16px;
+      padding:18px 16px;box-shadow:0 10px 24px rgba(30,60,120,.06);
     }
-    pre {
-      background: #1a1a1a; color: #fff; padding: 1rem; white-space: pre-wrap;
-      border-left: 4px solid gold; margin-top: 1rem; line-height: 1.6;
-      font-family: Consolas, monospace;
+    .row{display:flex;gap:16px;flex-wrap:wrap}
+    textarea{
+      width:100%;min-height:220px;padding:12px 14px;border-radius:12px;border:1px solid var(--border);
+      background:#fbfdff;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;line-height:1.45;
     }
-    pre strong { color: #ffd700; }
-    pre em { color: #ccc; font-style: italic; }
-    .hidden { display: none; }
-    .description { margin-bottom: 2rem; line-height: 1.6; }
-    .nocopy { user-select: none; -webkit-user-select: none; -ms-user-select: none; -moz-user-select: none; }
+    .btn{
+      background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 16px;cursor:pointer;
+      box-shadow:0 6px 16px rgba(90,169,255,.25);
+    }
+    .btn.secondary{background:#e9f4ff;color:var(--text)}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .hidden{display:none}
+    .tabs .tab{display:none}
+    .tabs .tab.active{display:block}
+
+    /* Output layout */
+    .grid{display:grid;gap:16px}
+    @media (min-width:980px){
+      .grid{
+        grid-template-columns: 1.15fr 0.85fr;
+      }
+    }
+    .card{
+      background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px 18px;
+    }
+    .card h3{margin:2px 0 10px 0}
+    .muted{color:var(--muted)}
+    .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:var(--accent-soft);color:#0b2a55;font-size:13px}
+    .mono{font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .copyGuard{user-select:none;-webkit-user-select:none}
+    .divider{height:1px;background:var(--border);margin:12px 0}
+
+    /* Mood gauge (circular) */
+    .gauge{
+      width:120px;height:120px;position:relative;display:inline-block
+    }
+    .gauge svg{transform:rotate(-90deg)}
+    .gauge .center{
+      position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+      font-weight:700;color:#0b2a55;
+    }
+
+    details{
+      border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:#fbfdff
+    }
+    details+details{margin-top:10px}
+    summary{cursor:pointer;font-weight:600}
+
+    .right{display:flex;gap:8px;align-items:center}
+    .small{font-size:13px}
+    .error{color:var(--danger)}
   </style>
 </head>
 <body>
+  <div class="container">
+    <div id="password-gate" class="gate">
+      <h2>Enter Access Key</h2>
+      <div class="row">
+        <input type="password" id="access" placeholder="Password" style="flex:1; padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#fbfdff;color:var(--text)"/>
+        <button class="btn" onclick="checkAccess()">Unlock</button>
+      </div>
+      <div id="access-error" class="error small" style="margin-top:8px"></div>
+    </div>
 
-<div id="password-gate" class="container">
-  <h2>Enter Access Key</h2>
-  <input type="password" id="access" />
-  <button onclick="checkAccess()">Unlock</button>
-  <p id="access-error" style="color: red;"></p>
-</div>
+    <div id="app" class="hidden">
+      <h1>SceneCraft AI</h1>
+      <nav>
+        <button onclick="showTab('home')">Home</button>
+        <button onclick="showTab('analyzer')">Scene Analyzer</button>
+        <button onclick="showTab('editor')">Scene Editor</button>
+      </nav>
 
-<div id="app" class="hidden container">
-  <nav>
-    <button onclick="showTab('home')">Home</button>
-    <button onclick="showTab('analyzer')">Scene Analyzer</button>
-    <button onclick="showTab('editor')">Scene Editor</button>
-    <button onclick="showTab('fullscript')">Full Script Writer</button>
-    <button onclick="showTab('dashboard')">Dashboard</button>
-    <button onclick="showTab('pricing')">Pricing</button>
-  </nav>
+      <div class="tabs">
+        <div id="home" class="tab active">
+          <div class="panel">
+            <p>Analyze scenes with a cinematic brain. Get an engaging breakdown (beats, mood, pacing, realism), an immersive reader mode, contextual comparisons, and strong, director-ready suggestions.</p>
+          </div>
+        </div>
 
-  <div id="home" class="tab">
-    <h1>Welcome to SceneCraft AI</h1>
-    <p class="description">Your cinematic intelligence companion for scene analysis, editing, and script refinement.</p>
+        <div id="analyzer" class="tab">
+          <div class="panel">
+            <textarea id="scene-analyze" placeholder="Paste your scene (~250+ words)"></textarea>
+            <div class="right" style="margin-top:10px">
+              <button class="btn" id="analyzeBtn" onclick="analyze()">Analyze</button>
+              <span id="anWC" class="small muted mono">0 words</span>
+            </div>
+          </div>
+
+          <div id="analysis-area" class="grid copyGuard" style="margin-top:16px">
+            <!-- Left: Summary + Beats + Suggestions -->
+            <div class="left">
+              <div class="card" id="summary-card">
+                <h3>Scene Summary</h3>
+                <div id="summaryText" class="mono"></div>
+              </div>
+
+              <div class="card" id="beats-card">
+                <h3>Beats</h3>
+                <div id="beats"></div>
+              </div>
+
+              <div class="card" id="suggestions-card">
+                <h3>Suggestions</h3>
+                <div id="suggestions"></div>
+              </div>
+            </div>
+
+            <!-- Right: Analytics + Comparisons + Audio -->
+            <div class="right-col">
+              <div class="card">
+                <h3>Analytics Summary</h3>
+                <div class="row" style="align-items:center">
+                  <div class="gauge" title="Mood">
+                    <svg width="120" height="120">
+                      <circle cx="60" cy="60" r="52" stroke="#e6f2ff" stroke-width="12" fill="none"/>
+                      <circle id="moodArc" cx="60" cy="60" r="52" stroke="#5aa9ff" stroke-width="12" fill="none" stroke-linecap="round" stroke-dasharray="327" stroke-dashoffset="327"/>
+                    </svg>
+                    <div class="center"><span id="moodVal">--</span>%</div>
+                  </div>
+                  <div style="flex:1">
+                    <div class="row small">
+                      <span class="pill">Pacing: <strong id="pacing" style="margin-left:6px"></strong></span>
+                      <span class="pill">Realism: <strong id="realism" style="margin-left:6px"></strong>%</span>
+                    </div>
+                    <div class="row small" style="margin-top:6px">
+                      <span class="pill">Stakes: <strong id="stakes" style="margin-left:6px"></strong></span>
+                      <span class="pill">Dialogue: <strong id="dialogue" style="margin-left:6px"></strong></span>
+                      <span class="pill">Readiness: <strong id="readiness" style="margin-left:6px"></strong></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <h3>Contextual Comparison</h3>
+                <div id="comparison" class="muted"></div>
+                <div class="divider"></div>
+                <div class="row small muted">
+                  <span>Mood words:</span>
+                  <span id="moodWords" class="mono"></span>
+                </div>
+                <div class="row" style="margin-top:8px;align-items:center">
+                  <button id="audioBtn" class="btn secondary small" onclick="toggleAudio()" disabled>Play ambience</button>
+                  <span class="small muted">Ambient hook based on mood</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <audio id="ambience" loop></audio>
+        </div>
+
+        <div id="editor" class="tab">
+          <div class="panel">
+            <textarea id="scene-edit" placeholder="Optional: short context on top; then paste your scene (~250+ words)"></textarea>
+            <div class="right" style="margin-top:10px">
+              <button class="btn" id="editBtn" onclick="edit()">Edit</button>
+              <span id="edWC" class="small muted mono">0 words</span>
+            </div>
+          </div>
+
+          <div class="card copyGuard" id="edit-result" style="margin-top:16px;min-height:64px"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <div id="analyzer" class="tab hidden">
-    <h2>Scene Analyzer</h2>
-    <textarea id="scene-input" placeholder="Paste your scene here..."></textarea>
-    <button class="action" onclick="analyzeScene()">Analyze</button>
-    <input type="file" id="file-input" />
-    <pre id="analysis-output" class="nocopy" tabindex="0"></pre>
-  </div>
+  <script>
+  (function(){
+    if (window.__initSC__) return; window.__initSC__ = true;
 
-  <div id="editor" class="tab hidden">
-    <h2>Scene Editor</h2>
-    <textarea id="edit-input" placeholder="Paste your scene here..."></textarea>
-    <button class="action" onclick="editScene()">Edit</button>
-    <input type="file" id="edit-file-input" />
-    <pre id="edit-output" class="nocopy" tabindex="0"></pre>
-  </div>
+    const analyzeCache = new Map();
+    const editCache = new Map();
+    const inFlight = new Set();
 
-  <div id="fullscript" class="tab hidden">
-    <h2>Full Script Writer</h2>
-    <p>Coming soon...</p>
-  </div>
+    const el = id => document.getElementById(id);
+    const wc = t => (t.trim().match(/\\b\\w+\\b/g)||[]).length;
 
-  <div id="dashboard" class="tab hidden">
-    <h2>Dashboard</h2>
-    <p>Coming soon...</p>
-  </div>
-
-  <div id="pricing" class="tab hidden">
-    <h2>Pricing</h2>
-    <p>Coming soon...</p>
-  </div>
-</div>
-
-<script>
-(function () {
-  if (window.__SCENECRAFT_INIT__) return;
-  window.__SCENECRAFT_INIT__ = true;
-
-  // ---- helpers
-  function wordCount(txt){ return (txt.trim().match(/\b\w+\b/g) || []).length; }
-  async function hashText(text) {
-    const enc = new TextEncoder().encode(text);
-    const buf = await crypto.subtle.digest('SHA-256', enc);
-    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-  }
-
-  // ---- persistent caches (never overwrite once set)
-  const ANALYZE_CACHE_KEY = "sc_analyze_cache_v1";
-  const EDIT_CACHE_KEY = "sc_edit_cache_v1";
-  function loadCache(name){
-    try { return JSON.parse(localStorage.getItem(name) || "{}"); } catch { return {}; }
-  }
-  function saveCache(name, obj){
-    try { localStorage.setItem(name, JSON.stringify(obj)); } catch {}
-  }
-
-  // In-flight guards so we don't issue parallel fetches for same scene
-  const inFlight = new Set();
-
-  // ✅ Password check moved to backend; no secret in client code
-  window.checkAccess = async function () {
-    const input = document.getElementById("access").value;
-    try {
-      const res = await fetch("/validate-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: input })
-      });
-      const data = await res.json();
-      if (data.valid) {
-        document.getElementById("password-gate").classList.add("hidden");
-        document.getElementById("app").classList.remove("hidden");
-        showTab("home");
-      } else {
-        document.getElementById("access-error").innerText = "Access Denied";
+    // Password (backend validation)
+    window.checkAccess = async function(){
+      const pass = el('access').value;
+      try{
+        const r = await fetch('/validate-password', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({password:pass})
+        });
+        const d = await r.json();
+        if(d.valid){
+          el('password-gate').classList.add('hidden');
+          el('app').classList.remove('hidden');
+          showTab('home');
+        }else{
+          el('access-error').textContent = 'Access Denied';
+        }
+      }catch{
+        el('access-error').textContent = 'Network error';
       }
-    } catch {
-      document.getElementById("access-error").innerText = "Network error";
+    };
+
+    // Tabs + input reset
+    window.showTab = function(id){
+      document.querySelectorAll('.tabs .tab').forEach(t=>t.classList.remove('active'));
+      el(id).classList.add('active');
+
+      // Always reset analyzer/editor inputs & outputs when switching tabs
+      if (id !== 'analyzer'){
+        el('scene-analyze').value = '';
+        el('anWC').textContent = '0 words';
+        clearAnalysisUI();
+      }
+      if (id !== 'editor'){
+        el('scene-edit').value = '';
+        el('edWC').textContent = '0 words';
+        el('edit-result').textContent = '';
+      }
+    };
+
+    // Copy-protect outputs
+    function guard(node){
+      node.addEventListener('contextmenu', e=>e.preventDefault());
+      node.addEventListener('selectstart', e=>e.preventDefault());
+      node.addEventListener('copy', e=>e.preventDefault());
     }
-  };
+    guard(el('analysis-area'));
+    guard(el('edit-result'));
+    document.addEventListener('keydown', (e)=>{
+      const isMod = e.ctrlKey || e.metaKey;
+      const k = e.key.toLowerCase();
+      const active = document.activeElement;
+      const protectedArea = el('analysis-area').contains(active) || el('edit-result').contains(active);
+      if(isMod && (k==='a' || k==='c') && protectedArea){ e.preventDefault(); }
+    });
 
-  // ---- Input reset on navigation (fresh every visit)
-  window.showTab = function (tabId) {
-    // Hide all tabs
-    document.querySelectorAll('.tab').forEach(tab => tab.classList.add('hidden'));
+    // Word counters
+    el('scene-analyze').addEventListener('input', ()=>{ el('anWC').textContent = wc(el('scene-analyze').value)+' words';});
+    el('scene-edit').addEventListener('input', ()=>{ el('edWC').textContent = wc(el('scene-edit').value)+' words';});
 
-    // Always reset Analyzer & Editor inputs/outputs so they’re fresh on every visit
-    const analyzeInput = document.getElementById('scene-input');
-    const analyzeOut = document.getElementById('analysis-output');
-    const editInput = document.getElementById('edit-input');
-    const editOut = document.getElementById('edit-output');
-
-    if (analyzeInput) analyzeInput.value = '';
-    if (analyzeOut) analyzeOut.textContent = '';
-    if (editInput) editInput.value = '';
-    if (editOut) editOut.textContent = '';
-
-    // Show the requested tab
-    document.getElementById(tabId).classList.remove('hidden');
-  };
-
-  window.analyzeScene = async function () {
-    const scene = document.getElementById("scene-input").value.trim();
-    const out = document.getElementById("analysis-output");
-
-    const wc = wordCount(scene);
-    if (wc < 250) {
-      out.textContent = `Scene too short. ${wc}/250 words. Add ${250 - wc} more words.`;
-      return;
+    // Mood gauge helper
+    function setGauge(val){
+      const circ = 2*Math.PI*52; // r=52 -> circumference ~ 326.7
+      const off = circ * (1 - (val/100));
+      el('moodArc').setAttribute('stroke-dashoffset', String(off));
+      el('moodVal').textContent = Math.round(val);
     }
 
-    const key = "an:" + await hashText(scene);
-    const cache = loadCache(ANALYZE_CACHE_KEY);
-
-    // If we already have a result, ALWAYS reuse it (consistency forever)
-    if (cache[key]) {
-      out.textContent = cache[key];
-      return;
+    function clearAnalysisUI(){
+      el('summaryText').textContent = '';
+      el('beats').innerHTML = '';
+      el('suggestions').innerHTML = '';
+      setGauge(0);
+      el('pacing').textContent = '';
+      el('realism').textContent = '';
+      el('stakes').textContent = '';
+      el('dialogue').textContent = '';
+      el('readiness').textContent = '';
+      el('comparison').textContent = '';
+      el('moodWords').textContent = '';
+      el('audioBtn').disabled = true;
+      el('ambience').pause();
     }
 
-    if (inFlight.has(key)) {
-      out.textContent = "Using best available result…";
-      return;
+    // Immersive reader (typewriter for summary)
+    async function typeSummary(text){
+      const dest = el('summaryText');
+      dest.textContent = '';
+      for(const ch of text){
+        dest.textContent += ch;
+        await new Promise(r=>setTimeout(r, 8)); // subtle
+      }
     }
 
-    inFlight.add(key);
-    out.textContent = "Analyzing...";
+    // Audio hook
+    let audioOn = false;
+    window.toggleAudio = function(){
+      const a = el('ambience');
+      if(!a.src) return;
+      if(audioOn){ a.pause(); el('audioBtn').textContent = 'Play ambience'; }
+      else { a.play().catch(()=>{}); el('audioBtn').textContent = 'Pause ambience'; }
+      audioOn = !audioOn;
+    };
 
-    try {
-      const res = await fetch("/analyze", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-agreement": "true"
-        },
-        body: JSON.stringify({ scene })
+    // Render structured analysis JSON
+    function renderAnalysis(obj){
+      // Theme color
+      const col = (obj?.theme?.color)||'#b3d9ff';
+      document.documentElement.style.setProperty('--accent', '#5aa9ff');
+      document.documentElement.style.setProperty('--accent-soft', col);
+
+      // Summary (typewriter)
+      typeSummary(obj.summary || 'Analysis');
+
+      // Beats
+      el('beats').innerHTML = '';
+      (obj.beats||[]).forEach(b=>{
+        const d = document.createElement('div');
+        d.innerHTML = `<div class="small"><span class="pill" style="margin-right:6px">${b.title||'Beat'}</span>${(b.insight||'').replace(/</g,'&lt;')}</div>`;
+        el('beats').appendChild(d);
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        out.textContent = `Error: ${data.detail || res.statusText} (HTTP ${res.status})`;
+
+      // Suggestions (collapsible)
+      el('suggestions').innerHTML = '';
+      (obj.suggestions||[]).forEach(s=>{
+        const dt = document.createElement('details');
+        const sum = document.createElement('summary');
+        sum.textContent = s.title || 'Suggestion';
+        const body = document.createElement('div');
+        body.innerHTML = `
+          <div class="small"><strong>Rationale:</strong> ${(s.rationale||'').replace(/</g,'&lt;')}</div>
+          ${s.rewrite_example ? `<div class="small mono" style="margin-top:6px"><strong>Rewrite:</strong> ${(s.rewrite_example||'').replace(/</g,'&lt;')}</div>`:''}
+          <div class="small muted" style="margin-top:6px"><strong>Director’s Note:</strong> ${(s.director_note||'').replace(/</g,'&lt;')}</div>
+        `;
+        dt.appendChild(sum); dt.appendChild(body);
+        el('suggestions').appendChild(dt);
+      });
+
+      // Analytics
+      const A = obj.analytics||{};
+      setGauge(Number(A.mood||0));
+      el('pacing').textContent = A.pacing||'';
+      el('realism').textContent = Number(A.realism||0);
+      el('stakes').textContent = A.stakes||'';
+      el('dialogue').textContent = A.dialogue_naturalism||'';
+      el('readiness').textContent = A.cinematic_readiness||'';
+
+      // Comparison + mood words
+      el('comparison').textContent = obj.comparison||'';
+      el('moodWords').textContent = (obj.theme?.mood_words||[]).join(', ');
+
+      // Audio source if provided (you can map keys to hosted files)
+      const audioKey = obj?.theme?.audio || '';
+      const audioTag = el('ambience');
+      audioTag.src = '';
+      if(audioKey){
+        // You can host small loops in /frontend_dist/audio/
+        audioTag.src = `/audio/${audioKey}.mp3`;
+        el('audioBtn').disabled = false;
+      }else{
+        el('audioBtn').disabled = true;
+      }
+    }
+
+    // Hash helper (stable cache keys)
+    async function sha(text){
+      const enc = new TextEncoder().encode(text);
+      const buf = await crypto.subtle.digest('SHA-256', enc);
+      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+
+    window.analyze = async function(){
+      const scene = el('scene-analyze').value.trim();
+      const btn = el('analyzeBtn');
+      const words = wc(scene);
+      if (words < 250){ clearAnalysisUI(); el('summaryText').textContent = `Scene too short: ${words}/250 words.`; return; }
+
+      const key = 'an:'+await sha(scene);
+      if (analyzeCache.has(key)){
+        renderAnalysis(analyzeCache.get(key));
         return;
       }
+      if (inFlight.has(key)){ el('summaryText').textContent = 'Using best available result…'; return; }
 
-      // Save the FIRST result and never overwrite it.
-      cache[key] = data.analysis || "";
-      saveCache(ANALYZE_CACHE_KEY, cache);
+      inFlight.add(key);
+      btn.disabled = true;
+      clearAnalysisUI();
+      el('summaryText').textContent = 'Analyzing…';
 
-      out.textContent = cache[key];
-    } catch (e) {
-      out.textContent = `Network error: ${e.message || e}`;
-    } finally {
-      inFlight.delete(key);
-    }
-  };
-
-  window.editScene = async function () {
-    const scene = document.getElementById("edit-input").value.trim();
-    const out = document.getElementById("edit-output");
-
-    const wc = wordCount(scene);
-    if (wc < 250) {
-      out.textContent = `Scene too short. ${wc}/250 words. Add ${250 - wc} more words.`;
-      return;
-    }
-
-    const key = "ed:" + await hashText(scene);
-    const cache = loadCache(EDIT_CACHE_KEY);
-
-    if (cache[key]) {
-      out.textContent = cache[key];
-      return;
-    }
-
-    if (inFlight.has(key)) {
-      out.textContent = "Using best available result…";
-      return;
-    }
-
-    inFlight.add(key);
-    out.textContent = "Editing...";
-
-    try {
-      const res = await fetch("/edit", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-agreement": "true"
-        },
-        body: JSON.stringify({ scene })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        out.textContent = `Error: ${data.detail || res.statusText} (HTTP ${res.status})`;
-        return;
+      try{
+        const r = await fetch('/analyze', {
+          method:'POST',
+          headers:{'Content-Type':'application/json','x-user-agreement':'true'},
+          body: JSON.stringify({scene})
+        });
+        const d = await r.json().catch(()=> ({}));
+        if (!r.ok){
+          el('summaryText').textContent = `Error: ${d.detail||r.statusText} (HTTP ${r.status})`;
+          return;
+        }
+        const obj = d.analysis || {};
+        analyzeCache.set(key, obj); // FIRST result persisted forever
+        renderAnalysis(obj);
+      }catch(e){
+        el('summaryText').textContent = `Network error: ${e.message||e}`;
+      }finally{
+        inFlight.delete(key);
+        btn.disabled = false;
       }
+    };
 
-      cache[key] = data.edit_suggestions || "";
-      saveCache(EDIT_CACHE_KEY, cache);
+    window.edit = async function(){
+      const scene = el('scene-edit').value.trim();
+      const btn = el('editBtn');
+      const words = wc(scene);
+      if (words < 250){ el('edit-result').textContent = `Scene too short: ${words}/250 words.`; return; }
 
-      out.textContent = cache[key];
-    } catch (e) {
-      out.textContent = `Network error: ${e.message || e}`;
-    } finally {
-      inFlight.delete(key);
-    }
-  };
+      const key = 'ed:'+await sha(scene);
+      if (editCache.has(key)){ el('edit-result').textContent = editCache.get(key); return; }
+      if (inFlight.has(key)){ el('edit-result').textContent = 'Using best available result…'; return; }
 
-  // Copy protection on OUTPUTS
-  const analysisOut = document.getElementById("analysis-output");
-  const editOut = document.getElementById("edit-output");
+      inFlight.add(key);
+      btn.disabled = true;
+      el('edit-result').textContent = 'Editing…';
 
-  [analysisOut, editOut].forEach(el => {
-    el.addEventListener('contextmenu', e => e.preventDefault());
-    el.addEventListener('selectstart', e => e.preventDefault());
-    el.addEventListener('copy', e => e.preventDefault());
-    el.setAttribute('tabindex', '0');
-  });
+      try{
+        const r = await fetch('/edit', {
+          method:'POST',
+          headers:{'Content-Type':'application/json','x-user-agreement':'true'},
+          body: JSON.stringify({scene})
+        });
+        const d = await r.json().catch(()=> ({}));
+        if (!r.ok){
+          el('edit-result').textContent = `Error: ${d.detail||r.statusText} (HTTP ${r.status})`;
+          return;
+        }
+        const out = d.edit_suggestions || '';
+        editCache.set(key, out);
+        el('edit-result').textContent = out;
+      }catch(e){
+        el('edit-result').textContent = `Network error: ${e.message||e}`;
+      }finally{
+        inFlight.delete(key);
+        btn.disabled = false;
+      }
+    };
 
-  function selectionInsideOutputs() {
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return false;
-    const node = sel.anchorNode;
-    return analysisOut.contains(node) || editOut.contains(node);
-  }
-
-  document.addEventListener('keydown', (e) => {
-    const isMod = e.ctrlKey || e.metaKey;
-    const k = e.key.toLowerCase();
-    const active = document.activeElement;
-    const focusedInside = analysisOut.contains(active) || editOut.contains(active);
-    const selInside = selectionInsideOutputs();
-    if (isMod && (k === 'a' || k === 'c') && (focusedInside || selInside)) {
-      e.preventDefault();
-    }
-  });
-
-})();
-</script>
-
+  })();
+  </script>
 </body>
 </html>
