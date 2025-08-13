@@ -14,11 +14,13 @@ COMMANDS = [
     r"reword(?:\s+scene)?",
     r"make(?:\s+scene)?"
 ]
+
 # Full-line intent
 INTENT_LINE_RE = re.compile(
     rf"^\s*(?:please\s+)?(?:the\s+)?(?:{'|'.join(COMMANDS)})\s*$",
     re.IGNORECASE
 )
+
 # Anywhere in a line — but ONLY when clearly instructing to modify/generate a scene/script
 INTENT_INLINE_CMD_RE = re.compile(
     r"\b(?:rewrite|regenerate|compose|fix|improve|polish|reword|make)\s+(?:this|the)?\s*(?:scene|script)\b",
@@ -27,7 +29,6 @@ INTENT_INLINE_CMD_RE = re.compile(
 
 # --- Backward compatibility for backend imports ---
 STRIP_RE = INTENT_LINE_RE
-
 
 MIN_WORDS = 250
 MAX_WORDS = 3500
@@ -47,7 +48,7 @@ def clean_scene(text: str) -> str:
             continue
         if INTENT_LINE_RE.match(line):
             continue
-        # was: line = INTENT_ANYWHERE_RE.sub("", line)...
+        # Only strip explicit inline generation commands
         line = INTENT_INLINE_CMD_RE.sub("", line).strip(" :-\t")
         if line:
             cleaned_lines.append(line)
@@ -115,7 +116,6 @@ async def analyze_scene(scene: str) -> str:
     system_prompt = (
         "You are CineOracle — a layered cinematic intelligence. You perform all of SceneCraft AI’s existing"
         " scene analysis while silently running advanced internal passes. Never reveal internal steps.\n\n"
-
         "CINEMATIC BENCHMARKS (apply internally; do NOT list or label in output):\n"
         "1) Scene Structure & Beats — setup, trigger, escalation/tension, climax, resolution.\n"
         "2) Scene Grammar — flow of action/dialogue/description; economy; visual clarity.\n"
@@ -125,7 +125,6 @@ async def analyze_scene(scene: str) -> str:
         "6) Character Stakes & Motivation — emotional drive; psychological presence; unity of opposites.\n"
         "7) Editing & Transitions — connective tissue, contrasts, thematic continuity.\n"
         "8) Audience Resonance — how it lands given current genre expectations.\n\n"
-
         "RIVAL-GRADE LAYERS (silent, never exposed):\n"
         "1) Multi-Pass Cognition: craft → audience emotional map → Ghost Cut (editorial) → Actor’s Mind.\n"
         "2) Cinematic Tension Heatmap: track spikes, valleys, pause points.\n"
@@ -138,7 +137,6 @@ async def analyze_scene(scene: str) -> str:
         "9) Adaptive Cultural Overlay: respect local idiom/tradition when hinted.\n"
         "10) Micro-Moment Immersion Scoring: hidden engagement every ~10s of scene time.\n"
         "11) Director-Actor Dynamic Analysis: subtle blocking/performance adjustments.\n\n"
-
         "OUTPUT RULES:\n"
         "- Write natural, human, grounded cinematic prose (no lists except in the final Suggestions and Analytics sections).\n"
         "- Keep tone intelligent, supportive, and specific to the page; never generate or extend scenes.\n"
