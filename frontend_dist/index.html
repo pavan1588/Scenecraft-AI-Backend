@@ -14,6 +14,8 @@
       --border:#d7e9ff;
       --muted:#5c6f8a;
       --danger:#bb2d3b;
+      --ok:#1f8f5f;
+      --warn:#b58900;
     }
     *{box-sizing:border-box}
     body{
@@ -65,26 +67,22 @@
     .mono{font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
     .copyGuard{user-select:none;-webkit-user-select:none}
     .divider{height:1px;background:var(--border);margin:12px 0}
+    .small{font-size:13px}
+    .error{color:var(--danger)}
 
     /* Mood gauge (circular) */
-    .gauge{
-      width:120px;height:120px;position:relative;display:inline-block
-    }
+    .gauge{width:120px;height:120px;position:relative;display:inline-block}
     .gauge svg{transform:rotate(-90deg)}
     .gauge .center{
       position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
       font-weight:700;color:#0b2a55;
     }
 
-    details{
-      border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:#fbfdff
-    }
-    details+details{margin-top:10px}
-    summary{cursor:pointer;font-weight:600}
-
-    .right{display:flex;gap:8px;align-items:center}
-    .small{font-size:13px}
-    .error{color:var(--danger)}
+    /* Heatmap */
+    .heatmap-wrap{width:100%;height:64px}
+    .legend{display:flex;justify-content:space-between;font-size:12px;margin-top:6px;color:var(--muted)}
+    .flag.ok{color:var(--ok)}
+    .flag.warn{color:var(--warn)}
   </style>
 </head>
 <body>
@@ -123,7 +121,7 @@
           </div>
 
           <div id="analysis-area" class="grid copyGuard" style="margin-top:16px">
-            <!-- Left: Summary + Beats + Suggestions -->
+            <!-- Left: Summary + Beats + Suggestions + new left cards -->
             <div class="left">
               <div class="card" id="summary-card">
                 <h3>Scene Summary</h3>
@@ -139,9 +137,18 @@
                 <h3>Suggestions</h3>
                 <div id="suggestions"></div>
               </div>
+
+              <div class="card" id="growth-card">
+                <h3>Scene Growth Suggestions</h3>
+                <div id="growth"></div>
+              </div>
+
+              <div class="card" id="disclaimer-card">
+                <div class="small muted" id="disclaimerText"></div>
+              </div>
             </div>
 
-            <!-- Right: Analytics + Comparisons + Audio -->
+            <!-- Right: Analytics + Comparisons + Audio + new right cards -->
             <div class="right-col">
               <div class="card">
                 <h3>Analytics Summary</h3>
@@ -178,6 +185,38 @@
                 <div class="row" style="margin-top:8px;align-items:center">
                   <button id="audioBtn" class="btn secondary small" onclick="toggleAudio()" disabled>Play ambience</button>
                   <span class="small muted">Ambient hook based on mood</span>
+                </div>
+              </div>
+
+              <div class="card" id="emotional-card">
+                <h3>Emotional & Sensory Depth</h3>
+                <div id="emotionalMap" class="small"></div>
+                <div class="divider"></div>
+                <div id="sensory" class="small"></div>
+              </div>
+
+              <div class="card" id="props-card">
+                <h3>Prop & Object Symbolism</h3>
+                <div id="props" class="small"></div>
+              </div>
+
+              <div class="card" id="dual-card">
+                <h3>Dual‑Lens Audience View</h3>
+                <div id="dualLens" class="small"></div>
+              </div>
+
+              <div class="card" id="integrity-card">
+                <h3>Narrative Integrity Alerts</h3>
+                <ul id="integrity" class="small"></ul>
+              </div>
+
+              <div class="card" id="heatmap-card">
+                <h3>Micro‑Pacing Heatmap</h3>
+                <div class="heatmap-wrap">
+                  <svg id="heatmap" width="100%" height="64" viewBox="0 0 1000 64" preserveAspectRatio="none"></svg>
+                </div>
+                <div class="legend">
+                  <span>Start</span><span>Mid</span><span>End</span>
                 </div>
               </div>
             </div>
@@ -239,7 +278,6 @@
       document.querySelectorAll('.tabs .tab').forEach(t=>t.classList.remove('active'));
       el(id).classList.add('active');
 
-      // Always reset analyzer/editor inputs & outputs when switching tabs
       if (id !== 'analyzer'){
         el('scene-analyze').value = '';
         el('anWC').textContent = '0 words';
@@ -272,9 +310,9 @@
     el('scene-analyze').addEventListener('input', ()=>{ el('anWC').textContent = wc(el('scene-analyze').value)+' words';});
     el('scene-edit').addEventListener('input', ()=>{ el('edWC').textContent = wc(el('scene-edit').value)+' words';});
 
-    // Mood gauge helper
+    // Mood gauge
     function setGauge(val){
-      const circ = 2*Math.PI*52; // r=52 -> circumference ~ 326.7
+      const circ = 2*Math.PI*52;
       const off = circ * (1 - (val/100));
       el('moodArc').setAttribute('stroke-dashoffset', String(off));
       el('moodVal').textContent = Math.round(val);
@@ -284,6 +322,8 @@
       el('summaryText').textContent = '';
       el('beats').innerHTML = '';
       el('suggestions').innerHTML = '';
+      el('growth').innerHTML = '';
+      el('disclaimerText').textContent = '';
       setGauge(0);
       el('pacing').textContent = '';
       el('realism').textContent = '';
@@ -292,17 +332,23 @@
       el('readiness').textContent = '';
       el('comparison').textContent = '';
       el('moodWords').textContent = '';
+      el('emotionalMap').textContent = '';
+      el('sensory').textContent = '';
+      el('props').textContent = '';
+      el('dualLens').textContent = '';
+      el('integrity').innerHTML = '';
+      drawHeatmap([]);
       el('audioBtn').disabled = true;
       el('ambience').pause();
     }
 
-    // Immersive reader (typewriter for summary)
+    // Immersive reader
     async function typeSummary(text){
       const dest = el('summaryText');
       dest.textContent = '';
       for(const ch of text){
         dest.textContent += ch;
-        await new Promise(r=>setTimeout(r, 8)); // subtle
+        await new Promise(r=>setTimeout(r, 8));
       }
     }
 
@@ -316,13 +362,37 @@
       audioOn = !audioOn;
     };
 
+    // Heatmap render (expects 0..100 array)
+    function drawHeatmap(arr){
+      const svg = el('heatmap');
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+      if(!arr || !arr.length) return;
+
+      const n = arr.length;
+      const w = 1000, h = 64;
+      const barW = Math.max(1, Math.floor(w / n));
+      arr.forEach((v,i)=>{
+        const x = i*barW;
+        const height = Math.max(4, Math.round((v/100) * h));
+        const y = h - height;
+        const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+        rect.setAttribute('x', x);
+        rect.setAttribute('y', y);
+        rect.setAttribute('width', barW-1);
+        rect.setAttribute('height', height);
+        rect.setAttribute('fill', '#5aa9ff');
+        rect.setAttribute('opacity', 0.25 + (v/100)*0.6);
+        svg.appendChild(rect);
+      });
+    }
+
     // Render structured analysis JSON
     function renderAnalysis(obj){
-      // --- Lock UI colors (no dynamic theming) ---
+      // lock UI colors
       document.documentElement.style.setProperty('--accent', '#5aa9ff');
       document.documentElement.style.setProperty('--accent-soft', '#b3d9ff');
 
-      // Summary (typewriter)
+      // Summary
       typeSummary(obj.summary || 'Analysis');
 
       // Beats
@@ -362,42 +432,74 @@
       el('comparison').textContent = obj.comparison||'';
       el('moodWords').textContent = (obj.theme?.mood_words||[]).join(', ');
 
-      // Audio source: prefer remote URL, fallback to local slug
+      // Emotional & Sensory
+      const E = obj.emotional_map || {};
+      const lines = [];
+      if (E.curve_label) lines.push(`<div class="small"><strong>Emotional curve:</strong> ${E.curve_label}</div>`);
+      if (typeof E.clarity === 'string') lines.push(`<div class="small"><strong>Clarity:</strong> ${E.clarity}</div>`);
+      if (typeof E.empathy === 'string') lines.push(`<div class="small"><strong>Empathy Anchor:</strong> ${E.empathy}</div>`);
+      el('emotionalMap').innerHTML = lines.join('');
+
+      const S = obj.sensory || {};
+      const senses = [];
+      ['visual','auditory','tactile','olfactory','gustatory','spatial'].forEach(k=>{
+        if (k in S) senses.push(`<span class="pill">${k[0].toUpperCase()+k.slice(1)}: <strong style="margin-left:6px">${S[k]}</strong></span>`);
+      });
+      el('sensory').innerHTML = senses.join(' ');
+
+      // Props & Symbolism
+      const P = obj.props||[];
+      el('props').innerHTML = P.length ? P.map(p=>`<div class="small">• <strong>${(p.name||'Object')}</strong> — ${(p.significance||'').replace(/</g,'&lt;')}</div>`).join('') : '<div class="small muted">No key objects detected.</div>';
+
+      // Dual lens
+      const D = obj.dual_lens||{};
+      el('dualLens').innerHTML =
+        `<div class="small"><strong>First‑timer:</strong> ${(D.first_timer||'').replace(/</g,'&lt;')}</div>
+         <div class="small"><strong>Rewatcher:</strong> ${(D.rewatcher||'').replace(/</g,'&lt;')}</div>`;
+
+      // Integrity alerts
+      const IA = Array.isArray(obj.integrity_alerts) ? obj.integrity_alerts : [];
+      el('integrity').innerHTML = IA.length
+        ? IA.map(a=>`<li class="small ${a.level==='warn'?'flag warn':'flag ok'}">${(a.message||'').replace(/</g,'&lt;')}</li>`).join('')
+        : '<li class="small muted">No issues flagged.</li>';
+
+      // Heatmap
+      drawHeatmap(Array.isArray(obj.pacing_map) ? obj.pacing_map : []);
+
+      // Growth suggestions
+      const g = el('growth');
+      if (Array.isArray(obj.growth_suggestions) && obj.growth_suggestions.length){
+        g.innerHTML = obj.growth_suggestions.map(t=>`<div class="small">• ${(t||'').replace(/</g,'&lt;')}</div>`).join('');
+      } else if (typeof obj.growth_suggestions === 'string' && obj.growth_suggestions.trim()){
+        g.textContent = obj.growth_suggestions;
+      } else {
+        g.innerHTML = '<div class="small muted">No growth suggestions provided.</div>';
+      }
+
+      // Disclaimer
+      el('disclaimerText').textContent =
+        (obj.disclaimer && String(obj.disclaimer).trim())
+        || "This is a first‑pass cinematic analysis to support your craft. Your voice and choices always come first.";
+
+      // Audio
       const audioTag = el('ambience');
       const audioBtn = el('audioBtn');
+      audioOn = false; audioTag.pause(); audioTag.removeAttribute('src');
+      audioBtn.textContent = 'Play ambience'; audioBtn.disabled = true;
 
-      // Clean previous
-      audioOn = false;
-      audioTag.pause();
-      audioTag.removeAttribute('src');
-      audioBtn.textContent = 'Play ambience';
-      audioBtn.disabled = true;
-
-      // Build a playable source
       const theme = obj?.theme || {};
       const remoteUrl = theme.audio_url && String(theme.audio_url).trim();
       const key = theme.audio && String(theme.audio).trim();
-
-      function slugify(s){
-        return s.toLowerCase()
-                .replace(/[^a-z0-9]+/gi, '-')
-                .replace(/^-+|-+$/g, '');
-      }
-
+      function slugify(s){ return s.toLowerCase().replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,''); }
       let chosen = '';
-      if (remoteUrl) {
-        chosen = remoteUrl; // e.g., https://freesound.org/.../file.mp3
-      } else if (key) {
-        chosen = `/audio/${slugify(key)}.mp3`; // e.g., /audio/rainy-night.mp3
-      }
+      if (remoteUrl) chosen = remoteUrl; else if (key) chosen = `/audio/${slugify(key)}.mp3`;
 
-      if (chosen) {
+      if (chosen){
         audioTag.oncanplay = ()=>{ audioBtn.disabled = false; audioBtn.title = 'Ambient hook based on mood'; };
         audioTag.onerror   = ()=>{ audioBtn.disabled = true;  audioBtn.title = 'Audio unavailable'; };
         audioTag.src = chosen;
       } else {
-        audioBtn.disabled = true;
-        audioBtn.title = 'No ambience available';
+        audioBtn.disabled = true; audioBtn.title = 'No ambience available';
       }
     }
 
@@ -438,7 +540,7 @@
           return;
         }
         const obj = d.analysis || {};
-        analyzeCache.set(key, obj); // FIRST result persisted forever
+        analyzeCache.set(key, obj);
         renderAnalysis(obj);
       }catch(e){
         el('summaryText').textContent = `Network error: ${e.message||e}`;
