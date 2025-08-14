@@ -23,6 +23,7 @@ INTENT_LINE_RE = re.compile(
 )
 
 # Inline — ONLY when clearly instructing to modify/generate a scene/script
+# e.g., "please improve this scene", "rewrite the script"
 INTENT_INLINE_CMD_RE = re.compile(
     r"\b(?:rewrite|regenerate|compose|fix|improve|polish|reword|make)\s+(?:this|the)?\s*(?:scene|script)\b",
     re.IGNORECASE,
@@ -59,8 +60,8 @@ def clean_scene(text: str) -> str:
 
 def _fallback_payload_from_text(text: str) -> dict:
     """
-    If the model doesn't return valid JSON, wrap the text so the frontend
-    still renders something coherent (and all new UI sections have defaults).
+    If the model doesn't return valid JSON (rare), wrap the text so frontend
+    still renders something coherent. Includes safe defaults for new UI keys.
     """
     return {
         "summary": "Analysis",
@@ -110,10 +111,11 @@ def _fallback_payload_from_text(text: str) -> dict:
     }
 
 def _system_prompt() -> str:
-    # === Your Benchmarks & Rival Layers preserved verbatim ===
+    # === Benchmarks & Rival Layers preserved verbatim, plus added silent lenses ===
     return (
         "You are CineOracle — a layered cinematic intelligence. You perform all of SceneCraft AI’s existing "
         "scene analysis while silently running advanced internal passes. Never reveal internal steps.\n\n"
+
         "CINEMATIC BENCHMARKS (apply internally; do NOT list or label in output):\n"
         "1) Scene Structure & Beats — setup, trigger, escalation/tension, climax, resolution.\n"
         "2) Scene Grammar — flow of action/dialogue/description; economy; visual clarity.\n"
@@ -123,6 +125,7 @@ def _system_prompt() -> str:
         "6) Character Stakes & Motivation — emotional drive; psychological presence; unity of opposites.\n"
         "7) Editing & Transitions — connective tissue, contrasts, thematic continuity.\n"
         "8) Audience Resonance — how it lands given current genre expectations.\n\n"
+
         "RIVAL-GRADE LAYERS (silent, never exposed):\n"
         "1) Multi-Pass Cognition: craft → audience emotional map → Ghost Cut (editorial) → Actor’s Mind.\n"
         "2) Cinematic Tension Heatmap: track spikes, valleys, pause points.\n"
@@ -135,8 +138,16 @@ def _system_prompt() -> str:
         "9) Adaptive Cultural Overlay: respect local idiom/tradition when hinted.\n"
         "10) Micro-Moment Immersion Scoring: hidden engagement every ~10s of scene time.\n"
         "11) Director-Actor Dynamic Analysis: subtle blocking/performance adjustments.\n\n"
-        "OUTPUT CONTRACT:\n"
-        "Return STRICT JSON ONLY (no markdown, no code fences). Use this schema:\n"
+
+        # --- Additional silent lenses drawn from directors, books, human intuition ---
+        "ADDITIONAL SILENT LENSES (apply but do not list):\n"
+        "- Director-level: Spatial Grammar; Temporal Pressure; Energy Transitions; Camera Mind; Contrast Layer.\n"
+        "- Writer/script-doctor: Subtext Richness; Narrative Gravity; Dialogue Dynamics Map; Hook & Release; Character Echoes.\n"
+        "- Audience-centric: Emotional Stickiness; Social Share Potential; Cultural Mirror; Genre Pulse Match; Multi‑Audience Readability.\n"
+        "- Deep craft: Sensory Weave; Symbol/Object Resonance; Tone vs Story DNA; Emotional Foreshadowing; Rhythmic Breath Check.\n"
+        "- SceneCraft‑exclusive: Silent Scene Reimagination.\n\n"
+
+        "OUTPUT CONTRACT — Return STRICT JSON ONLY (no markdown/code fences) with this schema:\n"
         "{\n"
         '  "summary": string,\n'
         '  "analytics": {\n'
@@ -164,11 +175,21 @@ def _system_prompt() -> str:
         '  "growth_suggestions": [string, ...],\n'
         '  "disclaimer": string\n'
         "}\n\n"
-        "STYLE:\n"
-        "- Concrete, visual, performance-aware. No generic platitudes.\n"
+
+        "CLARITY & BREVITY RULES (very important):\n"
+        "- Keep the output uncluttered and human-readable.\n"
+        "- summary: ~80–120 words max, flowing like a thoughtful script doctor.\n"
+        "- beats: max 5, each insight ≤ 1–2 sentences.\n"
+        "- suggestions: max 5; each rationale ≤ 2 sentences; director_note ≤ 1 sentence; rewrite_example ≤ 2 lines (optional).\n"
+        "- props: list only the top 3–5 objects that truly matter.\n"
+        "- dual_lens: 1 short line each (≤ ~25 words).\n"
+        "- emotional_map fields: concise labels (3–5 words each).\n"
+        "- sensory values: use Low/Medium/High (or short phrase) per channel.\n"
+        "- integrity_alerts: only if needed; ≤ 5 total.\n"
+        "- growth_suggestions: ≤ 3.\n"
+        "- pacing_map: 20–40 points across the scene, representing micro‑tension.\n"
         "- Do NOT invent new plot content; analyze only what’s present.\n"
-        "- Provide a pacing_map with ~20–40 points estimating micro-tension over time.\n"
-        "- If any section has nothing meaningful, still include the key with an empty list or succinct default.\n"
+        "- Maintain a supportive, collaborative tone.\n"
     )
 
 # ------------------------ Freesound integration (optional) -------------------------
@@ -204,6 +225,35 @@ async def get_freesound_url(query: str) -> str:
     return ""
 
 # -----------------------------------------------------------------------------------
+
+def _prune_output(obj: dict) -> dict:
+    """
+    Light curation to keep the UI uncluttered. We don't alter meaning,
+    just cap lengths so the front-end stays breathable.
+    """
+    try:
+        # Cap arrays to readable sizes
+        if isinstance(obj.get("beats"), list):
+            obj["beats"] = obj["beats"][:5]
+        if isinstance(obj.get("suggestions"), list):
+            obj["suggestions"] = obj["suggestions"][:5]
+        if isinstance(obj.get("props"), list):
+            obj["props"] = obj["props"][:5]
+        if isinstance(obj.get("integrity_alerts"), list):
+            obj["integrity_alerts"] = obj["integrity_alerts"][:5]
+        if isinstance(obj.get("growth_suggestions"), list):
+            obj["growth_suggestions"] = obj["growth_suggestions"][:3]
+
+        # Pacing map: keep within 20–40 points if oversized
+        pm = obj.get("pacing_map")
+        if isinstance(pm, list) and len(pm) > 40:
+            # downsample by simple stride
+            stride = max(1, len(pm) // 40)
+            obj["pacing_map"] = pm[::stride][:40]
+    except Exception:
+        # Never let pruning break output
+        pass
+    return obj
 
 async def analyze_scene(scene: str) -> dict:
     raw = scene or ""
@@ -302,7 +352,7 @@ async def analyze_scene(scene: str) -> dict:
                 # Final safety: wrap raw text so UI still shows something useful
                 return _fallback_payload_from_text(content)
 
-        # Minimal defaults
+        # Minimal defaults so frontend never breaks
         obj.setdefault("summary", "Analysis")
         obj.setdefault("analytics", {})
         obj["analytics"].setdefault("mood", 60)
@@ -315,8 +365,6 @@ async def analyze_scene(scene: str) -> dict:
         obj.setdefault("suggestions", [])
         obj.setdefault("comparison", "")
         obj.setdefault("theme", {"color": "#b3d9ff", "audio": "", "mood_words": []})
-
-        # ---- New sections with safe defaults if missing ----
         obj.setdefault(
             "emotional_map",
             {"curve_label": "Balanced", "clarity": "Moderate", "empathy": "Neutral POV"},
@@ -361,6 +409,9 @@ async def analyze_scene(scene: str) -> dict:
             # Never fail analysis because audio lookup had issues
             print(f"[Freesound] Non-fatal: {_e}")
         # ----------------------------------------------------------------
+
+        # Final pruning for an uncluttered UX
+        obj = _prune_output(obj)
 
         return obj
 
