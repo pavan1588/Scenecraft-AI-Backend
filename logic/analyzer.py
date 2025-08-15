@@ -4,13 +4,7 @@ import json as _json
 import hashlib
 import base64
 from urllib.parse import quote
-
-# httpx is optional at import time; we only use it inside functions.
-try:
-    import httpx  # type: ignore
-except Exception:  # keep import-time safe even if deps missing
-    httpx = None  # will be checked before use
-
+import httpx
 from fastapi import HTTPException
 
 # ---- Generation-command filtering -------------------------------------------------
@@ -46,23 +40,12 @@ MIN_WORDS = 250
 MAX_WORDS = 3500
 
 # ---------------- Optional storyboard image generation (server-side) ---------------
-# NOTE: we only *read* env values when needed (inside functions) to avoid import errors.
-def _storyboard_flags():
-    enable = os.getenv("SC_STORYBOARD_ENABLE", "false").lower() in {"1", "true", "yes"}
-    provider = os.getenv("SC_STORYBOARD_PROVIDER", "openai")  # "openai" | "stability" | "off"
-    max_frames = int(os.getenv("SC_STORYBOARD_MAX_FRAMES", "4") or "4")
-    return enable, provider, max_frames
+STORYBOARD_ENABLE = os.getenv("SC_STORYBOARD_ENABLE", "false").lower() in {"1", "true", "yes"}
+STORYBOARD_PROVIDER = os.getenv("SC_STORYBOARD_PROVIDER", "openai")  # "openai" | "stability" | "off"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+STABILITY_API_KEY = os.getenv("STABILITY_API_KEY", "").strip()
+STORYBOARD_MAX_FRAMES = int(os.getenv("SC_STORYBOARD_MAX_FRAMES", "4"))
 
-def _env_keys():
-    return (
-        (os.getenv("OPENAI_API_KEY") or "").strip(),
-        (os.getenv("STABILITY_API_KEY") or "").strip(),
-        (os.getenv("FREESOUND_API_KEY") or "").strip(),
-        (os.getenv("OPENROUTER_API_KEY") or "").strip(),
-        os.getenv("OPENROUTER_MODEL", "gpt-4o"),
-    )
-
-# -----------------------------------------------------------------------------------
 def _normalize(text: str) -> str:
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     lines = [ln.strip() for ln in text.split("\n")]
@@ -148,7 +131,6 @@ def _system_prompt() -> str:
     return (
         "You are CineOracle — a layered cinematic intelligence. You perform all of SceneCraft AI’s existing "
         "scene analysis while silently running advanced internal passes. Never reveal internal steps.\n\n"
-
         "CINEMATIC BENCHMARKS (apply internally; do NOT list or label in output):\n"
         "1) Scene Structure & Beats — setup, trigger, escalation/tension, climax, resolution.\n"
         "2) Scene Grammar — flow of action/dialogue/description; economy; visual clarity.\n"
@@ -158,7 +140,6 @@ def _system_prompt() -> str:
         "6) Character Stakes & Motivation — emotional drive; psychological presence; unity of opposites.\n"
         "7) Editing & Transitions — connective tissue, contrasts, thematic continuity.\n"
         "8) Audience Resonance — how it lands given current genre expectations.\n\n"
-
         "RIVAL-GRADE LAYERS (silent, never exposed):\n"
         "1) Multi-Pass Cognition: craft → audience emotional map → Ghost Cut (editorial) → Actor’s Mind.\n"
         "2) Cinematic Tension Heatmap: track spikes, valleys, pause points.\n"
@@ -171,14 +152,12 @@ def _system_prompt() -> str:
         "9) Adaptive Cultural Overlay: respect local idiom/tradition when hinted.\n"
         "10) Micro-Moment Immersion Scoring: hidden engagement every ~10s of scene time.\n"
         "11) Director-Actor Dynamic Analysis: subtle blocking/performance adjustments.\n\n"
-
         "ADDITIONAL SILENT LENSES (apply but do not list):\n"
         "- Director-level: Spatial Grammar; Temporal Pressure; Energy Transitions; Camera Mind; Contrast Layer.\n"
         "- Writer/script-doctor: Subtext Richness; Narrative Gravity; Dialogue Dynamics Map; Hook & Release; Character Echoes.\n"
         "- Audience-centric: Emotional Stickiness; Social Share Potential; Cultural Mirror; Genre Pulse Match; Multi‑Audience Readability.\n"
         "- Deep craft: Sensory Weave; Symbol/Object Resonance; Tone vs Story DNA; Emotional Foreshadowing; Rhythmic Breath Check.\n"
         "- SceneCraft‑exclusive: Silent Scene Reimagination.\n\n"
-
         "OUTPUT CONTRACT — Return STRICT JSON ONLY (no markdown/code fences) with this schema:\n"
         "{\n"
         '  "summary": string,\n'
@@ -214,7 +193,6 @@ def _system_prompt() -> str:
         '  "growth_suggestions": [string | {"experiment":string,"why":string,"expected_effect":string,"risk":string}],\n'
         '  "disclaimer": string\n'
         "}\n\n"
-
         "CLARITY & BREVITY RULES (very important):\n"
         "- Keep the output uncluttered and human-readable.\n"
         "- summary: ~80–120 words max, flowing like a thoughtful script doctor.\n"
@@ -237,10 +215,14 @@ def _system_prompt() -> str:
     )
 
 # ------------------------ Freesound integration (optional) -------------------------
+FREESOUND_API_KEY = os.getenv("FREESOUND_API_KEY")
+
 async def get_freesound_url(query: str) -> str:
-    api_key, _, freesound_key, _, _ = _env_keys()
-    # (api_key unused here; kept for parity)
-    if not freesound_key or not query or httpx is None:
+    """
+    Fetch an ambience sound URL from Freesound based on a mood query.
+    Returns a direct MP3 preview URL when available, else "".
+    """
+    if not FREESOUND_API_KEY or not query:
         return ""
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -248,11 +230,11 @@ async def get_freesound_url(query: str) -> str:
                 "https://freesound.org/apiv2/search/text/",
                 params={
                     "query": query,
-                    "filter": "duration:[5 TO 60]",
+                    "filter": "duration:[5 TO 60]",  # short loops
                     "sort": "score",
                     "fields": "id,previews",
                 },
-                headers={"Authorization": f"Token {freesound_key}"},
+                headers={"Authorization": f"Token {FREESOUND_API_KEY}"},
             )
             r.raise_for_status()
             data = r.json()
@@ -260,6 +242,7 @@ async def get_freesound_url(query: str) -> str:
                 return data["results"][0]["previews"].get("preview-hq-mp3", "") or \
                        data["results"][0]["previews"].get("preview-lq-mp3", "")
     except Exception as e:
+        # Non-fatal: just skip audio if anything goes wrong
         print(f"[Freesound] Error fetching sound: {e}")
     return ""
 
@@ -276,11 +259,13 @@ def _wrap_lines(text: str, max_len: int = 42):
     for w in words:
         test = w if not cur else f"{cur} {w}"
         if len(test) > max_len:
-            if cur: lines.append(cur)
+            if cur:
+                lines.append(cur)
             cur = w
         else:
             cur = test
-    if cur: lines.append(cur)
+    if cur:
+        lines.append(cur)
     return lines[:3]
 
 def _is_female(text: str) -> bool:
@@ -295,79 +280,99 @@ def _is_female(text: str) -> bool:
 
 def _infer_layout(caption: str):
     t = f" {caption.lower()} "
-    if any(k in t for k in ["close-up"," close up "," closeup "," cu "]): size = "cu"
-    elif any(k in t for k in ["medium"," mid "," two-shot"," two shot"," ms "]): size = "ms"
-    else: size = "ws"
-    two = any(k in t for k in ["conversation","talk","speaks","argue","confront","dialogue","both","two","exchange"])
+    if any(k in t for k in ["close-up", " close up ", " closeup ", " cu "]):
+        size = "cu"
+    elif any(k in t for k in ["medium", " mid ", " two-shot", " two shot", " ms "]):
+        size = "ms"
+    else:
+        size = "ws"
+    two = any(k in t for k in ["conversation", "talk", "speaks", "argue", "confront", "dialogue", "both", "two", "exchange"])
     pos_primary = 0.25 if " left " in t else (0.75 if " right " in t else 0.5)
     pos_secondary = 0.75 if pos_primary < 0.5 else 0.25
-    if any(k in t for k in ["low angle","looks up","towering"]): horizon = 0.68
-    elif any(k in t for k in ["high angle","overhead","looks down"]): horizon = 0.38
-    else: horizon = 0.56
+    if any(k in t for k in ["low angle", "looks up", "towering"]):
+        horizon = 0.68
+    elif any(k in t for k in ["high angle", "overhead", "looks down"]):
+        horizon = 0.38
+    else:
+        horizon = 0.56
     subj = "person"
     bg = "room"
-    if any(k in t for k in ["city","skyline","rooftop","terrace"]): bg = "city"
-    elif "garage" in t: bg = "garage"
-    elif any(k in t for k in ["train","carriage","compartment"]): bg = "train"
-    return size, two, pos_primary, pos_secondary, horizon, subj, bg, {}, any(k in t for k in ["scan","scans","survey","looks around","glance around","observes"])
+    if any(k in t for k in ["city", "skyline", "rooftop", "terrace"]):
+        bg = "city"
+    elif "garage" in t:
+        bg = "garage"
+    elif any(k in t for k in ["train", "carriage", "compartment"]):
+        bg = "train"
+    props = {
+        "chandelier": any(k in t for k in ["chandelier", "ceiling light"]),
+        "table": any(k in t for k in ["table", "desk", "bar", "counter"]),
+        "sofa": any(k in t for k in ["sofa", "couch", "booth"]),
+        "door": any(k in t for k in ["door", "exit", "archway"]),
+        "window": any(k in t for k in ["window", "balcony", "pane"]),
+    }
+    action_scan = any(k in t for k in ["scan", "scans", "survey", "looks around", "glance around", "observes"])
+    return size, two, pos_primary, pos_secondary, horizon, subj, bg, props, action_scan
 
 def _female_silhouette(cx, baseline, scale=1.0, scan_pose=False):
     dark = "#081c44"
-    r = int(11*scale)
-    torso_w = int(24*scale); torso_h = int(40*scale)
-    skirt_w = int(34*scale); skirt_h = int(24*scale)
-    leg = int(18*scale)
-    head_y = baseline - torso_h - skirt_h - r*2 + 8
+    r = int(11 * scale)
+    torso_w = int(24 * scale)
+    torso_h = int(40 * scale)
+    skirt_w = int(34 * scale)
+    skirt_h = int(24 * scale)
+    leg = int(18 * scale)
+    head_y = baseline - torso_h - skirt_h - r * 2 + 8
     parts = [
-        f'<circle cx="{cx}" cy="{head_y+r}" r="{r}" fill="{dark}" />',
-        f'<circle cx="{cx+r-3}" cy="{head_y+4}" r="{int(5*scale)}" fill="{dark}" />',
-        f'<rect x="{cx-torso_w//2}" y="{baseline-(torso_h+skirt_h)}" width="{torso_w}" height="{torso_h}" rx="5" fill="{dark}" />',
-        f'<path d="M {cx-skirt_w//2} {baseline-skirt_h} L {cx+skirt_w//2} {baseline-skirt_h} L {cx+int(skirt_w*0.35)} {baseline} L {cx-int(skirt_w*0.35)} {baseline} Z" fill="{dark}"/>',
+        f'<circle cx="{cx}" cy="{head_y + r}" r="{r}" fill="{dark}" />',
+        f'<circle cx="{cx + r - 3}" cy="{head_y + 4}" r="{int(5 * scale)}" fill="{dark}" />',
+        f'<rect x="{cx - torso_w // 2}" y="{baseline - (torso_h + skirt_h)}" width="{torso_w}" height="{torso_h}" rx="5" fill="{dark}" />',
+        f'<path d="M {cx - skirt_w // 2} {baseline - skirt_h} L {cx + skirt_w // 2} {baseline - skirt_h} L {cx + int(skirt_w * 0.35)} {baseline} L {cx - int(skirt_w * 0.35)} {baseline} Z" fill="{dark}"/>',
     ]
     if scan_pose:
-        parts.append(f'<rect x="{cx+torso_w//2}" y="{baseline-(torso_h+skirt_h-16)}" width="{int(18*scale)}" height="{int(7*scale)}" rx="3" fill="{dark}" />')
-        parts.append(f'<rect x="{cx-torso_w//2-int(18*scale)}" y="{baseline-(torso_h+skirt_h-4)}" width="{int(18*scale)}" height="{int(7*scale)}" rx="3" fill="{dark}" />')
+        parts.append(f'<rect x="{cx + torso_w // 2}" y="{baseline - (torso_h + skirt_h - 16)}" width="{int(18 * scale)}" height="{int(7 * scale)}" rx="3" fill="{dark}" />')
+        parts.append(f'<rect x="{cx - torso_w // 2 - int(18 * scale)}" y="{baseline - (torso_h + skirt_h - 4)}" width="{int(18 * scale)}" height="{int(7 * scale)}" rx="3" fill="{dark}" />')
     else:
-        parts.append(f'<rect x="{cx-torso_w//2-int(16*scale)}" y="{baseline-(torso_h+skirt_h-8)}" width="{int(16*scale)}" height="{int(7*scale)}" rx="3" fill="{dark}" />')
-        parts.append(f'<rect x="{cx+torso_w//2}" y="{baseline-(torso_h+skirt_h-8)}" width="{int(16*scale)}" height="{int(7*scale)}" rx="3" fill="{dark}" />')
-    parts.append(f'<rect x="{cx-9*scale:.0f}" y="{baseline-6*scale:.0f}" width="{8*scale:.0f}" height="{leg}" rx="3" fill="{dark}" />')
-    parts.append(f'<rect x="{cx+1*scale:.0f}" y="{baseline-6*scale:.0f}" width="{8*scale:.0f}" height="{leg}" rx="3" fill="{dark}" />')
+        parts.append(f'<rect x="{cx - torso_w // 2 - int(16 * scale)}" y="{baseline - (torso_h + skirt_h - 8)}" width="{int(16 * scale)}" height="{int(7 * scale)}" rx="3" fill="{dark}" />')
+        parts.append(f'<rect x="{cx + torso_w // 2}" y="{baseline - (torso_h + skirt_h - 8)}" width="{int(16 * scale)}" height="{int(7 * scale)}" rx="3" fill="{dark}" />')
+    parts.append(f'<rect x="{cx - 9 * scale:.0f}" y="{baseline - 6 * scale:.0f}" width="{8 * scale:.0f}" height="{leg}" rx="3" fill="{dark}" />')
+    parts.append(f'<rect x="{cx + 1 * scale:.0f}" y="{baseline - 6 * scale:.0f}" width="{8 * scale:.0f}" height="{leg}" rx="3" fill="{dark}" />')
     return "\n".join(parts)
 
 def _neutral_silhouette(cx, baseline, scale=1.0):
     dark = "#081c44"
-    r = int(11*scale)
-    torso_w = int(26*scale); torso_h = int(40*scale)
-    leg = int(18*scale)
-    head_y = baseline - torso_h - r*2
+    r = int(11 * scale)
+    torso_w = int(26 * scale)
+    torso_h = int(40 * scale)
+    leg = int(18 * scale)
+    head_y = baseline - torso_h - r * 2
     return "\n".join([
-        f'<circle cx="{cx}" cy="{head_y+r}" r="{r}" fill="{dark}" />',
-        f'<rect x="{cx-torso_w//2}" y="{baseline-torso_h}" width="{torso_w}" height="{torso_h}" rx="5" fill="{dark}" />',
-        f'<rect x="{cx-torso_w//2-int(18*scale)}" y="{baseline-int(torso_h*0.75)}" width="{int(18*scale)}" height="{int(7*scale)}" rx="3" fill="{dark}" />',
-        f'<rect x="{cx+torso_w//2}" y="{baseline-int(torso_h*0.75)}" width="{int(18*scale)}" height="{int(7*scale)}" rx="3" fill="{dark}" />',
-        f'<rect x="{cx-9*scale:.0f}" y="{baseline-6*scale:.0f}" width="{8*scale:.0f}" height="{leg}" rx="3" fill="{dark}" />',
-        f'<rect x="{cx+1*scale:.0f}" y="{baseline-6*scale:.0f}" width="{8*scale:.0f}" height="{leg}" rx="3" fill="{dark}" />',
+        f'<circle cx="{cx}" cy="{head_y + r}" r="{r}" fill="{dark}" />',
+        f'<rect x="{cx - torso_w // 2}" y="{baseline - torso_h}" width="{torso_w}" height="{torso_h}" rx="5" fill="{dark}" />',
+        f'<rect x="{cx - torso_w // 2 - int(18 * scale)}" y="{baseline - int(torso_h * 0.75)}" width="{int(18 * scale)}" height="{int(7 * scale)}" rx="3" fill="{dark}" />',
+        f'<rect x="{cx + torso_w // 2}" y="{baseline - int(torso_h * 0.75)}" width="{int(18 * scale)}" height="{int(7 * scale)}" rx="3" fill="{dark}" />',
+        f'<rect x="{cx - 9 * scale:.0f}" y="{baseline - 6 * scale:.0f}" width="{8 * scale:.0f}" height="{leg}" rx="3" fill="{dark}" />',
+        f'<rect x="{cx + 1 * scale:.0f}" y="{baseline - 6 * scale:.0f}" width="{8 * scale:.0f}" height="{leg}" rx="3" fill="{dark}" />',
     ])
 
 def _draw_subject_person(cx, baseline, size, is_female, scan_pose):
-    scale = 0.95 if size=="ws" else (1.3 if size=="ms" else 1.8)
+    scale = 0.95 if size == "ws" else (1.3 if size == "ms" else 1.8)
     return _female_silhouette(cx, baseline, scale, scan_pose) if is_female else _neutral_silhouette(cx, baseline, scale)
 
 def _draw_subject(subj, size, pos, w, h, is_female=False, scan_pose=False):
     cx = int(w * pos)
-    base = int(h*0.74)
+    base = int(h * 0.74)
     if subj == "person":
         return _draw_subject_person(cx, base, size, is_female, scan_pose)
-    return f'<rect x="{cx-20}" y="{base-28}" width="40" height="32" rx="6" fill="#081c44" opacity="0.7"/>'
+    return f'<rect x="{cx - 20}" y="{base - 28}" width="40" height="32" rx="6" fill="#081c44" opacity="0.7"/>'
 
 def _room_box(w, h, horizon_y):
-    vp_x = w//2
+    vp_x = w // 2
     lines = []
-    lines.append(f'<rect x="12" y="12" width="{w-24}" height="{h-24}" fill="none" stroke="#0b2a55" stroke-width="2" opacity="0.35"/>')
-    for x in range(24, w-24, 140):
-        lines.append(f'<line x1="{x}" y1="{h-24}" x2="{vp_x}" y2="{horizon_y}" stroke="#0b2a55" stroke-width="1" opacity="0.25"/>')
-    for y in range(horizon_y+10, h-24, 36):
-        lines.append(f'<line x1="24" y1="{y}" x2="{w-24}" y2="{y}" stroke="#0b2a55" stroke-width="1" opacity="0.2"/>')
+    lines.append(f'<rect x="12" y="12" width="{w - 24}" height="{h - 24}" fill="none" stroke="#0b2a55" stroke-width="2" opacity="0.35"/>')
+    for x in range(24, w - 24, 140):
+        lines.append(f'<line x1="{x}" y1="{h - 24}" x2="{vp_x}" y2="{horizon_y}" stroke="#0b2a55" stroke-width="1" opacity="0.25"/>')
+    for y in range(horizon_y + 10, h - 24, 36):
+        lines.append(f'<line x1="24" y1="{y}" x2="{w - 24}" y2="{y}" stroke="#0b2a55" stroke-width="1" opacity="0.2"/>')
     return "\n".join(lines)
 
 def _env_background(bg, w, h, horizon_y):
@@ -376,18 +381,18 @@ def _env_background(bg, w, h, horizon_y):
     if bg == "city":
         blocks = []
         for x in range(40, w, 90):
-            height = 40 + ((x*37) % 90)
-            blocks.append(f'<rect x="{x}" y="{h-80-height}" width="26" height="{height}" fill="#0b2a55" opacity="0.12"/>')
+            height = 40 + ((x * 37) % 90)
+            blocks.append(f'<rect x="{x}" y="{h - 80 - height}" width="26" height="{height}" fill="#0b2a55" opacity="0.12"/>')
         return "\n".join(blocks)
     if bg == "garage":
         cols = []
         for x in range(0, w, 160):
-            cols.append(f'<rect x="{x+20}" y="{horizon_y-6}" width="16" height="{h-horizon_y+6}" fill="#0b2a55" opacity="0.15"/>')
+            cols.append(f'<rect x="{x + 20}" y="{horizon_y - 6}" width="16" height="{h - horizon_y + 6}" fill="#0b2a55" opacity="0.15"/>')
         return "\n".join(cols)
     if bg == "train":
         return (
-            f'<rect x="20" y="{horizon_y-50}" width="{w-40}" height="8" rx="4" fill="#0b2a55" opacity="0.2"/>'
-            f'<rect x="24" y="{horizon_y-42}" width="{w-48}" height="{h-horizon_y-50}" rx="6" fill="#0b2a55" opacity="0.06"/>'
+            f'<rect x="20" y="{horizon_y - 50}" width="{w - 40}" height="8" rx="4" fill="#0b2a55" opacity="0.2"/>'
+            f'<rect x="24" y="{horizon_y - 42}" width="{w - 48}" height="{h - horizon_y - 50}" rx="6" fill="#0b2a55" opacity="0.06"/>'
         )
     return ""
 
@@ -438,7 +443,7 @@ def _svg_storyboard_strings(caption: str, mood_words):
 
 def _storyboard_from_beats(beats, mood_words, max_frames=4):
     frames = []
-    for b in (beats or [])[:max_frames]:
+    for b in beats[:max_frames]:
         cap = (b.get("insight") or "").strip()
         if not cap:
             continue
@@ -459,9 +464,15 @@ def _image_prompt_from_caption(caption: str, summary: str, mood_words) -> str:
 
 # --------- OpenAI Images (optional) ----------
 async def _gen_image_openai(prompt: str, size: str = "1536x1024") -> str:
-    OPENAI_API_KEY, _, _, _, _ = _env_keys()
-    if not OPENAI_API_KEY or httpx is None:
+    """
+    Return a PNG data URL from OpenAI Images (gpt-image-1), or '' on failure.
+    Supported sizes: '1024x1024', '1536x1024', '1024x1536', 'auto'.
+    If 403 (org not verified), we log and return '' without raising.
+    """
+    if not OPENAI_API_KEY:
+        print("[Storyboard] OPENAI_API_KEY not set")
         return ""
+
     SUPPORTED = {"1024x1024", "1536x1024", "1024x1536", "auto"}
     if size not in SUPPORTED:
         size = "1536x1024"
@@ -475,7 +486,12 @@ async def _gen_image_openai(prompt: str, size: str = "1536x1024") -> str:
                         "Authorization": f"Bearer {OPENAI_API_KEY}",
                         "Content-Type": "application/json",
                     },
-                    json={"model": "gpt-image-1", "prompt": prompt, "size": sz, "n": 1},
+                    json={
+                        "model": "gpt-image-1",
+                        "prompt": prompt,
+                        "size": sz,
+                        "n": 1,
+                    },
                 )
                 if r.status_code == 403:
                     print(f"[Storyboard] OpenAI 403 (access): {r.text[:400]}")
@@ -513,6 +529,7 @@ async def _gen_image_openai(prompt: str, size: str = "1536x1024") -> str:
 
 # --------- Stability (SDXL) Images (optional) ----------
 def _stability_dims_from_size(size: str):
+    # SDXL accepts <=1024 dims, multiples of 64; preserve aspect roughly
     if size == "1024x1536":
         return 704, 1024   # portrait
     if size == "1536x1024":
@@ -520,8 +537,9 @@ def _stability_dims_from_size(size: str):
     return 1024, 1024      # square
 
 async def _gen_image_stability(prompt: str, size: str = "1536x1024") -> str:
-    _, STABILITY_API_KEY, _, _, _ = _env_keys()
-    if not STABILITY_API_KEY or httpx is None:
+    api_key = STABILITY_API_KEY
+    if not api_key:
+        print("[Storyboard] STABILITY_API_KEY not set")
         return ""
     w, h = _stability_dims_from_size(size)
     payload = {
@@ -538,7 +556,7 @@ async def _gen_image_stability(prompt: str, size: str = "1536x1024") -> str:
             r = await client.post(
                 "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image",
                 headers={
-                    "Authorization": f"Bearer {STABILITY_API_KEY}",
+                    "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
                     "Accept": "application/json",
                 },
@@ -559,53 +577,65 @@ async def _gen_image_stability(prompt: str, size: str = "1536x1024") -> str:
 
 # --------- Prefer PNGs; embed inside inline SVG so UI shows them without changes ---
 async def _maybe_generate_storyboard_pngs(obj: dict):
-    enable, provider, max_frames = _storyboard_flags()
-    if not enable or provider == "off":
-        return
+    """
+    Optionally replace/augment storyboard_frames with PNGs (data URLs).
+    Frontend prefers 'svg', so when we have a PNG we embed it inside a tiny
+    SVG wrapper and assign it to 'svg'. This avoids any HTML/JS changes.
+    """
+    try:
+        if not STORYBOARD_ENABLE or STORYBOARD_PROVIDER == "off":
+            return
 
-    frames = obj.get("storyboard_frames") or []
-    if not frames:
-        return
+        frames = obj.get("storyboard_frames") or []
+        if not frames:
+            return
 
-    summary = obj.get("summary", "") or ""
-    mood_words = (obj.get("theme") or {}).get("mood_words") or []
+        summary = obj.get("summary", "") or ""
+        mood_words = (obj.get("theme") or {}).get("mood_words") or []
+        targets = frames[: max(0, min(STORYBOARD_MAX_FRAMES, len(frames)))]
 
-    def _svg_wrap_png(png_data_url: str, w: int = 960, h: int = 540) -> str:
-        return (
-            f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">'
-            f'<image href="{png_data_url}" x="0" y="0" width="{w}" height="{h}" preserveAspectRatio="xMidYMid slice"/>'
-            '</svg>'
-        )
+        def _svg_wrap_png(png_data_url: str, w: int = 960, h: int = 540) -> str:
+            return (
+                f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">'
+                f'<image href="{png_data_url}" x="0" y="0" width="{w}" height="{h}" preserveAspectRatio="xMidYMid slice"/>'
+                '</svg>'
+            )
 
-    for f in frames[: max(0, min(max_frames, len(frames)))]:
-        try:
+        for f in targets:
             cap = (f.get("caption") or "").strip()
             if not cap:
                 continue
 
-            # If PNG already present, ensure svg uses it
+            # If a PNG already present, ensure svg shows that PNG (not the placeholder)
             if isinstance(f.get("image_url"), str) and f["image_url"].startswith("data:image/png"):
                 f["svg"] = _svg_wrap_png(f["image_url"])
                 continue
 
+            # Generate PNG via selected provider
             prompt = _image_prompt_from_caption(cap, summary, mood_words)
             data_url = ""
-            if provider == "openai":
+            if STORYBOARD_PROVIDER == "openai":
                 data_url = await _gen_image_openai(prompt)
-            elif provider == "stability":
+            elif STORYBOARD_PROVIDER == "stability":
                 data_url = await _gen_image_stability(prompt)
 
             if data_url:
-                f["image_url"] = data_url
-                f["svg"] = _svg_wrap_png(data_url)
-        except Exception as e:
-            print(f"[Storyboard] Frame error: {e}")
-
-    obj["storyboard_frames"] = frames
+                f["image_url"] = data_url          # keep for compatibility
+                f["svg"] = _svg_wrap_png(data_url) # force inline SVG for CSP
+        obj["storyboard_frames"] = frames
+    except Exception as e:
+        # Never let storyboard generation break imports or the /analyze response
+        print(f"[Storyboard] Non-fatal generation issue: {e}")
 
 # -----------------------------------------------------------------------------------
+
 def _prune_output(obj: dict) -> dict:
+    """
+    Light curation to keep the UI uncluttered. We don't alter meaning,
+    just cap lengths so the front-end stays breathable.
+    """
     try:
+        # Cap arrays to readable sizes
         if isinstance(obj.get("beats"), list):
             obj["beats"] = obj["beats"][:5]
         if isinstance(obj.get("suggestions"), list):
@@ -625,15 +655,16 @@ def _prune_output(obj: dict) -> dict:
         if isinstance(obj.get("storyboard_frames"), list):
             obj["storyboard_frames"] = obj["storyboard_frames"][:6]
 
+        # Pacing map: keep within 20–40 points if oversized
         pm = obj.get("pacing_map")
         if isinstance(pm, list) and len(pm) > 40:
             stride = max(1, len(pm) // 40)
             obj["pacing_map"] = pm[::stride][:40]
     except Exception:
+        # Never let pruning break output
         pass
     return obj
 
-# ================================ PUBLIC ENTRYPOINT ================================
 async def analyze_scene(scene: str) -> dict:
     raw = scene or ""
     clean = clean_scene(raw)
@@ -649,6 +680,7 @@ async def analyze_scene(scene: str) -> dict:
             status_code=400,
             detail="SceneCraft does not generate scenes. Please submit your own scene or script for analysis.",
         )
+
     if not clean:
         raise HTTPException(status_code=400, detail="Invalid scene content")
 
@@ -665,15 +697,13 @@ async def analyze_scene(scene: str) -> dict:
             detail=f"Scene is too long for a single-pass analysis (> {MAX_WORDS} words). Consider splitting it.",
         )
 
-    # OpenRouter call (lazy env read; httpx checked at call time)
-    OPENAI_KEY, STAB_KEY, FREE_KEY, OPENROUTER_API_KEY, OPENROUTER_MODEL = _env_keys()
-    if not OPENROUTER_API_KEY:
+    api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if not api_key:
         raise HTTPException(status_code=500, detail="Missing OPENROUTER_API_KEY.")
-    if httpx is None:
-        raise HTTPException(status_code=500, detail="httpx not installed.")
 
+    # --- call OpenRouter with JSON mode, then fallback if unsupported ---
     base_payload = {
-        "model": OPENROUTER_MODEL,
+        "model": os.getenv("OPENROUTER_MODEL", "gpt-4o"),
         "temperature": 0.5,
         "messages": [
             {"role": "system", "content": _system_prompt()},
@@ -686,7 +716,7 @@ async def analyze_scene(scene: str) -> dict:
             r = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
                 },
                 json=payload,
@@ -695,30 +725,30 @@ async def analyze_scene(scene: str) -> dict:
             return r.json()
 
     try:
-        # 1) Try JSON mode, fallback if provider rejects response_format
+        # 1) Try JSON mode
         json_mode_payload = dict(base_payload)
         json_mode_payload["response_format"] = {"type": "json_object"}
         try:
             data = await _post(json_mode_payload)
         except httpx.HTTPStatusError as e:
+            # If provider/model rejects response_format, fallback without it
             detail_text = ""
             try:
                 detail_text = e.response.text or ""
             except Exception:
                 pass
-            if e.response.status_code in (400, 404, 422) or "response_format" in detail_text.lower():
+            if e.response.status_code in (400, 404, 422) or "response_format" in (detail_text or "").lower():
                 data = await _post(base_payload)
             else:
                 raise
 
-        content = (
-            data.get("choices", [{}])[0].get("message", {}).get("content", "")
-        ).strip()
+        content = (data.get("choices", [{}])[0].get("message", {}).get("content", "")).strip()
 
         # Parse STRICT JSON if present
         try:
             obj = _json.loads(content)
         except Exception:
+            # Some providers wrap JSON in fences — try to strip
             trimmed = content.strip()
             if trimmed.startswith("```"):
                 trimmed = trimmed.strip("`")
@@ -727,6 +757,7 @@ async def analyze_scene(scene: str) -> dict:
             try:
                 obj = _json.loads(trimmed)
             except Exception:
+                # Final safety: wrap raw text so UI still shows something useful
                 return _fallback_payload_from_text(content)
 
         # Minimal defaults so frontend never breaks
@@ -787,15 +818,13 @@ async def analyze_scene(scene: str) -> dict:
                     obj["theme"] = theme
         except Exception as _e:
             print(f"[Freesound] Non-fatal: {_e}")
+        # ----------------------------------------------------------------
 
-        # --------- Storyboard frames (inline SVG) -------
+        # --------- Storyboard frames (inline SVG placeholders) -------
         try:
             if not obj.get("storyboard_frames"):
                 mood_words = (obj.get("theme") or {}).get("mood_words") or []
-                enable, _, max_frames = _storyboard_flags()
-                obj["storyboard_frames"] = _storyboard_from_beats(
-                    obj.get("beats") or [], mood_words, max_frames=max_frames or 4
-                )
+                obj["storyboard_frames"] = _storyboard_from_beats(obj.get("beats") or [], mood_words, max_frames=4)
         except Exception as _e:
             print(f"[Storyboard] Non-fatal SVG: {_e}")
 
@@ -811,6 +840,7 @@ async def analyze_scene(scene: str) -> dict:
         return obj
 
     except httpx.HTTPStatusError as e:
+        # Surface provider error message cleanly
         try:
             err_json = e.response.json()
             detail = (err_json.get("error") or {}).get("message") or e.response.text
@@ -818,5 +848,4 @@ async def analyze_scene(scene: str) -> dict:
             detail = e.response.text
         raise HTTPException(status_code=e.response.status_code, detail=detail)
     except Exception as e:
-        # Never let unexpected exceptions bubble up as import-time failures
         raise HTTPException(status_code=500, detail=str(e))
