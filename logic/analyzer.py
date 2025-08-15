@@ -458,6 +458,12 @@ async def _gen_image_openai(prompt: str, size: str = "1536x1024") -> str:
     """
     Return a PNG data URL from OpenAI Images (gpt-image-1), or '' on failure.
     Supported sizes: '1024x1024', '1536x1024', '1024x1536', 'auto'.
+
+async def _gen_image_openai(prompt: str, size: str = "1536x1024") -> str:
+    """
+    Return a PNG data URL from OpenAI Images (gpt-image-1), or '' on failure.
+    Supported sizes (as of now): '1024x1024', '1536x1024', '1024x1536', 'auto'.
+
     If 403 (org not verified), we log and return '' without raising.
     """
     if not OPENAI_API_KEY:
@@ -480,11 +486,20 @@ async def _gen_image_openai(prompt: str, size: str = "1536x1024") -> str:
                     json={
                         "model": "gpt-image-1",
                         "prompt": prompt,
+
                         "size": sz,
+
+                        "size": sz,     # must be one of SUPPORTED
+
                         "n": 1,
+                        # (Do NOT send 'response_format'; API rejects it)
                     },
                 )
                 if r.status_code == 403:
+
+
+                    # Org not verified (or other access issue) — don’t crash, just fall back.
+
                     print(f"[Storyboard] OpenAI 403 (access): {r.text[:400]}")
                     return ""
                 if r.status_code >= 400:
@@ -494,9 +509,13 @@ async def _gen_image_openai(prompt: str, size: str = "1536x1024") -> str:
                 data = r.json()
                 item = (data.get("data") or [{}])[0]
 
+                # Prefer base64 if present
+
                 b64 = item.get("b64_json")
                 if b64:
                     return f"data:image/png;base64,{b64}"
+
+                # Fall back to URL (fetch and convert to data URL)
 
                 url = item.get("url")
                 if url:
@@ -513,6 +532,7 @@ async def _gen_image_openai(prompt: str, size: str = "1536x1024") -> str:
             print(f"[Storyboard] OpenAI generation error (size {sz}): {e}")
             return ""
 
+    # Try requested/normalized size, then a safe square fallback
     out = await _call(size)
     if not out and size != "1024x1024":
         out = await _call("1024x1024")
