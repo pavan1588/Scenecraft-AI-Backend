@@ -454,8 +454,9 @@ def _image_prompt_from_caption(caption: str, summary: str, mood_words) -> str:
 
 async def _gen_image_openai(prompt: str, size: str = "1792x1024") -> str:
     """
-    Return data-url PNG from OpenAI Images or '' on failure.
-    Uses only supported sizes for gpt-image-1 and falls back if needed.
+    Return a PNG data URL from OpenAI Images (gpt-image-1), or '' on failure.
+    NOTE: gpt-image-1 does NOT accept 'response_format'; omit it.
+    Parse b64_json if present, otherwise fetch the returned URL and convert to data URL.
     """
     if not OPENAI_API_KEY:
         print("[Storyboard] OPENAI_API_KEY not set")
@@ -463,7 +464,7 @@ async def _gen_image_openai(prompt: str, size: str = "1792x1024") -> str:
 
     async def _call(sz: str) -> str:
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(timeout=90.0) as client:
                 r = await client.post(
                     "https://api.openai.com/v1/images/generations",
                     headers={
@@ -473,34 +474,44 @@ async def _gen_image_openai(prompt: str, size: str = "1792x1024") -> str:
                     json={
                         "model": "gpt-image-1",
                         "prompt": prompt,
-                        "size": sz,                     # must be 1024x1024, 1792x1024, or 1024x1792
-                        "response_format": "b64_json",
-                        "quality": "standard",
+                        "size": sz,          # supported: 1024x1024, 1792x1024, 1024x1792
                         "n": 1,
+                        # do NOT send 'response_format' here
+                        # quality: "standard"  # optional
                     },
                 )
                 if r.status_code >= 400:
-                    # Log full response for quick diagnosis
                     try:
-                        print(f"[Storyboard] OpenAI error {r.status_code}: {r.text[:600]}")
+                        print(f"[Storyboard] OpenAI error {r.status_code}: {r.text[:800]}")
                     except Exception:
                         print(f"[Storyboard] OpenAI error {r.status_code}: <no body>")
                     r.raise_for_status()
 
                 data = r.json()
-                b64 = (data.get("data") or [{}])[0].get("b64_json") or ""
-                if not b64:
-                    print("[Storyboard] OpenAI returned empty b64_json")
-                    return ""
-                return f"data:image/png;base64,{b64}"
+                item = (data.get("data") or [{}])[0]
+
+                # Prefer base64 if present
+                b64 = item.get("b64_json")
+                if b64:
+                    return f"data:image/png;base64,{b64}"
+
+                # Fall back to URL (fetch and convert to data URL)
+                url = item.get("url")
+                if url:
+                    img = await client.get(url, timeout=90.0)
+                    img.raise_for_status()
+                    enc = base64.b64encode(img.content).decode("utf-8")
+                    return f"data:image/png;base64,{enc}"
+
+                print("[Storyboard] OpenAI returned neither b64_json nor url")
+                return ""
         except Exception as e:
             print(f"[Storyboard] OpenAI generation error (size {sz}): {e}")
             return ""
 
-    # Try wide storyboard first, then safe square fallback
     out = await _call(size)
     if not out:
-        out = await _call("1024x1024")
+        out = await _call("1024x1024")  # safe fallback
     return out
 
 async def _maybe_generate_storyboard_pngs(obj: dict):
