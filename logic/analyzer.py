@@ -3,7 +3,7 @@ import re
 import json as _json
 import httpx
 import hashlib
-from urllib.parse import quote_plus
+from urllib.parse import quote  # ← use quote (not quote_plus)
 from fastapi import HTTPException
 
 # ---- Generation-command filtering -------------------------------------------------
@@ -171,7 +171,7 @@ def _system_prompt() -> str:
         '    {"claim": string, "evidence": "short quote or detail (≤12 words)"}\n'
         "  ],\n"
         '  "confidence": integer (0-100),\n'
-        '  "confidence_reason": string,\n'
+        '  "confidence_reason": string,\n"
         '  "beats": [\n'
         '    {"title": "Setup" | "Trigger" | "Escalation" | "Climax" | "Exit", "insight": string}\n'
         "  ],\n"
@@ -249,8 +249,6 @@ async def get_freesound_url(query: str) -> str:
 
 # -----------------------------------------------------------------------------------
 # Storyboard image generation (URL-based; no extra API keys required)
-# Uses a deterministic prompt->image URL to get a cinematic storyboard-style still.
-# If you want to swap providers later, adjust only this function.
 def _storyboard_image_url(caption: str, mood_words: list[str] | None) -> str:
     mood = ", ".join([str(m) for m in (mood_words or []) if str(m).strip()])[:120]
     style = (
@@ -258,11 +256,10 @@ def _storyboard_image_url(caption: str, mood_words: list[str] | None) -> str:
         "high contrast, soft film grain, minimal shading"
     )
     prompt = f"{style}. Scene: {caption}. Mood: {mood or 'cinematic, dramatic'}."
-    # deterministic seed from caption for stable results/caching
     seed = int(hashlib.sha256(caption.encode('utf-8')).hexdigest(), 16) % 10_000_000
-    # Pollinations-style generator URL
+    encoded = quote(prompt, safe="")  # ← correct encoding for Pollinations
     return (
-        f"https://image.pollinations.ai/prompt/{quote_plus(prompt)}"
+        f"https://image.pollinations.ai/prompt/{encoded}"
         f"?seed={seed}&width=960&height=540&nologo=true"
     )
 
@@ -280,9 +277,7 @@ def _ensure_storyboard_images(obj: dict) -> dict:
         if not isinstance(frames, list) or not frames:
             frames = []
             beats = obj.get("beats") or []
-            # Map up to 5 beats to captions
             title_order = ["Setup", "Trigger", "Escalation", "Climax", "Exit"]
-            # sort beats into canonical order where possible
             def beat_key(b):
                 t = (b or {}).get("title", "")
                 return title_order.index(t) if t in title_order else 99
@@ -291,7 +286,6 @@ def _ensure_storyboard_images(obj: dict) -> dict:
                 cap = (b or {}).get("insight") or (b or {}).get("title") or "Key moment"
                 frames.append({"caption": str(cap).strip()[:200], "image_url": ""})
 
-        # Attach image URLs where missing
         out = []
         for f in frames[:5]:
             cap = str((f or {}).get("caption") or "Key moment")
@@ -335,11 +329,9 @@ def _prune_output(obj: dict) -> dict:
         # Pacing map: keep within 20–40 points if oversized
         pm = obj.get("pacing_map")
         if isinstance(pm, list) and len(pm) > 40:
-            # downsample by simple stride
             stride = max(1, len(pm) // 40)
             obj["pacing_map"] = pm[::stride][:40]
     except Exception:
-        # Never let pruning break output
         pass
     return obj
 
@@ -424,7 +416,6 @@ async def analyze_scene(scene: str) -> dict:
         try:
             data = await _post(json_mode_payload)
         except httpx.HTTPStatusError as e:
-            # If provider/model rejects response_format, fallback without it
             detail_text = ""
             try:
                 detail_text = e.response.text or ""
@@ -443,7 +434,6 @@ async def analyze_scene(scene: str) -> dict:
         try:
             obj = _json.loads(content)
         except Exception:
-            # Some providers wrap JSON in fences — try to strip
             trimmed = content.strip()
             if trimmed.startswith("```"):
                 trimmed = trimmed.strip("`")
@@ -452,7 +442,6 @@ async def analyze_scene(scene: str) -> dict:
             try:
                 obj = _json.loads(trimmed)
             except Exception:
-                # Final safety: wrap raw text so UI still shows something useful
                 return _fallback_payload_from_text(content)
 
         # Minimal defaults so frontend never breaks
@@ -519,7 +508,6 @@ async def analyze_scene(scene: str) -> dict:
                     theme["audio_url"] = fs_url
                     obj["theme"] = theme
         except Exception as _e:
-            # Never fail analysis because audio lookup had issues
             print(f"[Freesound] Non-fatal: {_e}")
         # ----------------------------------------------------------------
 
@@ -532,7 +520,6 @@ async def analyze_scene(scene: str) -> dict:
         return obj
 
     except httpx.HTTPStatusError as e:
-        # Surface provider error message cleanly
         try:
             err_json = e.response.json()
             detail = (err_json.get("error") or {}).get("message") or e.response.text
