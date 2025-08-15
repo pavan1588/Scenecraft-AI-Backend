@@ -48,8 +48,10 @@ def clean_scene(text: str) -> str:
     for line in text.split("\n"):
         if not line:
             continue
+        # Remove full-line commands entirely
         if INTENT_LINE_RE.match(line):
             continue
+        # Remove only explicit inline "modify this scene/script" commands
         line = INTENT_INLINE_CMD_RE.sub("", line).strip(" :-\t")
         if line:
             cleaned_lines.append(line)
@@ -100,13 +102,14 @@ def _fallback_payload_from_text(text: str) -> dict:
         "integrity_alerts": [],
         "pacing_map": [],
         "growth_suggestions": [],
-        # >>> New evidence/marker fields (safe defaults)
+        # Evidence/markers (already supported)
         "analytics_signals": [],
         "confidence": 60,
         "confidence_reason": "Moderate clarity; limited conflicting signals.",
         "pacing_annotations": [],
         "beat_markers": [],
-        # ------------------------------------------------
+        # Storyboard (NEW)
+        "storyboard_frames": [],  # [{"image_url": "...", "caption": "..."}]
         "disclaimer": (
             "This is a first‑pass cinematic analysis to support your craft. "
             "Your voice and choices always come first."
@@ -183,6 +186,7 @@ def _system_prompt() -> str:
         '  "pacing_annotations": [{"i": integer, "label": "spike"|"build"|"lull"|"release", "note": string}],\n'
         '  "beat_markers": [{"i": integer, "beat": "Setup"|"Trigger"|"Escalation"|"Climax"|"Exit"}],\n'
         '  "growth_suggestions": [string | {"experiment":string,"why":string,"expected_effect":string,"risk":string}],\n'
+        '  "storyboard_frames": [{"image_url": string, "caption": string}],\n'
         '  "disclaimer": string\n'
         "}\n\n"
 
@@ -205,12 +209,17 @@ def _system_prompt() -> str:
         "- Only add pacing_annotations where the shift is clear; avoid guesswork.\n"
         "- beat_markers indices should align to pacing_map length (approximate is fine).\n"
         "- Growth suggestions should be strategic (not line edits) and name why/effect/risk.\n"
+        "- Storyboard frames should be 3–5 key visuals tied to beats; concise captions.\n"
     )
 
 # ------------------------ Freesound integration (optional) -------------------------
 FREESOUND_API_KEY = os.getenv("FREESOUND_API_KEY")
 
 async def get_freesound_url(query: str) -> str:
+    """
+    Fetch an ambience sound URL from Freesound based on a mood query.
+    Returns a direct MP3 preview URL when available, else "".
+    """
     if not FREESOUND_API_KEY or not query:
         return ""
     try:
@@ -219,7 +228,7 @@ async def get_freesound_url(query: str) -> str:
                 "https://freesound.org/apiv2/search/text/",
                 params={
                     "query": query,
-                    "filter": "duration:[5 TO 60]",
+                    "filter": "duration:[5 TO 60]",  # short loops
                     "sort": "score",
                     "fields": "id,previews",
                 },
@@ -231,13 +240,19 @@ async def get_freesound_url(query: str) -> str:
                 return data["results"][0]["previews"].get("preview-hq-mp3", "") or \
                        data["results"][0]["previews"].get("preview-lq-mp3", "")
     except Exception as e:
+        # Non-fatal: just skip audio if anything goes wrong
         print(f"[Freesound] Error fetching sound: {e}")
     return ""
 
 # -----------------------------------------------------------------------------------
 
 def _prune_output(obj: dict) -> dict:
+    """
+    Light curation to keep the UI uncluttered. We don't alter meaning,
+    just cap lengths so the front-end stays breathable.
+    """
     try:
+        # Cap arrays to readable sizes
         if isinstance(obj.get("beats"), list):
             obj["beats"] = obj["beats"][:5]
         if isinstance(obj.get("suggestions"), list):
@@ -248,23 +263,31 @@ def _prune_output(obj: dict) -> dict:
             obj["integrity_alerts"] = obj["integrity_alerts"][:5]
         if isinstance(obj.get("growth_suggestions"), list):
             obj["growth_suggestions"] = obj["growth_suggestions"][:3]
-        # NEW: concise overlays
+
+        # Evidence/overlays clamps (already supported)
         if isinstance(obj.get("analytics_signals"), list):
             obj["analytics_signals"] = obj["analytics_signals"][:5]
         if isinstance(obj.get("pacing_annotations"), list):
             obj["pacing_annotations"] = obj["pacing_annotations"][:8]
         if isinstance(obj.get("beat_markers"), list):
             obj["beat_markers"] = obj["beat_markers"][:5]
-        # Pacing map within 20–40 points if oversized
+
+        # Storyboard frames: keep 3–5 max
+        if isinstance(obj.get("storyboard_frames"), list):
+            obj["storyboard_frames"] = obj["storyboard_frames"][:5]
+
+        # Pacing map: keep within 20–40 points if oversized
         pm = obj.get("pacing_map")
         if isinstance(pm, list) and len(pm) > 40:
+            # downsample by simple stride
             stride = max(1, len(pm) // 40)
             obj["pacing_map"] = pm[::stride][:40]
     except Exception:
+        # Never let pruning break output
         pass
     return obj
 
-# --- Tiny safety clamp for chart stability (does NOT change schema/logic) ----------
+# --- Tiny safety clamp for chart stability (no logic changes) ---
 def _clamp_0_100_list(arr):
     if not isinstance(arr, list):
         return []
@@ -283,6 +306,7 @@ async def analyze_scene(scene: str) -> dict:
     raw = scene or ""
     clean = clean_scene(raw)
 
+    # Guards
     if INTENT_LINE_RE.match(raw.strip()):
         raise HTTPException(
             status_code=400,
@@ -297,6 +321,7 @@ async def analyze_scene(scene: str) -> dict:
     if not clean:
         raise HTTPException(status_code=400, detail="Invalid scene content")
 
+    # word count
     word_count = len(re.findall(r"\b\w+\b", clean))
     if word_count < MIN_WORDS:
         raise HTTPException(
@@ -313,6 +338,7 @@ async def analyze_scene(scene: str) -> dict:
     if not api_key:
         raise HTTPException(status_code=500, detail="Missing OPENROUTER_API_KEY.")
 
+    # --- call OpenRouter with JSON mode, then fallback if unsupported ---
     base_payload = {
         "model": os.getenv("OPENROUTER_MODEL", "gpt-4o"),
         "temperature": 0.5,
@@ -336,11 +362,13 @@ async def analyze_scene(scene: str) -> dict:
             return r.json()
 
     try:
+        # 1) Try JSON mode
         json_mode_payload = dict(base_payload)
         json_mode_payload["response_format"] = {"type": "json_object"}
         try:
             data = await _post(json_mode_payload)
         except httpx.HTTPStatusError as e:
+            # If provider/model rejects response_format, fallback without it
             detail_text = ""
             try:
                 detail_text = e.response.text or ""
@@ -355,9 +383,11 @@ async def analyze_scene(scene: str) -> dict:
             data.get("choices", [{}])[0].get("message", {}).get("content", "")
         ).strip()
 
+        # Parse STRICT JSON if present
         try:
             obj = _json.loads(content)
         except Exception:
+            # Some providers wrap JSON in fences — try to strip
             trimmed = content.strip()
             if trimmed.startswith("```"):
                 trimmed = trimmed.strip("`")
@@ -366,6 +396,7 @@ async def analyze_scene(scene: str) -> dict:
             try:
                 obj = _json.loads(trimmed)
             except Exception:
+                # Final safety: wrap raw text so UI still shows something useful
                 return _fallback_payload_from_text(content)
 
         # Minimal defaults so frontend never breaks
@@ -381,42 +412,68 @@ async def analyze_scene(scene: str) -> dict:
         obj.setdefault("suggestions", [])
         obj.setdefault("comparison", "")
         obj.setdefault("theme", {"color": "#b3d9ff", "audio": "", "mood_words": []})
-        obj.setdefault("emotional_map", {"curve_label": "Balanced", "clarity": "Moderate", "empathy": "Neutral POV"})
-        obj.setdefault("sensory", {"visual": "Medium","auditory": "Low","tactile": "Low","olfactory": "Low","gustatory": "Low","spatial": "Medium"})
+        obj.setdefault(
+            "emotional_map",
+            {"curve_label": "Balanced", "clarity": "Moderate", "empathy": "Neutral POV"},
+        )
+        obj.setdefault(
+            "sensory",
+            {
+                "visual": "Medium",
+                "auditory": "Low",
+                "tactile": "Low",
+                "olfactory": "Low",
+                "gustatory": "Low",
+                "spatial": "Medium",
+            },
+        )
         obj.setdefault("props", [])
         obj.setdefault("dual_lens", {"first_timer": "", "rewatcher": ""})
         obj.setdefault("integrity_alerts", [])
         obj.setdefault("pacing_map", [])
         obj.setdefault("growth_suggestions", [])
-        # NEW defaults
+        # Evidence/overlays defaults
         obj.setdefault("analytics_signals", [])
         obj.setdefault("confidence", 60)
         obj.setdefault("confidence_reason", "Moderate clarity; limited conflicting signals.")
         obj.setdefault("pacing_annotations", [])
         obj.setdefault("beat_markers", [])
-        # -------------
-        obj.setdefault("disclaimer", "This is a first‑pass cinematic analysis to support your craft. Your voice and choices always come first.")
+        # Storyboard defaults
+        obj.setdefault("storyboard_frames", [])
+        obj.setdefault(
+            "disclaimer",
+            "This is a first‑pass cinematic analysis to support your craft. Your voice and choices always come first.",
+        )
 
         # Clamp pacing_map to 0..100
         if isinstance(obj.get("pacing_map"), list):
             obj["pacing_map"] = _clamp_0_100_list(obj["pacing_map"])
 
-        # Freesound (non-fatal)
+        # ---------------- Freesound hook (non-intrusive) ----------------
         try:
             theme = obj.get("theme", {}) or {}
             mood_words = theme.get("mood_words") or []
+            mood_word = ""
             if isinstance(mood_words, list) and mood_words:
-                fs_url = await get_freesound_url(str(mood_words[0]).strip())
+                mood_word = str(mood_words[0]).strip()
+
+            if mood_word:
+                fs_url = await get_freesound_url(mood_word)
                 if fs_url:
                     theme["audio_url"] = fs_url
                     obj["theme"] = theme
         except Exception as _e:
+            # Never fail analysis because audio lookup had issues
             print(f"[Freesound] Non-fatal: {_e}")
+        # ----------------------------------------------------------------
 
+        # Final pruning for an uncluttered UX
         obj = _prune_output(obj)
+
         return obj
 
     except httpx.HTTPStatusError as e:
+        # Surface provider error message cleanly
         try:
             err_json = e.response.json()
             detail = (err_json.get("error") or {}).get("message") or e.response.text
