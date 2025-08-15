@@ -255,6 +255,21 @@ def _prune_output(obj: dict) -> dict:
         pass
     return obj
 
+# --- Tiny safety clamp for chart stability (does NOT change schema/logic) ----------
+def _clamp_0_100_list(arr):
+    if not isinstance(arr, list):
+        return []
+    out = []
+    for v in arr:
+        try:
+            f = float(v)
+        except Exception:
+            f = 0.0
+        if f < 0: f = 0.0
+        if f > 100: f = 100.0
+        out.append(int(round(f)))
+    return out
+
 async def analyze_scene(scene: str) -> dict:
     raw = scene or ""
     clean = clean_scene(raw)
@@ -389,6 +404,10 @@ async def analyze_scene(scene: str) -> dict:
             "disclaimer",
             "This is a first‑pass cinematic analysis to support your craft. Your voice and choices always come first.",
         )
+
+        # ---- Clamp pacing_map values to 0..100 (visual safety, no behavior change)
+        if isinstance(obj.get("pacing_map"), list):
+            obj["pacing_map"] = _clamp_0_100_list(obj["pacing_map"])
 
         # ---------------- Freesound hook (non-intrusive) ----------------
         try:
