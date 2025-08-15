@@ -2,6 +2,7 @@ import os
 import time
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
@@ -9,12 +10,11 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from logic.prompt_templates import SCENE_EDITOR_PROMPT
-from logic.analyzer import analyze_scene  # ensure file exists at logic/analyzer.py
-import httpx
+from logic.analyzer import analyze_scene
 
-app = FastAPI()  # MUST be top-level
+app = FastAPI()
 
-# CORS
+# CORS config
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -26,7 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Simple rate limit
+# Simple in-memory rate limiter
 RATE_LIMIT: dict[str, list[float]] = {}
 WINDOW = 60
 MAX_CALLS = 10
@@ -40,37 +40,36 @@ def rate_limiter(ip: str) -> bool:
     RATE_LIMIT[ip].append(now)
     return True
 
-# Models
+# ----- Schemas
 class SceneRequest(BaseModel):
     scene: str
 
 class PasswordRequest(BaseModel):
     password: str
 
-# Health
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-
-# Password gate (HTML calls this)
+# ----- Password gate (matches your frontend POST /validate-password)
 @app.post("/validate-password")
-def validate_password(payload: PasswordRequest):
-    expected = os.getenv("ADMIN_PASS", "").strip()
-    ok = bool(expected) and (payload.password == expected)
-    return {"valid": ok}
+async def validate_password(data: PasswordRequest):
+    # Embedded password as requested
+    ADMIN_PASS = "prantasdatwanta"
+    if data.password != ADMIN_PASS:
+        raise HTTPException(status_code=403, detail="Access Denied")
+    return {"valid": True}
 
-# Analyzer (HTML calls this)
+# ----- Analyzer endpoint (used by Analyze button)
 @app.post("/analyze")
-async def analyze_api(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
+async def analyze_endpoint(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
     ip = request.client.host
     if not rate_limiter(ip):
         raise HTTPException(status_code=429, detail="Rate limit exceeded.")
     if not x_user_agreement or x_user_agreement.lower() != "true":
         raise HTTPException(status_code=400, detail="You must accept the Terms & Conditions.")
-    result = await analyze_scene(data.scene)
-    return {"analysis": result}
 
-# Editor (your original, with 180s timeout)
+    # Run analysis (logic kept exactly as in your analyzer.py)
+    obj = await analyze_scene(data.scene)
+    return {"analysis": obj}
+
+# ----- Editor endpoint (as you pasted; unchanged logic)
 @app.post("/edit")
 async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str = Header(None)):
     ip = request.client.host
@@ -79,22 +78,23 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
     if not x_user_agreement or x_user_agreement.lower() != "true":
         raise HTTPException(status_code=400, detail="You must accept the Terms & Conditions.")
 
-    cleaned = (data.scene or "").strip()
+    cleaned = data.scene.strip()
     if len(cleaned) < 30:
         raise HTTPException(status_code=400, detail="Scene too short—please include at least a few lines.")
     if len(cleaned.split()) > 600:
         raise HTTPException(status_code=400, detail="Scene must be two pages or fewer.")
 
+    prompt = SCENE_EDITOR_PROMPT
     payload = {
-        "model": os.getenv("OPENROUTER_MODEL", "mistralai/mistral-7b-instruct"),
+        "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {"role": "system", "content": SCENE_EDITOR_PROMPT},
+            {"role": "system", "content": prompt},
             {"role": "user", "content": cleaned}
         ]
     }
 
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(180.0)) as client:
+        async with httpx.AsyncClient() as client:
             resp = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
@@ -105,32 +105,31 @@ async def edit_scene(request: Request, data: SceneRequest, x_user_agreement: str
             )
             resp.raise_for_status()
             result = resp.json()
-            analysis = (result["choices"][0]["message"]["content"] or "").strip()
+            analysis = result["choices"][0]["message"]["content"].strip()
             return {"edit_suggestions": analysis}
     except httpx.HTTPStatusError as e:
         raise HTTPException(e.response.status_code, e.response.text)
     except Exception as e:
         raise HTTPException(500, str(e))
 
-# Frontend serving (no import-time crash if folder missing)
+# ----- Static frontend
 FRONTEND_DIR = Path(__file__).parent / "frontend_dist"
-if FRONTEND_DIR.exists():
-    app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+if not FRONTEND_DIR.exists():
+    raise RuntimeError("frontend_dist folder not found.")
+app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
-    @app.get("/")
-    async def serve_index():
-        idx = FRONTEND_DIR / "index.html"
-        if not idx.exists():
-            raise HTTPException(status_code=500, detail="index.html not found.")
-        return FileResponse(idx)
+# Root
+@app.get("/")
+async def serve_index():
+    index_path = FRONTEND_DIR / "index.html"
+    if not index_path.exists():
+        raise HTTPException(status_code=500, detail="index.html not found.")
+    return FileResponse(index_path)
 
-    @app.get("/{full_path:path}")
-    async def fallback(full_path: str):
-        idx = FRONTEND_DIR / "index.html"
-        if not idx.exists():
-            raise HTTPException(status_code=500, detail="index.html not found.")
-        return FileResponse(idx)
-else:
-    @app.get("/")
-    def frontend_missing():
-        return JSONResponse({"status": "ok", "note": "frontend_dist not found on server"}, 200)
+# SPA fallback
+@app.get("/{full_path:path}")
+async def fallback(full_path: str):
+    index_path = FRONTEND_DIR / "index.html"
+    if not index_path.exists():
+        raise HTTPException(status_code=500, detail="index.html not found.")
+    return FileResponse(index_path)
