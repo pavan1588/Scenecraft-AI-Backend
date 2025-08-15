@@ -1,3 +1,4 @@
+# logic/analyzer.py
 import os
 import re
 import json as _json
@@ -26,7 +27,6 @@ INTENT_LINE_RE = re.compile(
 )
 
 # Inline — ONLY when clearly instructing to modify/generate a scene/script
-# e.g., "please improve this scene", "rewrite the script"
 INTENT_INLINE_CMD_RE = re.compile(
     r"\b(?:rewrite|regenerate|compose|fix|improve|polish|reword|make)\s+(?:this|the)?\s*(?:scene|script)\b",
     re.IGNORECASE,
@@ -34,7 +34,7 @@ INTENT_INLINE_CMD_RE = re.compile(
 
 # --- Backward compatibility for backend imports ---
 STRIP_RE = INTENT_LINE_RE
-INTENT_ANYWHERE_RE = INTENT_INLINE_CMD_RE  # alias for legacy import paths
+INTENT_ANYWHERE_RE = INTENT_INLINE_CMD_RE  # legacy alias
 
 MIN_WORDS = 250
 MAX_WORDS = 3500
@@ -59,10 +59,8 @@ def clean_scene(text: str) -> str:
     for line in text.split("\n"):
         if not line:
             continue
-        # Remove full-line commands entirely
         if INTENT_LINE_RE.match(line):
             continue
-        # Remove only explicit inline "modify this scene/script" commands
         line = INTENT_INLINE_CMD_RE.sub("", line).strip(" :-\t")
         if line:
             cleaned_lines.append(line)
@@ -126,7 +124,7 @@ def _fallback_payload_from_text(text: str) -> dict:
     }
 
 def _system_prompt() -> str:
-    # >>> EXACT prompt preserved as requested <<<
+    # >>> Your prompt kept EXACTLY as provided (including schema & rigor rules) <<<
     return (
         "You are CineOracle — a layered cinematic intelligence. You perform all of SceneCraft AI’s existing "
         "scene analysis while silently running advanced internal passes. Never reveal internal steps.\n\n"
@@ -245,7 +243,7 @@ async def get_freesound_url(query: str) -> str:
         print(f"[Freesound] Error fetching sound: {e}")
     return ""
 
-# ---------------- Storyboard (inline SVG scaffolding) ------------------------------
+# ---------------- Storyboard (inline SVG with simple cinematic silhouettes) --------
 def _mood_color(mood_words):
     palette = ["#cfe3ff", "#e2d2ff", "#ffd6d6", "#c9f7da", "#ffe3c7", "#fde58a", "#e6e9ef"]
     seed_src = (",".join(mood_words) if mood_words else "cinematic")[:64]
@@ -503,7 +501,6 @@ async def _gen_image_openai(prompt: str, size: str = "1536x1024") -> str:
 
 # --------- Stability (SDXL) Images (optional) ----------
 def _stability_dims_from_size(size: str):
-    # SDXL accepts <=1024 dims, multiples of 64; preserve aspect roughly
     if size == "1024x1536":
         return 704, 1024   # portrait
     if size == "1536x1024":
@@ -585,7 +582,6 @@ async def _maybe_generate_storyboard_pngs(obj: dict):
                 f["svg"] = _svg_wrap_png(f["image_url"])
                 continue
 
-            # Generate PNG via selected provider
             prompt = _image_prompt_from_caption(cap, summary, mood_words)
             data_url = ""
             if STORYBOARD_PROVIDER == "openai":
@@ -604,10 +600,6 @@ async def _maybe_generate_storyboard_pngs(obj: dict):
 # -----------------------------------------------------------------------------------
 
 def _prune_output(obj: dict) -> dict:
-    """
-    Light curation to keep the UI uncluttered. We don't alter meaning,
-    just cap lengths so the front-end stays breathable.
-    """
     try:
         if isinstance(obj.get("beats"), list):
             obj["beats"] = obj["beats"][:5]
@@ -752,7 +744,7 @@ async def analyze_scene(scene: str) -> dict:
         obj.setdefault("disclaimer", "This is a first‑pass cinematic analysis to support your craft. Your voice and choices always come first.")
         obj.setdefault("storyboard_frames", [])
 
-        # Optional audio
+        # Optional ambience
         try:
             theme = obj.get("theme", {}) or {}
             mood_words = theme.get("mood_words") or []
@@ -767,7 +759,7 @@ async def analyze_scene(scene: str) -> dict:
         except Exception as _e:
             print(f"[Freesound] Non-fatal: {_e}")
 
-        # Build default storyboard frames from beats (inline SVG)
+        # Default storyboard frames from beats (inline SVG placeholders)
         try:
             if not obj.get("storyboard_frames"):
                 mood_words = (obj.get("theme") or {}).get("mood_words") or []
@@ -778,7 +770,7 @@ async def analyze_scene(scene: str) -> dict:
         # Prune for UX
         obj = _prune_output(obj)
 
-        # Generate PNG overlays (OpenAI or Stability) if enabled
+        # Optionally generate real PNG sketch frames and embed as inline SVG
         try:
             await _maybe_generate_storyboard_pngs(obj)
         except Exception as _e:
