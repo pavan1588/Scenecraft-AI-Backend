@@ -41,8 +41,9 @@ MAX_WORDS = 3500
 
 # ---------------- Optional storyboard image generation (server-side) ---------------
 STORYBOARD_ENABLE = os.getenv("SC_STORYBOARD_ENABLE", "false").lower() in {"1", "true", "yes"}
-STORYBOARD_PROVIDER = os.getenv("SC_STORYBOARD_PROVIDER", "openai")  # "openai" | "off"
+STORYBOARD_PROVIDER = os.getenv("SC_STORYBOARD_PROVIDER", "openai")  # "openai" | "stability" | "off"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+STABILITY_API_KEY = os.getenv("STABILITY_API_KEY", "").strip()
 STORYBOARD_MAX_FRAMES = int(os.getenv("SC_STORYBOARD_MAX_FRAMES", "4"))
 
 def _normalize(text: str) -> str:
@@ -452,10 +453,17 @@ def _image_prompt_from_caption(caption: str, summary: str, mood_words) -> str:
         "Style: professional storyboard artist, film pre‑viz, 3/4 view if helpful."
     )
 
+# --------- OpenAI Images (optional) ----------
+async def _gen_image_openai(prompt: str, size: str = "1536x1024") -> str:
+    """
+    Return a PNG data URL from OpenAI Images (gpt-image-1), or '' on failure.
+    Supported sizes: '1024x1024', '1536x1024', '1024x1536', 'auto'.
+
 async def _gen_image_openai(prompt: str, size: str = "1536x1024") -> str:
     """
     Return a PNG data URL from OpenAI Images (gpt-image-1), or '' on failure.
     Supported sizes (as of now): '1024x1024', '1536x1024', '1024x1536', 'auto'.
+
     If 403 (org not verified), we log and return '' without raising.
     """
     if not OPENAI_API_KEY:
@@ -478,13 +486,20 @@ async def _gen_image_openai(prompt: str, size: str = "1536x1024") -> str:
                     json={
                         "model": "gpt-image-1",
                         "prompt": prompt,
+
+                        "size": sz,
+
                         "size": sz,     # must be one of SUPPORTED
+
                         "n": 1,
                         # (Do NOT send 'response_format'; API rejects it)
                     },
                 )
                 if r.status_code == 403:
+
+
                     # Org not verified (or other access issue) — don’t crash, just fall back.
+
                     print(f"[Storyboard] OpenAI 403 (access): {r.text[:400]}")
                     return ""
                 if r.status_code >= 400:
@@ -495,11 +510,13 @@ async def _gen_image_openai(prompt: str, size: str = "1536x1024") -> str:
                 item = (data.get("data") or [{}])[0]
 
                 # Prefer base64 if present
+
                 b64 = item.get("b64_json")
                 if b64:
                     return f"data:image/png;base64,{b64}"
 
                 # Fall back to URL (fetch and convert to data URL)
+
                 url = item.get("url")
                 if url:
                     img = await client.get(url, timeout=90.0)
@@ -521,6 +538,55 @@ async def _gen_image_openai(prompt: str, size: str = "1536x1024") -> str:
         out = await _call("1024x1024")
     return out
 
+# --------- Stability (SDXL) Images (optional) ----------
+def _stability_dims_from_size(size: str):
+    # SDXL accepts <=1024 dims, multiples of 64; preserve aspect roughly
+    if size == "1024x1536":
+        return 704, 1024   # portrait
+    if size == "1536x1024":
+        return 1024, 640   # landscape
+    return 1024, 1024      # square
+
+async def _gen_image_stability(prompt: str, size: str = "1536x1024") -> str:
+    api_key = STABILITY_API_KEY
+    if not api_key:
+        print("[Storyboard] STABILITY_API_KEY not set")
+        return ""
+    w, h = _stability_dims_from_size(size)
+    payload = {
+        "text_prompts": [{"text": prompt}],
+        "cfg_scale": 7.0,
+        "samples": 1,
+        "steps": 30,
+        "clip_guidance_preset": "FAST_GREEN",
+        "width": w,
+        "height": h,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            r = await client.post(
+                "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+                json=payload,
+            )
+            if r.status_code >= 400:
+                print(f"[Storyboard] Stability error {r.status_code}: {r.text[:800]}")
+                return ""
+            data = r.json()
+            arts = data.get("artifacts") or []
+            if not arts or not arts[0].get("base64"):
+                print("[Storyboard] Stability returned no image")
+                return ""
+            return f"data:image/png;base64,{arts[0]['base64']}"
+    except Exception as e:
+        print(f"[Storyboard] Stability generation error: {e}")
+        return ""
+
+# --------- Prefer PNGs; embed inside inline SVG so UI shows them without changes ---
 async def _maybe_generate_storyboard_pngs(obj: dict):
     """
     Optionally replace/augment storyboard_frames with PNGs (data URLs).
@@ -539,7 +605,6 @@ async def _maybe_generate_storyboard_pngs(obj: dict):
     targets = frames[: max(0, min(STORYBOARD_MAX_FRAMES, len(frames)))]
 
     def _svg_wrap_png(png_data_url: str, w: int = 960, h: int = 540) -> str:
-        # Inline SVG that displays the PNG; CSP-safe, renders where 'svg' is used.
         return (
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">'
             f'<image href="{png_data_url}" x="0" y="0" width="{w}" height="{h}" preserveAspectRatio="xMidYMid slice"/>'
@@ -552,19 +617,21 @@ async def _maybe_generate_storyboard_pngs(obj: dict):
             if not cap:
                 continue
 
-            # If a PNG is already present, ensure svg shows that PNG (not the placeholder)
+            # If a PNG already present, ensure svg shows that PNG (not the placeholder)
             if isinstance(f.get("image_url"), str) and f["image_url"].startswith("data:image/png"):
                 f["svg"] = _svg_wrap_png(f["image_url"])
                 continue
 
-            # Generate PNG via provider
+            # Generate PNG via selected provider
             prompt = _image_prompt_from_caption(cap, summary, mood_words)
             data_url = ""
             if STORYBOARD_PROVIDER == "openai":
                 data_url = await _gen_image_openai(prompt)
+            elif STORYBOARD_PROVIDER == "stability":
+                data_url = await _gen_image_stability(prompt)
 
             if data_url:
-                # Keep for compatibility AND force-embed as inline SVG
+                # Keep both for compatibility AND force-embed as inline SVG
                 f["image_url"] = data_url
                 f["svg"] = _svg_wrap_png(data_url)
         except Exception as e:
@@ -765,7 +832,7 @@ async def analyze_scene(scene: str) -> dict:
             print(f"[Freesound] Non-fatal: {_e}")
         # ----------------------------------------------------------------
 
-        # --------- Storyboard frames (inline SVG) + optional PNGs -------
+        # --------- Storyboard frames (inline SVG) -------
         try:
             if not obj.get("storyboard_frames"):
                 mood_words = (obj.get("theme") or {}).get("mood_words") or []
@@ -776,7 +843,7 @@ async def analyze_scene(scene: str) -> dict:
         # Final pruning for an uncluttered UX
         obj = _prune_output(obj)
 
-        # Optional PNG generation (CSP-safe via data URLs)
+        # Optional PNG generation (CSP-safe via data URLs) with provider switch
         try:
             await _maybe_generate_storyboard_pngs(obj)
         except Exception as _e:
