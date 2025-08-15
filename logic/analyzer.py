@@ -484,30 +484,46 @@ async def _gen_image_openai(prompt: str, size: str = "768x432") -> str:
         return ""
 
 async def _maybe_generate_storyboard_pngs(obj: dict):
-    """Optionally replace/augment storyboard_frames with PNGs (data URLs)."""
+    """
+    Optionally replace/augment storyboard_frames with PNGs (data URLs).
+    IMPORTANT: Frontend prefers inline SVG when present, so when we have a PNG,
+    we clear the 'svg' field to force the UI to use image_url.
+    """
     if not STORYBOARD_ENABLE or STORYBOARD_PROVIDER == "off":
         return
+
     frames = obj.get("storyboard_frames") or []
     if not frames:
         return
+
     summary = obj.get("summary", "") or ""
     mood_words = (obj.get("theme") or {}).get("mood_words") or []
     targets = frames[: max(0, min(STORYBOARD_MAX_FRAMES, len(frames)))]
+
     for f in targets:
         try:
             cap = (f.get("caption") or "").strip()
             if not cap:
                 continue
+
+            # If a real PNG is already there, ensure we prefer it
             if f.get("image_url", "").startswith("data:image/png"):
+                f["svg"] = ""  # force frontend to use the PNG
                 continue
+
+            # Generate PNG
             prompt = _image_prompt_from_caption(cap, summary, mood_words)
             data_url = ""
             if STORYBOARD_PROVIDER == "openai":
                 data_url = await _gen_image_openai(prompt)
+
+            # If we got a PNG, wire it in and clear SVG so UI uses it
             if data_url:
                 f["image_url"] = data_url
+                f["svg"] = ""  # <- critical: prefer PNG over inline SVG
         except Exception as e:
             print(f"[Storyboard] Frame error: {e}")
+
     obj["storyboard_frames"] = frames
 
 # -----------------------------------------------------------------------------------
