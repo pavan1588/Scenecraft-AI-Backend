@@ -452,36 +452,56 @@ def _image_prompt_from_caption(caption: str, summary: str, mood_words) -> str:
         "Style: professional storyboard artist, film pre‑viz, 3/4 view if helpful."
     )
 
-async def _gen_image_openai(prompt: str, size: str = "768x432") -> str:
-    """Return data-url PNG or '' on failure (OpenAI Images)."""
+async def _gen_image_openai(prompt: str, size: str = "1792x1024") -> str:
+    """
+    Return data-url PNG from OpenAI Images or '' on failure.
+    Uses only supported sizes for gpt-image-1 and falls back if needed.
+    """
     if not OPENAI_API_KEY:
+        print("[Storyboard] OPENAI_API_KEY not set")
         return ""
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            r = await client.post(
-                "https://api.openai.com/v1/images/generations",
-                headers={
-                    "Authorization": f"Bearer {OPENAI_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "gpt-image-1",
-                    "prompt": prompt,
-                    "size": size,
-                    "response_format": "b64_json",
-                    "quality": "standard",
-                    "n": 1,
-                },
-            )
-            r.raise_for_status()
-            data = r.json()
-            b64 = (data.get("data") or [{}])[0].get("b64_json") or ""
-            if not b64:
-                return ""
-            return f"data:image/png;base64,{b64}"
-    except Exception as e:
-        print(f"[Storyboard] OpenAI generation error: {e}")
-        return ""
+
+    async def _call(sz: str) -> str:
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                r = await client.post(
+                    "https://api.openai.com/v1/images/generations",
+                    headers={
+                        "Authorization": f"Bearer {OPENAI_API_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": "gpt-image-1",
+                        "prompt": prompt,
+                        "size": sz,                     # must be 1024x1024, 1792x1024, or 1024x1792
+                        "response_format": "b64_json",
+                        "quality": "standard",
+                        "n": 1,
+                    },
+                )
+                if r.status_code >= 400:
+                    # Log full response for quick diagnosis
+                    try:
+                        print(f"[Storyboard] OpenAI error {r.status_code}: {r.text[:600]}")
+                    except Exception:
+                        print(f"[Storyboard] OpenAI error {r.status_code}: <no body>")
+                    r.raise_for_status()
+
+                data = r.json()
+                b64 = (data.get("data") or [{}])[0].get("b64_json") or ""
+                if not b64:
+                    print("[Storyboard] OpenAI returned empty b64_json")
+                    return ""
+                return f"data:image/png;base64,{b64}"
+        except Exception as e:
+            print(f"[Storyboard] OpenAI generation error (size {sz}): {e}")
+            return ""
+
+    # Try wide storyboard first, then safe square fallback
+    out = await _call(size)
+    if not out:
+        out = await _call("1024x1024")
+    return out
 
 async def _maybe_generate_storyboard_pngs(obj: dict):
     """
