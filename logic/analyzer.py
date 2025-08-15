@@ -171,7 +171,7 @@ def _system_prompt() -> str:
         '    {"claim": string, "evidence": "short quote or detail (≤12 words)"}\n'
         "  ],\n"
         '  "confidence": integer (0-100),\n'
-        '  "confidence_reason": string,\n'
+        '  "confidence_reason": string,\n"
         '  "beats": [\n'
         '    {"title": "Setup" | "Trigger" | "Escalation" | "Climax" | "Exit", "insight": string}\n'
         "  ],\n"
