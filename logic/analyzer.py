@@ -183,7 +183,7 @@ async def get_freesound_url(query: str) -> str:
         print(f"[Freesound] Error: {e}")
     return ""
 
-# ---------------- Storyboard (inline SVG with simple pictograms) -------------------
+# ---------------- Storyboard (inline SVG with female silhouette + room box) -------------------
 def _mood_color(mood_words):
     palette = ["#cfe3ff", "#e2d2ff", "#ffd6d6", "#c9f7da", "#ffe3c7", "#fde58a", "#e6e9ef"]
     seed_src = (",".join(mood_words) if mood_words else "cinematic")[:64]
@@ -194,115 +194,190 @@ def _wrap_lines(text: str, max_len: int = 42):
     words = str(text).split()
     lines, cur = [], ""
     for w in words:
-        if len(cur) + len(w) + (1 if cur else 0) > max_len:
+        test = w if not cur else f"{cur} {w}"
+        if len(test) > max_len:
             if cur: lines.append(cur)
             cur = w
         else:
-            cur = f"{cur} {w}" if cur else w
+            cur = test
     if cur: lines.append(cur)
     return lines[:3]
 
+def _is_female(text: str) -> bool:
+    t = text.lower()
+    if any(k in t for k in [" she ", " her ", "woman", "girl", "female"]):
+        return True
+    # name hints
+    if any(k in t for k in ["natalia", "natasha", "elena", "isabel", "sara", "maria", "anna"]):
+        return True
+    # attire hints
+    if any(k in t for k in ["dress", "gown", "heels", "silk gown", "evening dress"]):
+        return True
+    return False
+
 def _infer_layout(caption: str):
-    t = caption.lower()
+    t = f" {caption.lower()} "
     # shot size
-    if any(k in t for k in ["close-up","close up","closeup","cu"]): size = "cu"
-    elif any(k in t for k in ["medium","mid","two-shot","two shot","ms"]): size = "ms"
+    if any(k in t for k in ["close-up"," close up "," closeup "," cu "]): size = "cu"
+    elif any(k in t for k in ["medium"," mid "," two-shot"," two shot"," ms "]): size = "ms"
     else: size = "ws"
-    # subject positions
+    # two‑shot?
     two = any(k in t for k in ["conversation","talk","speaks","argue","confront","dialogue","both","two","exchange"])
-    pos_primary = 0.25 if "left" in t else (0.75 if "right" in t else 0.5)
+    # subject positions
+    pos_primary = 0.25 if " left " in t else (0.75 if " right " in t else 0.5)
     pos_secondary = 0.75 if pos_primary < 0.5 else 0.25
-    # horizon
+    # horizon (slightly above mid for interiors)
     if any(k in t for k in ["low angle","looks up","towering"]): horizon = 0.68
     elif any(k in t for k in ["high angle","overhead","looks down"]): horizon = 0.38
-    else: horizon = 0.52
+    else: horizon = 0.56
     # subject / prop type
-    subj = "person" if any(k in t for k in ["man","woman","figure","person","kid","child","driver","stranger","guard","worker"]) else \
-           "car" if "car" in t or "vehicle" in t else \
-           "door" if "door" in t or "exit" in t or "gate" in t else \
-           "glass" if "glass" in t or "cup" in t or "wine" in t or "flute" in t else \
-           "table" if "table" in t or "desk" in t else "shape"
-    # ambiance hints
-    bg = "city" if any(k in t for k in ["city","skyline","rooftop"]) else \
-         "garage" if "garage" in t else \
-         "train" if any(k in t for k in ["train","carriage","compartment"]) else \
-         "room"
-    return size, two, pos_primary, pos_secondary, horizon, subj, bg
+    subj = "person"
+    # environment
+    bg = "room"
+    if any(k in t for k in ["city","skyline","rooftop","terrace"]): bg = "city"
+    elif "garage" in t: bg = "garage"
+    elif any(k in t for k in ["train","carriage","compartment"]): bg = "train"
 
-def _subject_silhouette(cx, baseline, scale=1.0):
-    """Simple person: head, torso, arms, legs — higher contrast than before."""
+    # room props
+    props = {
+        "chandelier": any(k in t for k in ["chandelier", "ceiling light"]),
+        "table": any(k in t for k in ["table","desk","bar","counter"]),
+        "sofa": any(k in t for k in ["sofa","couch","booth"]),
+        "door": any(k in t for k in ["door","exit","archway"]),
+        "window": any(k in t for k in ["window","balcony","pane"]),
+    }
+    action_scan = any(k in t for k in ["scan","scans","survey","looks around","glance around","observes"])
+    return size, two, pos_primary, pos_secondary, horizon, subj, bg, props, action_scan
+
+def _female_silhouette(cx, baseline, scale=1.0, scan_pose=False):
+    # Head + hair bun, torso, skirt/hips, arms (one lifted if scanning), legs
+    dark = "#081c44"
     r = int(11*scale)
-    torso_w = int(26*scale); torso_h = int(40*scale)
-    arm = int(18*scale); leg = int(18*scale)
-    head_y = baseline - torso_h - r*2
+    torso_w = int(24*scale); torso_h = int(40*scale)
+    skirt_w = int(34*scale); skirt_h = int(24*scale)
+    leg = int(18*scale)
+    head_y = baseline - torso_h - skirt_h - r*2 + 8
     parts = [
-        f'<circle cx="{cx}" cy="{head_y+r}" r="{r}" fill="#0a2150" opacity="0.95"/>',
-        f'<rect x="{cx-torso_w//2}" y="{baseline-torso_h}" width="{torso_w}" height="{torso_h}" rx="5" fill="#0a2150" opacity="0.9"/>',
-        f'<rect x="{cx-torso_w//2 - arm}" y="{baseline-int(torso_h*0.75)}" width="{arm}" height="{8*scale:.0f}" rx="3" fill="#0a2150" opacity="0.9"/>',
-        f'<rect x="{cx+torso_w//2}" y="{baseline-int(torso_h*0.75)}" width="{arm}" height="{8*scale:.0f}" rx="3" fill="#0a2150" opacity="0.9"/>',
-        f'<rect x="{cx-9*scale:.0f}" y="{baseline-6*scale:.0f}" width="{8*scale:.0f}" height="{leg}" rx="3" fill="#0a2150" opacity="0.9"/>',
-        f'<rect x="{cx+1*scale:.0f}" y="{baseline-6*scale:.0f}" width="{8*scale:.0f}" height="{leg}" rx="3" fill="#0a2150" opacity="0.9"/>',
+        f'<circle cx="{cx}" cy="{head_y+r}" r="{r}" fill="{dark}" />',  # head
+        f'<circle cx="{cx+r-3}" cy="{head_y+4}" r="{int(5*scale)}" fill="{dark}" />',  # hair bun
+        f'<rect x="{cx-torso_w//2}" y="{baseline-(torso_h+skirt_h)}" width="{torso_w}" height="{torso_h}" rx="5" fill="{dark}" />',  # torso
+        f'<path d="M {cx-skirt_w//2} {baseline-skirt_h} '
+        f'L {cx+skirt_w//2} {baseline-skirt_h} '
+        f'L {cx+int(skirt_w*0.35)} {baseline} '
+        f'L {cx-int(skirt_w*0.35)} {baseline} Z" fill="{dark}"/>',  # skirt
     ]
+    # arms
+    if scan_pose:
+        parts.append(f'<rect x="{cx+torso_w//2}" y="{baseline-(torso_h+skirt_h-16)}" width="{int(18*scale)}" height="{int(7*scale)}" rx="3" fill="{dark}" />')  # raised arm
+        parts.append(f'<rect x="{cx-torso_w//2-int(18*scale)}" y="{baseline-(torso_h+skirt_h-4)}" width="{int(18*scale)}" height="{int(7*scale)}" rx="3" fill="{dark}" />')
+    else:
+        parts.append(f'<rect x="{cx-torso_w//2-int(16*scale)}" y="{baseline-(torso_h+skirt_h-8)}" width="{int(16*scale)}" height="{int(7*scale)}" rx="3" fill="{dark}" />')
+        parts.append(f'<rect x="{cx+torso_w//2}" y="{baseline-(torso_h+skirt_h-8)}" width="{int(16*scale)}" height="{int(7*scale)}" rx="3" fill="{dark}" />')
+    # legs
+    parts.append(f'<rect x="{cx-9*scale:.0f}" y="{baseline-6*scale:.0f}" width="{8*scale:.0f}" height="{leg}" rx="3" fill="{dark}" />')
+    parts.append(f'<rect x="{cx+1*scale:.0f}" y="{baseline-6*scale:.0f}" width="{8*scale:.0f}" height="{leg}" rx="3" fill="{dark}" />')
     return "\n".join(parts)
 
-def _draw_subject(subj, size, pos, w, h):
-    cx = int(w * pos)
-    base = int(h*0.73)
-    elems = []
-    if subj == "person":
-        scale = 0.95 if size=="ws" else (1.3 if size=="ms" else 1.8)
-        elems.append(_subject_silhouette(cx, base, scale))
-    elif subj == "car":
-        elems += [
-          f'<rect x="{cx-52}" y="{base-26}" width="104" height="30" rx="6" fill="#0a2150" opacity="0.85"/>',
-          f'<rect x="{cx-36}" y="{base-40}" width="72" height="20" rx="4" fill="#0a2150" opacity="0.55"/>',
-          f'<circle cx="{cx-30}" cy="{base+6}" r="8" fill="#0a2150"/>',
-          f'<circle cx="{cx+30}" cy="{base+6}" r="8" fill="#0a2150"/>'
-        ]
-    elif subj == "door":
-        elems += [
-          f'<rect x="{cx-26}" y="{base-88}" width="52" height="88" fill="#eaf1ff" stroke="#0a2150" stroke-width="3" opacity="0.9"/>',
-          f'<circle cx="{cx+18}" cy="{base-50}" r="3" fill="#0a2150"/>'
-        ]
-    elif subj == "glass":
-        elems += [
-          f'<rect x="{cx-10}" y="{base-30}" width="20" height="26" rx="3" fill="#0a2150" opacity="0.85"/>',
-          f'<rect x="{cx-14}" y="{base-34}" width="28" height="5" rx="2" fill="#0a2150" opacity="0.4"/>'
-        ]
-    elif subj == "table":
-        elems += [
-          f'<rect x="{cx-60}" y="{base-12}" width="120" height="12" fill="#0a2150" opacity="0.55"/>',
-          f'<rect x="{cx-56}" y="{base-10}" width="8" height="24" fill="#0a2150" opacity="0.8"/>',
-          f'<rect x="{cx+48}" y="{base-10}" width="8" height="24" fill="#0a2150" opacity="0.8"/>'
-        ]
-    else:
-        elems.append(f'<rect x="{cx-20}" y="{base-28}" width="40" height="32" rx="6" fill="#0a2150" opacity="0.6"/>')
-    return "\n".join(elems)
+def _neutral_silhouette(cx, baseline, scale=1.0):
+    dark = "#081c44"
+    r = int(11*scale)
+    torso_w = int(26*scale); torso_h = int(40*scale)
+    leg = int(18*scale)
+    head_y = baseline - torso_h - r*2
+    return "\n".join([
+        f'<circle cx="{cx}" cy="{head_y+r}" r="{r}" fill="{dark}" />',
+        f'<rect x="{cx-torso_w//2}" y="{baseline-torso_h}" width="{torso_w}" height="{torso_h}" rx="5" fill="{dark}" />',
+        f'<rect x="{cx-torso_w//2-int(18*scale)}" y="{baseline-int(torso_h*0.75)}" width="{int(18*scale)}" height="{int(7*scale)}" rx="3" fill="{dark}" />',
+        f'<rect x="{cx+torso_w//2}" y="{baseline-int(torso_h*0.75)}" width="{int(18*scale)}" height="{int(7*scale)}" rx="3" fill="{dark}" />',
+        f'<rect x="{cx-9*scale:.0f}" y="{baseline-6*scale:.0f}" width="{8*scale:.0f}" height="{leg}" rx="3" fill="{dark}" />',
+        f'<rect x="{cx+1*scale:.0f}" y="{baseline-6*scale:.0f}" width="{8*scale:.0f}" height="{leg}" rx="3" fill="{dark}" />',
+    ])
 
-def _draw_background(bg, w, h, horizon_y):
-    # Soft depth lines + simple setting hints, high contrast
+def _draw_subject_person(cx, baseline, size, is_female, scan_pose):
+    scale = 0.95 if size=="ws" else (1.3 if size=="ms" else 1.8)
+    return _female_silhouette(cx, baseline, scale, scan_pose) if is_female else _neutral_silhouette(cx, baseline, scale)
+
+def _draw_subject(subj, size, pos, w, h, is_female=False, scan_pose=False):
+    cx = int(w * pos)
+    base = int(h*0.74)
+    if subj == "person":
+        return _draw_subject_person(cx, base, size, is_female, scan_pose)
+    if subj == "glass":
+        return (
+          f'<rect x="{cx-10}" y="{base-30}" width="20" height="26" rx="3" fill="#081c44" />'
+          f'<rect x="{cx-14}" y="{base-34}" width="28" height="5" rx="2" fill="#081c44" opacity="0.5"/>'
+        )
+    if subj == "door":
+        return (
+          f'<rect x="{cx-26}" y="{base-88}" width="52" height="88" fill="#eaf1ff" stroke="#081c44" stroke-width="3"/>'
+          f'<circle cx="{cx+18}" cy="{base-50}" r="3" fill="#081c44"/>'
+        )
+    if subj == "car":
+        return (
+          f'<rect x="{cx-52}" y="{base-26}" width="104" height="30" rx="6" fill="#081c44"/>'
+          f'<rect x="{cx-36}" y="{base-40}" width="72" height="20" rx="4" fill="#081c44" opacity="0.55"/>'
+          f'<circle cx="{cx-30}" cy="{base+6}" r="8" fill="#081c44"/>'
+          f'<circle cx="{cx+30}" cy="{base+6}" r="8" fill="#081c44"/>'
+        )
+    return f'<rect x="{cx-20}" y="{base-28}" width="40" height="32" rx="6" fill="#081c44" opacity="0.7"/>'
+
+def _room_box(w, h, horizon_y):
+    # simple perspective room: vanishing point centered horizontally
+    vp_x = w//2
     lines = []
-    # Depth/ground
-    for y in (horizon_y+8, horizon_y+22, horizon_y+36):
-        lines.append(f'<line x1="0" y1="{y}" x2="{w}" y2="{y}" stroke="#0a2150" stroke-width="2" opacity="0.15"/>')
-    # Setting
-    if bg == "city":
-        for x in range(40, w, 80):
-            height = 40 + ((x*37) % 80)
-            lines.append(f'<rect x="{x}" y="{h-80-height}" width="24" height="{height}" fill="#0a2150" opacity="0.12"/>')
-    elif bg == "garage":
-        for x in range(0, w, 160):
-            lines.append(f'<rect x="{x}" y="{horizon_y-4}" width="14" height="{h-horizon_y+4}" fill="#0a2150" opacity="0.12"/>')
-    elif bg == "train":
-        lines.append(f'<rect x="20" y="{horizon_y-50}" width="{w-40}" height="8" rx="4" fill="#0a2150" opacity="0.2"/>')
-        lines.append(f'<rect x="24" y="{horizon_y-42}" width="{w-48}" height="{h-horizon_y-50}" rx="6" fill="#0a2150" opacity="0.06"/>')
-    # room default: keep subtle
+    # walls/floor outline
+    lines.append(f'<rect x="12" y="12" width="{w-24}" height="{h-24}" fill="none" stroke="#0b2a55" stroke-width="2" opacity="0.35"/>')
+    # floor grid to the vanishing point
+    for x in range(24, w-24, 140):
+        lines.append(f'<line x1="{x}" y1="{h-24}" x2="{vp_x}" y2="{horizon_y}" stroke="#0b2a55" stroke-width="1" opacity="0.25"/>')
+    for y in range(horizon_y+10, h-24, 36):
+        lines.append(f'<line x1="24" y1="{y}" x2="{w-24}" y2="{y}" stroke="#0b2a55" stroke-width="1" opacity="0.2"/>')
     return "\n".join(lines)
+
+def _room_props(props, w, h, horizon_y):
+    g = []
+    dark = "#0b2a55"
+    if props.get("chandelier"):
+        g.append(f'<circle cx="{w//2}" cy="{horizon_y-40}" r="8" fill="{dark}" opacity="0.7"/>')
+        g.append(f'<line x1="{w//2}" y1="12" x2="{w//2}" y2="{horizon_y-48}" stroke="{dark}" stroke-width="2" opacity="0.6"/>')
+    if props.get("table"):
+        g.append(f'<rect x="{w//2-70}" y="{horizon_y+60}" width="140" height="12" fill="{dark}" opacity="0.5"/>')
+        g.append(f'<rect x="{w//2-64}" y="{horizon_y+72}" width="10" height="26" fill="{dark}" opacity="0.7"/>')
+        g.append(f'<rect x="{w//2+54}" y="{horizon_y+72}" width="10" height="26" fill="{dark}" opacity="0.7"/>')
+    if props.get("sofa"):
+        g.append(f'<rect x="40" y="{h-92}" width="160" height="48" rx="8" fill="{dark}" opacity="0.25"/>')
+    if props.get("door"):
+        g.append(f'<rect x="{w-120}" y="{horizon_y-40}" width="56" height="96" fill="#eaf1ff" stroke="{dark}" stroke-width="3" opacity="0.9"/>')
+    if props.get("window"):
+        g.append(f'<rect x="40" y="{horizon_y-60}" width="120" height="70" fill="#eaf1ff" stroke="{dark}" stroke-width="2" opacity="0.8"/>')
+    return "\n".join(g)
+
+def _env_background(bg, w, h, horizon_y):
+    if bg == "room":
+        return _room_box(w, h, horizon_y)
+    if bg == "city":
+        blocks = []
+        for x in range(40, w, 90):
+            height = 40 + ((x*37) % 90)
+            blocks.append(f'<rect x="{x}" y="{h-80-height}" width="26" height="{height}" fill="#0b2a55" opacity="0.12"/>')
+        return "\n".join(blocks)
+    if bg == "garage":
+        cols = []
+        for x in range(0, w, 160):
+            cols.append(f'<rect x="{x+20}" y="{horizon_y-6}" width="16" height="{h-horizon_y+6}" fill="#0b2a55" opacity="0.15"/>')
+        return "\n".join(cols)
+    if bg == "train":
+        return (
+            f'<rect x="20" y="{horizon_y-50}" width="{w-40}" height="8" rx="4" fill="#0b2a55" opacity="0.2"/>'
+            f'<rect x="24" y="{horizon_y-42}" width="{w-48}" height="{h-horizon_y-50}" rx="6" fill="#0b2a55" opacity="0.06"/>'
+        )
+    return ""
 
 def _svg_storyboard_strings(caption: str, mood_words):
     bgcol = _mood_color(mood_words)
     lines = _wrap_lines(caption, 46)
-    size, two, pos1, pos2, horizon, subj, bg = _infer_layout(caption)
+    size, two, pos1, pos2, horizon, subj, bg, props, action_scan = _infer_layout(caption)
+    female = _is_female(caption)
 
     w, h = 960, 540
     horizon_y = int(h * horizon)
@@ -314,11 +389,10 @@ def _svg_storyboard_strings(caption: str, mood_words):
         f'<line x1="0" y1="{2*h/3}" x2="{w}" y2="{2*h/3}" stroke="#7aa6ff" stroke-width="1" opacity="0.35"/>'
     )
 
-    background = _draw_background(bg, w, h, horizon_y)
-
-    subjects = _draw_subject(subj, size, pos1 if not two else pos1, w, h)
+    env = _env_background(bg, w, h, horizon_y)
+    subjects = _draw_subject(subj, size, pos1, w, h, is_female=female, scan_pose=action_scan)
     if two and subj == "person":
-        subjects += _draw_subject(subj, size, pos2, w, h)
+        subjects += _draw_subject(subj, size, pos2, w, h, is_female=not female, scan_pose=False)
 
     svg_markup = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">
   <defs>
@@ -336,7 +410,8 @@ def _svg_storyboard_strings(caption: str, mood_words):
   <rect x="0" y="0" width="{w}" height="{h}" fill="url(#v)"/>
   <g>{thirds}</g>
   <line x1="0" y1="{horizon_y}" x2="{w}" y2="{horizon_y}" stroke="#0a2150" stroke-width="2" opacity="0.28"/>
-  <g>{background}</g>
+  <g>{env}</g>
+  <g>{_room_props(props, w, h, horizon_y) if bg=='room' else ''}</g>
   <g>{subjects}</g>
   <g font-family="ui-sans-serif,system-ui,Segoe UI,Roboto" fill="#0b2a55">
     <text x="24" y="42" font-size="26" font-weight="700">Storyboard</text>
