@@ -90,7 +90,7 @@
     .flag.ok{color:var(--ok)}
     .flag.warn{color:var(--warn)}
 
-    /* Heatmap overlays (additive; bars unchanged) */
+    /* Heatmap overlays */
     .annotation{stroke:#5aa9ff;stroke-width:2;stroke-dasharray:4 3;opacity:.7}
     .marker{stroke:#0b2a55;stroke-width:2;opacity:.6}
     .tooltip{position:absolute;background:#073b7a;color:#fff;padding:6px 8px;border-radius:8px;font-size:12px;pointer-events:none;opacity:0;transform:translate(-50%,-130%);white-space:nowrap}
@@ -160,7 +160,7 @@
                 <div id="growth"></div>
               </div>
 
-              <!-- NEW: Storyboard Preview (only shows when frames provided) -->
+              <!-- Storyboard Preview -->
               <div class="card" id="storyboard-card">
                 <h3>Storyboard Preview</h3>
                 <div id="storyboard" class="storyboard-grid"></div>
@@ -495,7 +495,7 @@
       el('dialogue').textContent = A.dialogue_naturalism||'';
       el('readiness').textContent = A.cinematic_readiness||'';
 
-      // Analytics signals + confidence (additive)
+      // Analytics signals + confidence
       const sig = obj.analytics_signals || [];
       el('analyticsSignals').innerHTML = sig.length
         ? sig.map(s => `• <strong>${(s.claim||'').replace(/</g,'&lt;')}</strong> — “${(s.evidence||'').replace(/</g,'&lt;')}”`).join('<br/>')
@@ -563,14 +563,20 @@
         g.innerHTML = '<div class="small muted">No growth suggestions provided.</div>';
       }
 
-      // Storyboard Preview (only if provided)
+      // Storyboard Preview
       const sbWrap = el('storyboard');
       const frames = Array.isArray(obj.storyboard_frames) ? obj.storyboard_frames : [];
       if (frames.length){
         sbWrap.innerHTML = frames.map(f => `
           <div class="frame">
-            ${f.image_url ? `<img class="thumb" src="${String(f.image_url)}" alt="Storyboard frame"/>`
-                          : `<div class="thumb" title="No image"></div>`}
+            ${f.image_url
+              ? `<img class="thumb"
+                      src="${String(f.image_url)}"
+                      alt="Storyboard frame"
+                      referrerpolicy="no-referrer"
+                      loading="lazy"
+                      onerror="this.onerror=null;this.src='https://placehold.co/960x540?text=Storyboard+frame';"/>`
+              : `<div class="thumb" title="No image"></div>`}
             <div class="cap">${(f.caption||'').replace(/</g,'&lt;')}</div>
           </div>
         `).join('');
