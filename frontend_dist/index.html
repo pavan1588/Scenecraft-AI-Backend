@@ -1,315 +1,598 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>SceneCraft AI — Analyzer & Editor</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SceneCraft AI</title>
   <style>
     :root{
-      /* Locked palette for consistency */
-      --bg: #0b0b0c;
-      --panel: #121214;
-      --muted: #1b1b1f;
-      --text: #e7e7ea;
-      --subtle: #b7b7c2;
-      --brand: #caa656;    /* gold */
-      --brand-weak: #9b7d3e;
-      --ok: #37c189;       /* green-locked */
-      --warn: #e6b84c;     /* amber-locked */
-      --bad: #e06464;      /* red-locked */
-      --accent: #6aa9ff;   /* blue for links */
-      --border: #26262b;
-
-      /* Heatmap gradient stops (don’t change) */
-      --hm-low: #2b2f3a;
-      --hm-mid: #7a84a6;
-      --hm-high: #caa656;
+      --bg:#f6fbff;
+      --panel:#ffffff;
+      --text:#0f2647;
+      --accent:#5aa9ff;      /* fixed */
+      --accent-soft:#b3d9ff; /* fixed */
+      --border:#d7e9ff;
+      --muted:#5c6f8a;
+      --danger:#bb2d3b;
+      --ok:#1f8f5f;
+      --warn:#b58900;
     }
     *{box-sizing:border-box}
-    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font:14px/1.5 Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial}
-    a{color:var(--accent);text-decoration:none}
-    .wrap{max-width:1100px;margin:0 auto;padding:24px}
-    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-    .brand{display:flex;gap:10px;align-items:flex-end}
-    .brand h1{margin:0;font-size:20px;letter-spacing:.3px}
-    .brand em{font-style:normal;color:var(--brand);font-weight:600}
-    .tm{font-size:11px;position:relative;top:-6px;margin-left:2px;color:var(--brand)}
-    nav{display:flex;gap:8px;flex-wrap:wrap}
-    .tab{padding:8px 12px;border:1px solid var(--border);border-radius:12px;background:var(--panel);cursor:pointer;color:var(--subtle)}
-    .tab.active{color:var(--text);border-color:var(--brand);box-shadow:0 0 0 1px #000 inset, 0 0 0 1px var(--brand)}
-    .card{background:linear-gradient(180deg,var(--panel),var(--muted));border:1px solid var(--border);border-radius:16px;padding:16px;margin:14px 0;box-shadow:0 6px 16px rgba(0,0,0,.35)}
-    .row{display:grid;grid-template-columns:1fr;gap:14px}
-    @media(min-width:900px){.row{grid-template-columns:1.2fr .8fr}}
-    textarea{width:100%;min-height:220px;background:#0f0f12;border:1px solid var(--border);border-radius:14px;color:var(--text);padding:12px;resize:vertical}
-    .controls{display:flex;gap:10px;flex-wrap:wrap}
-    button{background:var(--brand);color:#121212;border:0;border-radius:12px;padding:10px 14px;font-weight:600;cursor:pointer}
-    button.secondary{background:#1b1b1f;color:var(--text);border:1px solid var(--border)}
-    .muted{color:var(--subtle)}
-    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
-    .divider{height:1px;background:var(--border);margin:10px 0 6px}
-    .tag{display:inline-block;padding:4px 8px;border:1px solid var(--border);border-radius:999px;font-size:12px;color:var(--subtle);margin-right:6px}
-    .legend{display:flex;gap:10px;flex-wrap:wrap}
-    .legend .dot{width:10px;height:10px;border-radius:50%}
-    .legend span{display:flex;align-items:center;gap:6px}
-    .grid{display:grid;gap:10px}
-    .grid.cols-2{grid-template-columns:1fr 1fr}
-    .grid.cols-3{grid-template-columns:1fr 1fr 1fr}
-    /* Heat map cells */
-    .heat-row{display:grid;grid-template-columns:repeat(20,1fr);gap:2px}
-    .cell{height:16px;border-radius:4px;background:var(--hm-low)}
-    .kpi{display:flex;justify-content:space-between;gap:10px}
-    .kpi .pill{padding:8px 10px;border-radius:10px;background:#111;border:1px solid var(--border)}
-    .pill.good{border-color:var(--ok);color:var(--ok)}
-    .pill.mid{border-color:var(--warn);color:var(--warn)}
-    .pill.bad{border-color:var(--bad);color:var(--bad)}
-    /* Sticky nav on scroll */
-    .sticky{position:sticky;top:0;z-index:50;background:linear-gradient(180deg,var(--bg),rgba(11,11,12,0.75));backdrop-filter:saturate(120%) blur(6px);padding:10px 0 14px;margin:0 -2px}
-    /* Output blocks */
-    .output{white-space:pre-wrap}
-    /* Hide sections initially (preserves your behavior) */
-    #analyzerSection, #editorSection{display:none}
-    /* Copy/selection protections (will respect your previous handlers if any) */
-    body.noselect *::selection{background:transparent}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji";
+      background:var(--bg);
+      color:var(--text);
+    }
+    .container{max-width:1100px;margin:0 auto;padding:24px}
+    h1{margin:0 0 16px 0;font-weight:700;color:var(--text)}
+    nav{display:flex;gap:10px;margin:12px 0 24px}
+    nav button{
+      background:var(--panel);border:1px solid var(--border);color:var(--text);
+      padding:10px 14px;border-radius:10px;cursor:pointer;transition:all .2s ease;
+    }
+    nav button:hover{border-color:var(--accent)}
+    .gate, .panel{
+      background:var(--panel);border:1px solid var(--border);border-radius:16px;
+      padding:18px 16px;box-shadow:0 10px 24px rgba(30,60,120,.06);
+    }
+    .row{display:flex;gap:16px;flex-wrap:wrap}
+    textarea{
+      width:100%;min-height:220px;padding:12px 14px;border-radius:12px;border:1px solid var(--border);
+      background:#fbfdff;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;line-height:1.45;
+    }
+    .btn{
+      background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 16px;cursor:pointer;
+      box-shadow:0 6px 16px rgba(90,169,255,.25);
+    }
+    .btn.secondary{background:#e9f4ff;color:var(--text)}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .hidden{display:none}
+    .tabs .tab{display:none}
+    .tabs .tab.active{display:block}
+
+    /* Output layout */
+    .grid{display:grid;gap:16px}
+    @media (min-width:980px){
+      .grid{
+        grid-template-columns: 1.15fr 0.85fr;
+      }
+    }
+    .card{
+      background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px 18px;
+    }
+    .card h3{margin:2px 0 10px 0}
+    .muted{color:var(--muted)}
+    .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:var(--accent-soft);color:#0b2a55;font-size:13px}
+    .mono{font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+    /* Readability tweaks (safe) */
+    #summaryText{white-space:pre-wrap;line-height:1.6;font-size:1rem}
+    .disclaimer{font-size:.9rem;color:#6b7c95;margin-top:6px;font-style:italic}
+    .card hr{border:none;border-top:1px solid var(--border);margin:12px 0}
+
+    .copyGuard{user-select:none;-webkit-user-select:none}
+    .divider{height:1px;background:var(--border);margin:12px 0}
+    .small{font-size:13px}
+    .error{color:var(--danger)}
+
+    /* Mood gauge (circular) */
+    .gauge{width:120px;height:120px;position:relative;display:inline-block}
+    .gauge svg{transform:rotate(-90deg)}
+    .gauge .center{
+      position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+      font-weight:700;color:#0b2a55;
+    }
+
+    /* Heatmap */
+    .heatmap-wrap{width:100%;height:64px}
+    .legend{display:flex;justify-content:space-between;font-size:12px;margin-top:6px;color:var(--muted)}
+    .flag.ok{color:var(--ok)}
+    .flag.warn{color:var(--warn)}
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <div class="brand">
-        <h1>SceneCraft <em>AI</em><span class="tm">TM</span></h1>
+  <div class="container">
+    <div id="password-gate" class="gate">
+      <h2>Enter Access Key</h2>
+      <div class="row">
+        <input type="password" id="access" placeholder="Password" style="flex:1; padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#fbfdff;color:var(--text)"/>
+        <button class="btn" onclick="checkAccess()">Unlock</button>
       </div>
-      <nav class="sticky" id="tabs">
-        <button class="tab active" data-target="homeSection">Home</button>
-        <button class="tab" data-target="analyzerSection">Scene Analyzer</button>
-        <button class="tab" data-target="editorSection">Scene Editor</button>
-        <span class="tag">Full Script Writer (coming)</span>
-        <span class="tag">Pricing</span>
+      <div id="access-error" class="error small" style="margin-top:8px"></div>
+    </div>
+
+    <div id="app" class="hidden">
+      <h1>SceneCraft AI</h1>
+      <nav>
+        <button onclick="showTab('home')">Home</button>
+        <button onclick="showTab('analyzer')">Scene Analyzer</button>
+        <button onclick="showTab('editor')">Scene Editor</button>
       </nav>
-    </header>
 
-    <!-- Home -->
-    <section id="homeSection" class="card">
-      <h2 style="margin-top:0">Welcome</h2>
-      <p class="muted">Paste a scene in Analyzer for cinematic diagnostics; use Editor for line‑by‑line rewrite suggestions. Hindi/Kannada supported (native or transliteration). Visuals are stable across runs.</p>
-      <div class="legend" style="margin-top:8px">
-        <span><span class="dot" style="background:var(--ok)"></span>Strong</span>
-        <span><span class="dot" style="background:var(--warn)"></span>Needs Attention</span>
-        <span><span class="dot" style="background:var(--bad)"></span>Weak</span>
-      </div>
-    </section>
-
-    <!-- Analyzer -->
-    <section id="analyzerSection" class="card">
-      <div class="row">
-        <div>
-          <h3 style="margin:0 0 8px">Scene Analyzer</h3>
-          <textarea id="analyzeInput" placeholder="Paste your scene (2 pages max is ideal)…"></textarea>
-          <div class="controls">
-            <button id="analyzeBtn">Analyze</button>
-            <button class="secondary" id="clearAnalyze">Clear</button>
-            <span id="analyzeStatus" class="muted"></span>
+      <div class="tabs">
+        <div id="home" class="tab active">
+          <div class="panel">
+            <p>Analyze scenes with a cinematic brain. Get an engaging breakdown (beats, mood, pacing, realism), an immersive reader mode, contextual comparisons, and strong, director-ready suggestions.</p>
           </div>
         </div>
-        <div>
-          <div class="kpi">
-            <div class="pill" id="kpiStructure">Structure: —</div>
-            <div class="pill" id="kpiRealism">Realism: —</div>
-            <div class="pill" id="kpiResonance">Resonance: —</div>
-          </div>
-          <div class="divider"></div>
-          <div class="grid cols-2">
-            <div>
-              <h4 style="margin:6px 0">Beat Heat Map</h4>
-              <div id="heatMap" class="heat-row" aria-label="Beat Heat Map"></div>
-            </div>
-            <div>
-              <h4 style="margin:6px 0">Analytics Summary</h4>
-              <div id="analyticsSummary" class="output mono muted">Run analysis to populate…</div>
+
+        <div id="analyzer" class="tab">
+          <div class="panel">
+            <textarea id="scene-analyze" placeholder="Paste your scene (~250+ words)"></textarea>
+            <div class="right" style="margin-top:10px">
+              <button class="btn" id="analyzeBtn" onclick="analyze()">Analyze</button>
+              <span id="anWC" class="small muted mono">0 words</span>
             </div>
           </div>
-          <div class="divider"></div>
-          <h4 style="margin:6px 0">Detailed Analysis</h4>
-          <div id="analysisOut" class="output">—</div>
-        </div>
-      </div>
-    </section>
 
-    <!-- Editor -->
-    <section id="editorSection" class="card">
-      <div class="row">
-        <div>
-          <h3 style="margin:0 0 8px">Scene Editor</h3>
-          <textarea id="editInput" placeholder="Paste your scene + context (treated as one unified text)…"></textarea>
-          <div class="controls">
-            <button id="editBtn">Get Line-by-Line Suggestions</button>
-            <button class="secondary" id="clearEdit">Clear</button>
-            <span id="editStatus" class="muted"></span>
+          <div id="analysis-area" class="grid copyGuard" style="margin-top:16px">
+            <!-- Left: Summary + Beats + Suggestions + new left cards -->
+            <div class="left">
+              <div class="card" id="summary-card">
+                <h3>Scene Summary</h3>
+                <div id="summaryText" class="mono"></div>
+              </div>
+
+              <div class="card" id="beats-card">
+                <h3>Beats</h3>
+                <div id="beats"></div>
+              </div>
+
+              <div class="card" id="suggestions-card">
+                <h3>Suggestions</h3>
+                <div id="suggestions"></div>
+              </div>
+
+              <div class="card" id="growth-card">
+                <h3>Scene Growth Suggestions</h3>
+                <div id="growth"></div>
+              </div>
+
+              <div class="card" id="disclaimer-card">
+                <div class="disclaimer small muted" id="disclaimerText"></div>
+              </div>
+            </div>
+
+            <!-- Right: Analytics + Comparisons + Audio + new right cards -->
+            <div class="right-col">
+              <div class="card">
+                <h3>Analytics Summary</h3>
+                <div class="row" style="align-items:center">
+                  <div class="gauge" title="Mood">
+                    <svg width="120" height="120">
+                      <circle cx="60" cy="60" r="52" stroke="#e6f2ff" stroke-width="12" fill="none"/>
+                      <circle id="moodArc" cx="60" cy="60" r="52" stroke="#5aa9ff" stroke-width="12" fill="none" stroke-linecap="round" stroke-dasharray="327" stroke-dashoffset="327"/>
+                    </svg>
+                    <div class="center"><span id="moodVal">--</span>%</div>
+                  </div>
+                  <div style="flex:1">
+                    <div class="row small">
+                      <span class="pill">Pacing: <strong id="pacing" style="margin-left:6px"></strong></span>
+                      <span class="pill">Realism: <strong id="realism" style="margin-left:6px"></strong>%</span>
+                    </div>
+                    <div class="row small" style="margin-top:6px">
+                      <span class="pill">Stakes: <strong id="stakes" style="margin-left:6px"></strong></span>
+                      <span class="pill">Dialogue: <strong id="dialogue" style="margin-left:6px"></strong></span>
+                      <span class="pill">Readiness: <strong id="readiness" style="margin-left:6px"></strong></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <h3>Contextual Comparison</h3>
+                <div id="comparison" class="muted"></div>
+                <div class="divider"></div>
+                <div class="row small muted">
+                  <span>Mood words:</span>
+                  <span id="moodWords" class="mono"></span>
+                </div>
+                <div class="row" style="margin-top:8px;align-items:center">
+                  <button id="audioBtn" class="btn secondary small" onclick="toggleAudio()" disabled>Play ambience</button>
+                  <span class="small muted">Ambient hook based on mood</span>
+                </div>
+              </div>
+
+              <div class="card" id="emotional-card">
+                <h3>Emotional & Sensory Depth</h3>
+                <div id="emotionalMap" class="small"></div>
+                <div class="divider"></div>
+                <div id="sensory" class="small"></div>
+              </div>
+
+              <div class="card" id="props-card">
+                <h3>Prop & Object Symbolism</h3>
+                <div id="props" class="small"></div>
+              </div>
+
+              <div class="card" id="dual-card">
+                <h3>Dual‑Lens Audience View</h3>
+                <div id="dualLens" class="small"></div>
+              </div>
+
+              <div class="card" id="integrity-card">
+                <h3>Narrative Integrity Alerts</h3>
+                <ul id="integrity" class="small"></ul>
+              </div>
+
+              <div class="card" id="heatmap-card">
+                <h3>Micro‑Pacing Heatmap</h3>
+                <div class="heatmap-wrap">
+                  <svg id="heatmap" width="100%" height="64" viewBox="0 0 1000 64" preserveAspectRatio="none"></svg>
+                </div>
+                <div class="legend">
+                  <span>Start</span><span>Mid</span><span>End</span>
+                </div>
+              </div>
+            </div>
           </div>
+
+          <audio id="ambience" loop></audio>
         </div>
-        <div>
-          <h4 style="margin:0 0 8px">Rewrite Suggestions</h4>
-          <div id="editOut" class="output mono">—</div>
+
+        <div id="editor" class="tab">
+          <div class="panel">
+            <textarea id="scene-edit" placeholder="Optional: short context on top; then paste your scene (~250+ words)"></textarea>
+            <div class="right" style="margin-top:10px">
+              <button class="btn" id="editBtn" onclick="edit()">Edit</button>
+              <span id="edWC" class="small muted mono">0 words</span>
+            </div>
+          </div>
+
+          <div class="card copyGuard" id="edit-result" style="margin-top:16px;min-height:64px"></div>
         </div>
       </div>
-    </section>
+    </div>
   </div>
 
   <script>
-    // Basic tab toggle (keeps your section IDs)
-    const tabs = document.querySelectorAll('.tab');
-    const sections = {
-      homeSection: document.getElementById('homeSection'),
-      analyzerSection: document.getElementById('analyzerSection'),
-      editorSection: document.getElementById('editorSection'),
+  (function(){
+    if (window.__initSC__) return; window.__initSC__ = true;
+
+    const analyzeCache = new Map();
+    const editCache = new Map();
+    const inFlight = new Set();
+
+    const el = id => document.getElementById(id);
+    const wc = t => (t.trim().match(/\b\w+\b/g)||[]).length;
+
+    // Password (backend validation)
+    window.checkAccess = async function(){
+      const pass = el('access').value;
+      try{
+        const r = await fetch('/validate-password', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({password:pass})
+        });
+        const d = await r.json();
+        if(d.valid){
+          el('password-gate').classList.add('hidden');
+          el('app').classList.remove('hidden');
+          showTab('home');
+        }else{
+          el('access-error').textContent = 'Access Denied';
+        }
+      }catch{
+        el('access-error').textContent = 'Network error';
+      }
     };
-    function showSection(id){
-      Object.values(sections).forEach(s => s.style.display = 'none');
-      tabs.forEach(t => t.classList.remove('active'));
-      document.getElementById(id).style.display = 'block';
-      document.querySelector(`.tab[data-target="${id}"]`)?.classList.add('active');
+
+    // Tabs + input reset
+    window.showTab = function(id){
+      document.querySelectorAll('.tabs .tab').forEach(t=>t.classList.remove('active'));
+      el(id).classList.add('active');
+
+      if (id !== 'analyzer'){
+        el('scene-analyze').value = '';
+        el('anWC').textContent = '0 words';
+        clearAnalysisUI();
+      }
+      if (id !== 'editor'){
+        el('scene-edit').value = '';
+        el('edWC').textContent = '0 words';
+        el('edit-result').textContent = '';
+      }
+    };
+
+    // Copy-protect outputs
+    function guard(node){
+      node.addEventListener('contextmenu', e=>e.preventDefault());
+      node.addEventListener('selectstart', e=>e.preventDefault());
+      node.addEventListener('copy', e=>e.preventDefault());
     }
-    tabs.forEach(btn=>{
-      btn.addEventListener('click',()=>showSection(btn.dataset.target));
+    guard(el('analysis-area'));
+    guard(el('edit-result'));
+    document.addEventListener('keydown', (e)=>{
+      const isMod = e.ctrlKey || e.metaKey;
+      const k = e.key.toLowerCase();
+      const active = document.activeElement;
+      const protectedArea = el('analysis-area').contains(active) || el('edit-result').contains(active);
+      if(isMod && (k==='a' || k==='c') && protectedArea){ e.preventDefault(); }
     });
-    // Default landing on Home
-    showSection('homeSection');
 
-    // Locked color ramp for heat map
-    function heatColor(value){ // value in [0,1]
-      // 3-stop gradient: low -> mid -> high (fixed hex)
-      const stops = [
-        {pos:0.0, r:0x2b, g:0x2f, b:0x3a}, // --hm-low
-        {pos:0.55,r:0x7a, g:0x84, b:0xa6}, // --hm-mid
-        {pos:1.0, r:0xca, g:0xa6, b:0x56}  // --hm-high
-      ];
-      let a=stops[0], b=stops[2];
-      if(value<=stops[1].pos){ b=stops[1]; }
-      else { a=stops[1]; }
-      const t=(value - a.pos)/(b.pos - a.pos);
-      const r=Math.round(a.r + (b.r-a.r)*t);
-      const g=Math.round(a.g + (b.g-a.g)*t);
-      const bl=Math.round(a.b + (b.b-a.b)*t);
-      return `rgb(${r},${g},${bl})`;
+    // Word counters
+    el('scene-analyze').addEventListener('input', ()=>{ el('anWC').textContent = wc(el('scene-analyze').value)+' words';});
+    el('scene-edit').addEventListener('input', ()=>{ el('edWC').textContent = wc(el('scene-edit').value)+' words';});
+
+    // Mood gauge
+    function setGauge(val){
+      const circ = 2*Math.PI*52;
+      const off = circ * (1 - (val/100));
+      el('moodArc').setAttribute('stroke-dashoffset', String(off));
+      el('moodVal').textContent = Math.round(val);
     }
 
-    // KPI pill mapping (stable)
-    function kpiClass(score){ // expects 0..100 or null
-      if(score==null || isNaN(score)) return '';
-      if(score>=70) return 'pill good';
-      if(score>=45) return 'pill mid';
-      return 'pill bad';
+    function clearAnalysisUI(){
+      el('summaryText').textContent = '';
+      el('beats').innerHTML = '';
+      el('suggestions').innerHTML = '';
+      el('growth').innerHTML = '';
+      el('disclaimerText').textContent = '';
+      setGauge(0);
+      el('pacing').textContent = '';
+      el('realism').textContent = '';
+      el('stakes').textContent = '';
+      el('dialogue').textContent = '';
+      el('readiness').textContent = '';
+      el('comparison').textContent = '';
+      el('moodWords').textContent = '';
+      el('emotionalMap').textContent = '';
+      el('sensory').textContent = '';
+      el('props').textContent = '';
+      el('dualLens').textContent = '';
+      el('integrity').innerHTML = '';
+      drawHeatmap([]);
+      el('audioBtn').disabled = true;
+      el('ambience').pause();
     }
 
-    // ANALYZER
-    const analyzeBtn = document.getElementById('analyzeBtn');
-    const analyzeInput = document.getElementById('analyzeInput');
-    const analyzeStatus = document.getElementById('analyzeStatus');
-    const analysisOut = document.getElementById('analysisOut');
-    const analyticsSummary = document.getElementById('analyticsSummary');
-    const heatMap = document.getElementById('heatMap');
-    const kpiStructure = document.getElementById('kpiStructure');
-    const kpiRealism = document.getElementById('kpiRealism');
-    const kpiResonance = document.getElementById('kpiResonance');
-
-    function renderHeatMap(beats){
-      heatMap.innerHTML='';
-      const total = 20; // lock to 20 cells for stability
-      for(let i=0;i<total;i++){
-        const v = beats && beats[i]!=null ? beats[i] : 0;
-        const cell=document.createElement('div');
-        cell.className='cell';
-        const t = Math.max(0, Math.min(1, v)); // clamp
-        cell.style.background = heatColor(t);
-        cell.title = `Beat ${i+1}: ${(t*100).toFixed(0)}% intensity`;
-        heatMap.appendChild(cell);
+    // Immersive reader
+    async function typeSummary(text){
+      const dest = el('summaryText');
+      dest.textContent = '';
+      for(const ch of text){
+        dest.textContent += ch;
+        await new Promise(r=>setTimeout(r, 8));
       }
     }
 
-    function renderKPIs(k){
-      const s = (k && typeof k.structure==='number') ? Math.round(k.structure) : null;
-      const r = (k && typeof k.realism==='number') ? Math.round(k.realism) : null;
-      const a = (k && typeof k.resonance==='number') ? Math.round(k.resonance) : null;
-      kpiStructure.className = 'pill ' + (kpiClass(s).split(' ')[1]||'');
-      kpiRealism.className   = 'pill ' + (kpiClass(r).split(' ')[1]||'');
-      kpiResonance.className = 'pill ' + (kpiClass(a).split(' ')[1]||'');
-      kpiStructure.textContent = `Structure: ${s??'—'}`;
-      kpiRealism.textContent   = `Realism: ${r??'—'}`;
-      kpiResonance.textContent = `Resonance: ${a??'—'}`;
+    // Audio hook
+    let audioOn = false;
+    window.toggleAudio = function(){
+      const a = el('ambience');
+      if(!a.src) return;
+      if(audioOn){ a.pause(); el('audioBtn').textContent = 'Play ambience'; }
+      else { a.play().catch(()=>{}); el('audioBtn').textContent = 'Pause ambience'; }
+      audioOn = !audioOn;
+    };
+
+    // Heatmap render (expects 0..100 array)
+    function drawHeatmap(arr){
+      const svg = el('heatmap');
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+      if(!arr || !arr.length) return;
+
+      const n = arr.length;
+      const w = 1000, h = 64;
+      const barW = Math.max(1, Math.floor(w / n));
+      arr.forEach((v,i)=>{
+        const x = i*barW;
+        const height = Math.max(4, Math.round((v/100) * h));
+        const y = h - height;
+        const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+        rect.setAttribute('x', x);
+        rect.setAttribute('y', y);
+        rect.setAttribute('width', barW-1);
+        rect.setAttribute('height', height);
+        rect.setAttribute('fill', '#5aa9ff');
+        rect.setAttribute('opacity', 0.25 + (v/100)*0.6);
+        svg.appendChild(rect);
+      });
     }
 
-    analyzeBtn.addEventListener('click', async ()=>{
-      const scene = (analyzeInput.value||'').trim();
-      if(!scene){ analysisOut.textContent='Please paste a scene.'; return; }
-      analyzeStatus.textContent='Analyzing…';
-      analysisOut.textContent='—';
-      analyticsSummary.textContent='Computing analytics…';
-      renderHeatMap(null);
-      renderKPIs(null);
+    // Render structured analysis JSON
+    function renderAnalysis(obj){
+      // lock UI colors
+      document.documentElement.style.setProperty('--accent', '#5aa9ff');
+      document.documentElement.style.setProperty('--accent-soft', '#b3d9ff');
+
+      // Summary
+      typeSummary(obj.summary || 'Analysis');
+
+      // Beats
+      el('beats').innerHTML = '';
+      (obj.beats||[]).forEach(b=>{
+        const d = document.createElement('div');
+        d.innerHTML = `<div class="small"><span class="pill" style="margin-right:6px">${b.title||'Beat'}</span>${(b.insight||'').replace(/</g,'&lt;')}</div>`;
+        el('beats').appendChild(d);
+      });
+
+      // Suggestions (collapsible)
+      el('suggestions').innerHTML = '';
+      (obj.suggestions||[]).forEach(s=>{
+        const dt = document.createElement('details');
+        const sum = document.createElement('summary');
+        sum.textContent = s.title || 'Suggestion';
+        const body = document.createElement('div');
+        body.innerHTML = `
+          <div class="small"><strong>Rationale:</strong> ${(s.rationale||'').replace(/</g,'&lt;')}</div>
+          ${s.rewrite_example ? `<div class="small mono" style="margin-top:6px"><strong>Rewrite:</strong> ${(s.rewrite_example||'').replace(/</g,'&lt;')}</div>`:''}
+          <div class="small muted" style="margin-top:6px"><strong>Director’s Note:</strong> ${(s.director_note||'').replace(/</g,'&lt;')}</div>
+        `;
+        dt.appendChild(sum); dt.appendChild(body);
+        el('suggestions').appendChild(dt);
+      });
+
+      // Analytics
+      const A = obj.analytics||{};
+      setGauge(Number(A.mood||0));
+      el('pacing').textContent = A.pacing||'';
+      el('realism').textContent = Number(A.realism||0);
+      el('stakes').textContent = A.stakes||'';
+      el('dialogue').textContent = A.dialogue_naturalism||'';
+      el('readiness').textContent = A.cinematic_readiness||'';
+
+      // Comparison + mood words
+      el('comparison').textContent = obj.comparison||'';
+      el('moodWords').textContent = (obj.theme?.mood_words||[]).join(', ');
+
+      // Emotional & Sensory
+      const E = obj.emotional_map || {};
+      const lines = [];
+      if (E.curve_label) lines.push(`<div class="small"><strong>Emotional curve:</strong> ${E.curve_label}</div>`);
+      if (typeof E.clarity === 'string') lines.push(`<div class="small"><strong>Clarity:</strong> ${E.clarity}</div>`);
+      if (typeof E.empathy === 'string') lines.push(`<div class="small"><strong>Empathy Anchor:</strong> ${E.empathy}</div>`);
+      el('emotionalMap').innerHTML = lines.join('');
+
+      const S = obj.sensory || {};
+      const senses = [];
+      ['visual','auditory','tactile','olfactory','gustatory','spatial'].forEach(k=>{
+        if (k in S) senses.push(`<span class="pill">${k[0].toUpperCase()+k.slice(1)}: <strong style="margin-left:6px">${S[k]}</strong></span>`);
+      });
+      el('sensory').innerHTML = senses.join(' ');
+
+      // Props & Symbolism
+      const P = obj.props||[];
+      el('props').innerHTML = P.length ? P.map(p=>`<div class="small">• <strong>${(p.name||'Object')}</strong> — ${(p.significance||'').replace(/</g,'&lt;')}</div>`).join('') : '<div class="small muted">No key objects detected.</div>';
+
+      // Dual lens
+      const D = obj.dual_lens||{};
+      el('dualLens').innerHTML =
+        `<div class="small"><strong>First‑timer:</strong> ${(D.first_timer||'').replace(/</g,'&lt;')}</div>
+         <div class="small"><strong>Rewatcher:</strong> ${(D.rewatcher||'').replace(/</g,'&lt;')}</div>`;
+
+      // Integrity alerts
+      const IA = Array.isArray(obj.integrity_alerts) ? obj.integrity_alerts : [];
+      el('integrity').innerHTML = IA.length
+        ? IA.map(a=>`<li class="small ${a.level==='warn'?'flag warn':'flag ok'}">${(a.message||'').replace(/</g,'&lt;')}</li>`).join('')
+        : '<li class="small muted">No issues flagged.</li>';
+
+      // Heatmap (visuals unchanged)
+      drawHeatmap(Array.isArray(obj.pacing_map) ? obj.pacing_map : []);
+
+      // Growth suggestions
+      const g = el('growth');
+      if (Array.isArray(obj.growth_suggestions) && obj.growth_suggestions.length){
+        g.innerHTML = obj.growth_suggestions.map(t=>`<div class="small">• ${(t||'').replace(/</g,'&lt;')}</div>`).join('');
+      } else if (typeof obj.growth_suggestions === 'string' && obj.growth_suggestions.trim()){
+        g.textContent = obj.growth_suggestions;
+      } else {
+        g.innerHTML = '<div class="small muted">No growth suggestions provided.</div>';
+      }
+
+      // Disclaimer
+      el('disclaimerText').textContent =
+        (obj.disclaimer && String(obj.disclaimer).trim())
+        || "This is a first‑pass cinematic analysis to support your craft. Your voice and choices always come first.";
+
+      // Audio
+      const audioTag = el('ambience');
+      const audioBtn = el('audioBtn');
+      audioOn = false; audioTag.pause(); audioTag.removeAttribute('src');
+      audioBtn.textContent = 'Play ambience'; audioBtn.disabled = true;
+
+      const theme = obj?.theme || {};
+      const remoteUrl = theme.audio_url && String(theme.audio_url).trim();
+      const key = theme.audio && String(theme.audio).trim();
+      function slugify(s){ return s.toLowerCase().replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,''); }
+      let chosen = '';
+      if (remoteUrl) chosen = remoteUrl; else if (key) chosen = `/audio/${slugify(key)}.mp3`;
+
+      if (chosen){
+        audioTag.oncanplay = ()=>{ audioBtn.disabled = false; audioBtn.title = 'Ambient hook based on mood'; };
+        audioTag.onerror   = ()=>{ audioBtn.disabled = true;  audioBtn.title = 'Audio unavailable'; };
+        audioTag.src = chosen;
+      } else {
+        audioBtn.disabled = true; audioBtn.title = 'No ambience available';
+      }
+    }
+
+    // Hash helper (stable cache keys)
+    async function sha(text){
+      const enc = new TextEncoder().encode(text);
+      const buf = await crypto.subtle.digest('SHA-256', enc);
+      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+
+    window.analyze = async function(){
+      const scene = el('scene-analyze').value.trim();
+      const btn = el('analyzeBtn');
+      const words = wc(scene);
+      if (words < 250){ clearAnalysisUI(); el('summaryText').textContent = `Scene too short: ${words}/250 words.`; return; }
+
+      const key = 'an:'+await sha(scene);
+      if (analyzeCache.has(key)){
+        renderAnalysis(analyzeCache.get(key));
+        return;
+      }
+      if (inFlight.has(key)){ el('summaryText').textContent = 'Using best available result…'; return; }
+
+      inFlight.add(key);
+      btn.disabled = true;
+      clearAnalysisUI();
+      el('summaryText').textContent = 'Analyzing…';
+
       try{
-        const res = await fetch('/analyze',{
+        const r = await fetch('/analyze', {
           method:'POST',
-          headers:{
-            'Content-Type':'application/json',
-            'x-user-agreement':'true'
-          },
-          body: JSON.stringify({ scene })
+          headers:{'Content-Type':'application/json','x-user-agreement':'true'},
+          body: JSON.stringify({scene})
         });
-        if(!res.ok){ throw new Error('Server error'); }
-        const data = await res.json();
-        // Expected payload keys (unchanged): data.analysis, data.analytics_summary, data.beat_intensity (0..1 array length<=20), data.kpis {structure,realism,resonance}
-        analysisOut.textContent = data.analysis || '—';
-        analyticsSummary.textContent = data.analytics_summary || '—';
-        renderHeatMap(Array.isArray(data.beat_intensity)?data.beat_intensity.slice(0,20):null);
-        renderKPIs(data.kpis || null);
-        analyzeStatus.textContent='Done.';
-      }catch(err){
-        analysisOut.textContent='Internal Server Error. Please try again.';
-        analyticsSummary.textContent='—';
-        analyzeStatus.textContent='';
-        renderHeatMap(null);
-        renderKPIs(null);
+        const d = await r.json().catch(()=> ({}));
+        if (!r.ok){
+          el('summaryText').textContent = `Error: ${d.detail||r.statusText} (HTTP ${r.status})`;
+          return;
+        }
+        const obj = d.analysis || {};
+        analyzeCache.set(key, obj);
+        renderAnalysis(obj);
+      }catch(e){
+        el('summaryText').textContent = `Network error: ${e.message||e}`;
+      }finally{
+        inFlight.delete(key);
+        btn.disabled = false;
       }
-    });
-    document.getElementById('clearAnalyze').addEventListener('click',()=>{
-      analyzeInput.value=''; analysisOut.textContent='—'; analyticsSummary.textContent='Run analysis to populate…';
-      renderHeatMap(null); renderKPIs(null); analyzeStatus.textContent='';
-    });
+    };
 
-    // EDITOR
-    const editBtn = document.getElementById('editBtn');
-    const editInput = document.getElementById('editInput');
-    const editStatus = document.getElementById('editStatus');
-    const editOut = document.getElementById('editOut');
-    editBtn.addEventListener('click', async ()=>{
-      const scene = (editInput.value||'').trim();
-      if(!scene){ editOut.textContent='Please paste a scene.'; return; }
-      editStatus.textContent='Generating suggestions…';
-      editOut.textContent='—';
+    window.edit = async function(){
+      const scene = el('scene-edit').value.trim();
+      const btn = el('editBtn');
+      const words = wc(scene);
+      if (words < 250){ el('edit-result').textContent = `Scene too short: ${words}/250 words.`; return; }
+
+      const key = 'ed:'+await sha(scene);
+      if (editCache.has(key)){ el('edit-result').textContent = editCache.get(key); return; }
+      if (inFlight.has(key)){ el('edit-result').textContent = 'Using best available result…'; return; }
+
+      inFlight.add(key);
+      btn.disabled = true;
+      el('edit-result').textContent = 'Editing…';
+
       try{
-        const res = await fetch('/edit',{
+        const r = await fetch('/edit', {
           method:'POST',
-          headers:{
-            'Content-Type':'application/json',
-            'x-user-agreement':'true'
-          },
-          body: JSON.stringify({ scene }) // unified scene+context (as requested)
+          headers:{'Content-Type':'application/json','x-user-agreement':'true'},
+          body: JSON.stringify({scene})
         });
-        if(!res.ok){ throw new Error('Server error'); }
-        const data = await res.json();
-        editOut.textContent = data.suggestions || data.analysis || '—';
-        editStatus.textContent='Done.';
-      }catch(err){
-        editOut.textContent='Internal Server Error. Please try again.';
-        editStatus.textContent='';
+        const d = await r.json().catch(()=> ({}));
+        if (!r.ok){
+          el('edit-result').textContent = `Error: ${d.detail||r.statusText} (HTTP ${r.status})`;
+          return;
+        }
+        const out = d.edit_suggestions || '';
+        editCache.set(key, out);
+        el('edit-result').textContent = out;
+      }catch(e){
+        el('edit-result').textContent = `Network error: ${e.message||e}`;
+      }finally{
+        inFlight.delete(key);
+        btn.disabled = false;
       }
-    });
-    document.getElementById('clearEdit').addEventListener('click',()=>{
-      editInput.value=''; editOut.textContent='—'; editStatus.textContent='';
-    });
+    };
 
-    // Optional: disable selection if you were already doing it; leaving hook only.
-    // document.body.classList.add('noselect');
-    // document.addEventListener('contextmenu', e=>e.preventDefault());
+  })();
   </script>
 </body>
 </html>
