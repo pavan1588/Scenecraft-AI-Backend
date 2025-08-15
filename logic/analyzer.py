@@ -3,7 +3,7 @@ import re
 import json as _json
 import httpx
 import hashlib
-from urllib.parse import quote  # ← use quote (not quote_plus)
+from urllib.parse import quote
 from fastapi import HTTPException
 
 # ---- Generation-command filtering -------------------------------------------------
@@ -25,7 +25,6 @@ INTENT_LINE_RE = re.compile(
 )
 
 # Inline — ONLY when clearly instructing to modify/generate a scene/script
-# e.g., "please improve this scene", "rewrite the script"
 INTENT_INLINE_CMD_RE = re.compile(
     r"\b(?:rewrite|regenerate|compose|fix|improve|polish|reword|make)\s+(?:this|the)?\s*(?:scene|script)\b",
     re.IGNORECASE,
@@ -62,8 +61,7 @@ def clean_scene(text: str) -> str:
 
 def _fallback_payload_from_text(text: str) -> dict:
     """
-    If the model doesn't return valid JSON (rare), wrap the text so frontend
-    still renders something coherent. Includes safe defaults for new UI keys.
+    Safe fallback with defaults for all UI keys, incl. storyboard.
     """
     return {
         "summary": "Analysis",
@@ -86,7 +84,6 @@ def _fallback_payload_from_text(text: str) -> dict:
         ],
         "comparison": "",
         "theme": {"color": "#b3d9ff", "audio": "", "mood_words": []},
-        # New layers (safe defaults)
         "emotional_map": {
             "curve_label": "Balanced",
             "clarity": "Moderate",
@@ -105,14 +102,12 @@ def _fallback_payload_from_text(text: str) -> dict:
         "integrity_alerts": [],
         "pacing_map": [],
         "growth_suggestions": [],
-        # Evidence & overlays
         "analytics_signals": [],
         "confidence": 60,
         "confidence_reason": "Moderate clarity; limited conflicting signals.",
         "pacing_annotations": [],
         "beat_markers": [],
-        # Storyboard
-        "storyboard_frames": [],  # [{"image_url": "...", "caption": "..."}]
+        "storyboard_frames": [],
         "disclaimer": (
             "This is a first‑pass cinematic analysis to support your craft. "
             "Your voice and choices always come first."
@@ -121,7 +116,7 @@ def _fallback_payload_from_text(text: str) -> dict:
     }
 
 def _system_prompt() -> str:
-    # === Benchmarks & Rival Layers preserved verbatim, plus added silent lenses ===
+    # Full craft guidance restored + newer schema
     return (
         "You are CineOracle — a layered cinematic intelligence. You perform all of SceneCraft AI’s existing "
         "scene analysis while silently running advanced internal passes. Never reveal internal steps.\n\n"
@@ -167,17 +162,11 @@ def _system_prompt() -> str:
         '    "dialogue_naturalism": "Weak" | "Mixed" | "Strong",\n'
         '    "cinematic_readiness": "Draft" | "Shootable" | "Strong"\n'
         "  },\n"
-        '  "analytics_signals": [\n'
-        '    {"claim": string, "evidence": "short quote or detail (≤12 words)"}\n'
-        "  ],\n"
+        '  "analytics_signals": [{"claim": string, "evidence": "short quote or detail (≤12 words)"}],\n'
         '  "confidence": integer (0-100),\n'
         '  "confidence_reason": string,\n'
-        '  "beats": [\n'
-        '    {"title": "Setup" | "Trigger" | "Escalation" | "Climax" | "Exit", "insight": string}\n'
-        "  ],\n"
-        '  "suggestions": [\n'
-        '    {"title": string, "rationale": string, "director_note": string, "rewrite_example": string}\n'
-        "  ],\n"
+        '  "beats": [{"title": "Setup" | "Trigger" | "Escalation" | "Climax" | "Exit", "insight": string}],\n'
+        '  "suggestions": [{"title": string, "rationale": string, "director_note": string, "rewrite_example": string}],\n'
         '  "comparison": string,\n'
         '  "theme": {"color": "#b3d9ff", "audio": string, "mood_words": [string, ...]},\n'
         '  "emotional_map": {"curve_label": string, "clarity": "Low"|"Moderate"|"High", "empathy": string},\n'
@@ -195,34 +184,22 @@ def _system_prompt() -> str:
 
         "CLARITY & BREVITY RULES (very important):\n"
         "- Keep the output uncluttered and human-readable.\n"
-        "- summary: ~80–120 words max, flowing like a thoughtful script doctor.\n"
-        "- beats: max 5, each insight ≤ 1–2 sentences.\n"
-        "- suggestions: max 5; each rationale ≤ 2 sentences; director_note ≤ 1 sentence; rewrite_example ≤ 2 lines (optional).\n"
-        "- props: list only the top 3–5 objects that truly matter.\n"
-        "- dual_lens: 1 short line each (≤ ~25 words).\n"
-        "- emotional_map fields: concise labels (3–5 words each).\n"
-        "- sensory values: use Low/Medium/High (or short phrase) per channel.\n"
-        "- integrity_alerts: only if needed; ≤ 5 total.\n"
-        "- growth_suggestions: ≤ 3.\n"
-        "- pacing_map: 20–40 points across the scene, representing micro‑tension.\n"
+        "- summary: ~80–120 words max.\n"
+        "- beats: ≤5; suggestions: ≤5; growth_suggestions: ≤3.\n"
+        "- sensory values: use Low/Medium/High or short phrase.\n"
+        "- pacing_map: 20–40 points.\n"
         "- Do NOT invent new plot content; analyze only what’s present.\n"
         "- Maintain a supportive, collaborative tone.\n"
         "\nEVIDENCE & RIGOR RULES:\n"
-        "- For analytics_signals, tie claims to brief textual evidence (≤12 words).\n"
-        "- Only add pacing_annotations where the shift is clear; avoid guesswork.\n"
-        "- beat_markers indices should align to pacing_map length (approximate is fine).\n"
-        "- Growth suggestions should be strategic (not line edits) and name why/effect/risk.\n"
-        "- Storyboard frames should be 3–5 key visuals tied to beats; concise captions.\n"
+        "- Ground analytics_signals in brief textual evidence (≤12 words).\n"
+        "- Only add pacing_annotations where the shift is clear; align beat_markers to pacing_map length.\n"
+        "- Storyboard frames: 3–5 key visuals tied to beats; concise captions.\n"
     )
 
 # ------------------------ Freesound integration (optional) -------------------------
 FREESOUND_API_KEY = os.getenv("FREESOUND_API_KEY")
 
 async def get_freesound_url(query: str) -> str:
-    """
-    Fetch an ambience sound URL from Freesound based on a mood query.
-    Returns a direct MP3 preview URL when available, else "".
-    """
     if not FREESOUND_API_KEY or not query:
         return ""
     try:
@@ -231,7 +208,7 @@ async def get_freesound_url(query: str) -> str:
                 "https://freesound.org/apiv2/search/text/",
                 params={
                     "query": query,
-                    "filter": "duration:[5 TO 60]",  # short loops
+                    "filter": "duration:[5 TO 60]",
                     "sort": "score",
                     "fields": "id,previews",
                 },
@@ -243,90 +220,96 @@ async def get_freesound_url(query: str) -> str:
                 return data["results"][0]["previews"].get("preview-hq-mp3", "") or \
                        data["results"][0]["previews"].get("preview-lq-mp3", "")
     except Exception as e:
-        # Non-fatal: just skip audio if anything goes wrong
         print(f"[Freesound] Error fetching sound: {e}")
     return ""
 
 # -----------------------------------------------------------------------------------
-# Storyboard image generation (URL-based; no extra API keys required)
-def _storyboard_image_url(caption: str, mood_words: list[str] | None) -> str:
-    mood = ", ".join([str(m) for m in (mood_words or []) if str(m).strip()])[:120]
-    style = (
-        "cinematic storyboard sketch, 16:9, black-and-white pencil drawing, "
-        "high contrast, soft film grain, minimal shading"
-    )
-    prompt = f"{style}. Scene: {caption}. Mood: {mood or 'cinematic, dramatic'}."
-    seed = int(hashlib.sha256(caption.encode('utf-8')).hexdigest(), 16) % 10_000_000
-    encoded = quote(prompt, safe="")  # ← correct encoding for Pollinations
-    return (
-        f"https://image.pollinations.ai/prompt/{encoded}"
-        f"?seed={seed}&width=960&height=540&nologo=true"
-    )
+# Storyboard image generation — INLINE SVG markup (CSP‑proof) + data URL fallback
+def _mood_color(mood_words):
+    palette = ["#e0f2fe", "#e9d5ff", "#fee2e2", "#dcfce7", "#ffedd5", "#fde68a", "#e5e7eb"]
+    seed_src = (",".join(mood_words) if mood_words else "cinematic")[:64]
+    idx = int(hashlib.sha256(seed_src.encode("utf-8")).hexdigest(), 16) % len(palette)
+    return palette[idx]
+
+def _wrap_lines(text: str, max_len: int = 38):
+    words = str(text).split()
+    lines, cur = [], ""
+    for w in words:
+        if len(cur) + len(w) + (1 if cur else 0) > max_len:
+            if cur: lines.append(cur)
+            cur = w
+        else:
+            cur = f"{cur} {w}" if cur else w
+    if cur: lines.append(cur)
+    return lines[:4]
+
+def _svg_storyboard_strings(caption: str, mood_words):
+    bg = _mood_color(mood_words)
+    lines = _wrap_lines(caption, 42)
+    svg_markup = f'''<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="{bg}"/>
+      <stop offset="100%" stop-color="#ffffff"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="960" height="540" fill="url(#g)"/>
+  <rect x="16" y="16" width="928" height="508" fill="none" stroke="#9dbff2" stroke-width="3" rx="10"/>
+  <g font-family="ui-sans-serif,system-ui,Segoe UI,Roboto" fill="#0b2a55">
+    <text x="32" y="64" font-size="28" font-weight="700">Storyboard</text>
+    <text x="32" y="120" font-size="24">{(lines[0] if len(lines)>0 else "")}</text>
+    <text x="32" y="154" font-size="24">{(lines[1] if len(lines)>1 else "")}</text>
+    <text x="32" y="188" font-size="24">{(lines[2] if len(lines)>2 else "")}</text>
+    <text x="32" y="222" font-size="24">{(lines[3] if len(lines)>3 else "")}</text>
+  </g>
+</svg>'''
+    data_url = "data:image/svg+xml;utf8," + quote(svg_markup, safe=":/,%#[]@!$&'()*+;=")
+    return data_url, svg_markup
 
 def _ensure_storyboard_images(obj: dict) -> dict:
     """
-    Ensure storyboard_frames have image_url. If none provided,
-    derive 3–5 frames from beats (or existing captions) and attach URLs.
+    Ensure storyboard_frames exist and include both:
+    - svg: raw inline SVG markup (preferred by frontend)
+    - image_url: data URL fallback (only used if needed)
     """
     try:
         frames = obj.get("storyboard_frames")
         theme = obj.get("theme") or {}
         mood_words = theme.get("mood_words") or []
 
-        # If frames missing or empty, derive captions from beats
         if not isinstance(frames, list) or not frames:
             frames = []
             beats = obj.get("beats") or []
             title_order = ["Setup", "Trigger", "Escalation", "Climax", "Exit"]
-            def beat_key(b):
-                t = (b or {}).get("title", "")
-                return title_order.index(t) if t in title_order else 99
-            beats_sorted = sorted(beats, key=beat_key)[:5]
+            beats_sorted = sorted(
+                beats, key=lambda b: title_order.index(b.get("title", "")) if b.get("title", "") in title_order else 99
+            )[:5]
             for b in beats_sorted:
                 cap = (b or {}).get("insight") or (b or {}).get("title") or "Key moment"
-                frames.append({"caption": str(cap).strip()[:200], "image_url": ""})
+                frames.append({"caption": str(cap).strip()[:220], "image_url": ""})
 
         out = []
         for f in frames[:5]:
             cap = str((f or {}).get("caption") or "Key moment")
-            url = (f or {}).get("image_url") or _storyboard_image_url(cap, mood_words)
-            out.append({"caption": cap, "image_url": url})
+            data_url, svg_markup = _svg_storyboard_strings(cap, mood_words)
+            url = (f or {}).get("image_url") or data_url
+            out.append({"caption": cap, "image_url": url, "svg": svg_markup})
         obj["storyboard_frames"] = out
     except Exception as e:
         print(f"[Storyboard] Non-fatal: {e}")
     return obj
 
 def _prune_output(obj: dict) -> dict:
-    """
-    Light curation to keep the UI uncluttered. We don't alter meaning,
-    just cap lengths so the front-end stays breathable.
-    """
     try:
-        # Cap arrays to readable sizes
-        if isinstance(obj.get("beats"), list):
-            obj["beats"] = obj["beats"][:5]
-        if isinstance(obj.get("suggestions"), list):
-            obj["suggestions"] = obj["suggestions"][:5]
-        if isinstance(obj.get("props"), list):
-            obj["props"] = obj["props"][:5]
-        if isinstance(obj.get("integrity_alerts"), list):
-            obj["integrity_alerts"] = obj["integrity_alerts"][:5]
-        if isinstance(obj.get("growth_suggestions"), list):
-            obj["growth_suggestions"] = obj["growth_suggestions"][:3]
-
-        # Evidence/overlays clamps
-        if isinstance(obj.get("analytics_signals"), list):
-            obj["analytics_signals"] = obj["analytics_signals"][:5]
-        if isinstance(obj.get("pacing_annotations"), list):
-            obj["pacing_annotations"] = obj["pacing_annotations"][:8]
-        if isinstance(obj.get("beat_markers"), list):
-            obj["beat_markers"] = obj["beat_markers"][:5]
-
-        # Storyboard frames: keep 3–5 max
-        if isinstance(obj.get("storyboard_frames"), list):
-            obj["storyboard_frames"] = obj["storyboard_frames"][:5]
-
-        # Pacing map: keep within 20–40 points if oversized
+        if isinstance(obj.get("beats"), list): obj["beats"] = obj["beats"][:5]
+        if isinstance(obj.get("suggestions"), list): obj["suggestions"] = obj["suggestions"][:5]
+        if isinstance(obj.get("props"), list): obj["props"] = obj["props"][:5]
+        if isinstance(obj.get("integrity_alerts"), list): obj["integrity_alerts"] = obj["integrity_alerts"][:5]
+        if isinstance(obj.get("growth_suggestions"), list): obj["growth_suggestions"] = obj["growth_suggestions"][:3]
+        if isinstance(obj.get("analytics_signals"), list): obj["analytics_signals"] = obj["analytics_signals"][:5]
+        if isinstance(obj.get("pacing_annotations"), list): obj["pacing_annotations"] = obj["pacing_annotations"][:8]
+        if isinstance(obj.get("beat_markers"), list): obj["beat_markers"] = obj["beat_markers"][:5]
+        if isinstance(obj.get("storyboard_frames"), list): obj["storyboard_frames"] = obj["storyboard_frames"][:5]
         pm = obj.get("pacing_map")
         if isinstance(pm, list) and len(pm) > 40:
             stride = max(1, len(pm) // 40)
@@ -335,7 +318,6 @@ def _prune_output(obj: dict) -> dict:
         pass
     return obj
 
-# --- Tiny safety clamp for chart stability (no logic changes) ---
 def _clamp_0_100_list(arr):
     if not isinstance(arr, list):
         return []
@@ -416,6 +398,7 @@ async def analyze_scene(scene: str) -> dict:
         try:
             data = await _post(json_mode_payload)
         except httpx.HTTPStatusError as e:
+            # If provider/model rejects response_format, fallback without it
             detail_text = ""
             try:
                 detail_text = e.response.text or ""
@@ -434,6 +417,7 @@ async def analyze_scene(scene: str) -> dict:
         try:
             obj = _json.loads(content)
         except Exception:
+            # Some providers wrap JSON in fences — try to strip
             trimmed = content.strip()
             if trimmed.startswith("```"):
                 trimmed = trimmed.strip("`")
@@ -442,6 +426,7 @@ async def analyze_scene(scene: str) -> dict:
             try:
                 obj = _json.loads(trimmed)
             except Exception:
+                # Final safety: wrap raw text so UI still shows something useful
                 return _fallback_payload_from_text(content)
 
         # Minimal defaults so frontend never breaks
@@ -477,20 +462,18 @@ async def analyze_scene(scene: str) -> dict:
         obj.setdefault("integrity_alerts", [])
         obj.setdefault("pacing_map", [])
         obj.setdefault("growth_suggestions", [])
-        # Evidence/overlays defaults
         obj.setdefault("analytics_signals", [])
         obj.setdefault("confidence", 60)
         obj.setdefault("confidence_reason", "Moderate clarity; limited conflicting signals.")
         obj.setdefault("pacing_annotations", [])
         obj.setdefault("beat_markers", [])
-        # Storyboard defaults
         obj.setdefault("storyboard_frames", [])
         obj.setdefault(
             "disclaimer",
             "This is a first‑pass cinematic analysis to support your craft. Your voice and choices always come first.",
         )
 
-        # Clamp pacing_map to 0..100
+        # clamp pacing_map
         if isinstance(obj.get("pacing_map"), list):
             obj["pacing_map"] = _clamp_0_100_list(obj["pacing_map"])
 
@@ -501,7 +484,6 @@ async def analyze_scene(scene: str) -> dict:
             mood_word = ""
             if isinstance(mood_words, list) and mood_words:
                 mood_word = str(mood_words[0]).strip()
-
             if mood_word:
                 fs_url = await get_freesound_url(mood_word)
                 if fs_url:
@@ -511,7 +493,7 @@ async def analyze_scene(scene: str) -> dict:
             print(f"[Freesound] Non-fatal: {_e}")
         # ----------------------------------------------------------------
 
-        # Ensure storyboard frames have image URLs (dynamic generation)
+        # Storyboard visuals (inline SVG + data URL fallback)
         obj = _ensure_storyboard_images(obj)
 
         # Final pruning for an uncluttered UX
@@ -520,6 +502,7 @@ async def analyze_scene(scene: str) -> dict:
         return obj
 
     except httpx.HTTPStatusError as e:
+        # Surface provider error message cleanly
         try:
             err_json = e.response.json()
             detail = (err_json.get("error") or {}).get("message") or e.response.text
