@@ -2,6 +2,8 @@ import os
 import re
 import json as _json
 import httpx
+import hashlib
+from urllib.parse import quote_plus
 from fastapi import HTTPException
 
 # ---- Generation-command filtering -------------------------------------------------
@@ -23,6 +25,7 @@ INTENT_LINE_RE = re.compile(
 )
 
 # Inline — ONLY when clearly instructing to modify/generate a scene/script
+# e.g., "please improve this scene", "rewrite the script"
 INTENT_INLINE_CMD_RE = re.compile(
     r"\b(?:rewrite|regenerate|compose|fix|improve|polish|reword|make)\s+(?:this|the)?\s*(?:scene|script)\b",
     re.IGNORECASE,
@@ -102,13 +105,13 @@ def _fallback_payload_from_text(text: str) -> dict:
         "integrity_alerts": [],
         "pacing_map": [],
         "growth_suggestions": [],
-        # Evidence/markers (already supported)
+        # Evidence & overlays
         "analytics_signals": [],
         "confidence": 60,
         "confidence_reason": "Moderate clarity; limited conflicting signals.",
         "pacing_annotations": [],
         "beat_markers": [],
-        # Storyboard (NEW)
+        # Storyboard
         "storyboard_frames": [],  # [{"image_url": "...", "caption": "..."}]
         "disclaimer": (
             "This is a first‑pass cinematic analysis to support your craft. "
@@ -245,6 +248,59 @@ async def get_freesound_url(query: str) -> str:
     return ""
 
 # -----------------------------------------------------------------------------------
+# Storyboard image generation (URL-based; no extra API keys required)
+# Uses a deterministic prompt->image URL to get a cinematic storyboard-style still.
+# If you want to swap providers later, adjust only this function.
+def _storyboard_image_url(caption: str, mood_words: list[str] | None) -> str:
+    mood = ", ".join([str(m) for m in (mood_words or []) if str(m).strip()])[:120]
+    style = (
+        "cinematic storyboard sketch, 16:9, black-and-white pencil drawing, "
+        "high contrast, soft film grain, minimal shading"
+    )
+    prompt = f"{style}. Scene: {caption}. Mood: {mood or 'cinematic, dramatic'}."
+    # deterministic seed from caption for stable results/caching
+    seed = int(hashlib.sha256(caption.encode('utf-8')).hexdigest(), 16) % 10_000_000
+    # Pollinations-style generator URL
+    return (
+        f"https://image.pollinations.ai/prompt/{quote_plus(prompt)}"
+        f"?seed={seed}&width=960&height=540&nologo=true"
+    )
+
+def _ensure_storyboard_images(obj: dict) -> dict:
+    """
+    Ensure storyboard_frames have image_url. If none provided,
+    derive 3–5 frames from beats (or existing captions) and attach URLs.
+    """
+    try:
+        frames = obj.get("storyboard_frames")
+        theme = obj.get("theme") or {}
+        mood_words = theme.get("mood_words") or []
+
+        # If frames missing or empty, derive captions from beats
+        if not isinstance(frames, list) or not frames:
+            frames = []
+            beats = obj.get("beats") or []
+            # Map up to 5 beats to captions
+            title_order = ["Setup", "Trigger", "Escalation", "Climax", "Exit"]
+            # sort beats into canonical order where possible
+            def beat_key(b):
+                t = (b or {}).get("title", "")
+                return title_order.index(t) if t in title_order else 99
+            beats_sorted = sorted(beats, key=beat_key)[:5]
+            for b in beats_sorted:
+                cap = (b or {}).get("insight") or (b or {}).get("title") or "Key moment"
+                frames.append({"caption": str(cap).strip()[:200], "image_url": ""})
+
+        # Attach image URLs where missing
+        out = []
+        for f in frames[:5]:
+            cap = str((f or {}).get("caption") or "Key moment")
+            url = (f or {}).get("image_url") or _storyboard_image_url(cap, mood_words)
+            out.append({"caption": cap, "image_url": url})
+        obj["storyboard_frames"] = out
+    except Exception as e:
+        print(f"[Storyboard] Non-fatal: {e}")
+    return obj
 
 def _prune_output(obj: dict) -> dict:
     """
@@ -264,7 +320,7 @@ def _prune_output(obj: dict) -> dict:
         if isinstance(obj.get("growth_suggestions"), list):
             obj["growth_suggestions"] = obj["growth_suggestions"][:3]
 
-        # Evidence/overlays clamps (already supported)
+        # Evidence/overlays clamps
         if isinstance(obj.get("analytics_signals"), list):
             obj["analytics_signals"] = obj["analytics_signals"][:5]
         if isinstance(obj.get("pacing_annotations"), list):
@@ -466,6 +522,9 @@ async def analyze_scene(scene: str) -> dict:
             # Never fail analysis because audio lookup had issues
             print(f"[Freesound] Non-fatal: {_e}")
         # ----------------------------------------------------------------
+
+        # Ensure storyboard frames have image URLs (dynamic generation)
+        obj = _ensure_storyboard_images(obj)
 
         # Final pruning for an uncluttered UX
         obj = _prune_output(obj)
