@@ -9,8 +9,8 @@
       --bg:#f6fbff;
       --panel:#ffffff;
       --text:#0f2647;
-      --accent:#5aa9ff;      /* fixed */
-      --accent-soft:#b3d9ff; /* fixed */
+      --accent:#5aa9ff;
+      --accent-soft:#b3d9ff;
       --border:#d7e9ff;
       --muted:#5c6f8a;
       --danger:#bb2d3b;
@@ -18,55 +18,31 @@
       --warn:#b58900;
     }
     *{box-sizing:border-box}
-    body{
-      margin:0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji";
-      background:var(--bg);
-      color:var(--text);
-    }
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,"Noto Sans","Apple Color Emoji","Segoe UI Emoji";background:var(--bg);color:var(--text)}
     .container{max-width:1100px;margin:0 auto;padding:24px}
     h1{margin:0 0 16px 0;font-weight:700;color:var(--text)}
     nav{display:flex;gap:10px;margin:12px 0 24px}
-    nav button{
-      background:var(--panel);border:1px solid var(--border);color:var(--text);
-      padding:10px 14px;border-radius:10px;cursor:pointer;transition:all .2s ease;
-    }
+    nav button{background:var(--panel);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:10px;cursor:pointer;transition:all .2s ease}
     nav button:hover{border-color:var(--accent)}
-    .gate, .panel{
-      background:var(--panel);border:1px solid var(--border);border-radius:16px;
-      padding:18px 16px;box-shadow:0 10px 24px rgba(30,60,120,.06);
-    }
+    .gate,.panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px 16px;box-shadow:0 10px 24px rgba(30,60,120,.06)}
     .row{display:flex;gap:16px;flex-wrap:wrap}
-    textarea{
-      width:100%;min-height:220px;padding:12px 14px;border-radius:12px;border:1px solid var(--border);
-      background:#fbfdff;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;line-height:1.45;
-    }
-    .btn{
-      background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 16px;cursor:pointer;
-      box-shadow:0 6px 16px rgba(90,169,255,.25);
-    }
+    textarea{width:100%;min-height:220px;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#fbfdff;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;line-height:1.45}
+    .btn{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 16px;cursor:pointer;box-shadow:0 6px 16px rgba(90,169,255,.25)}
     .btn.secondary{background:#e9f4ff;color:var(--text)}
     .btn:disabled{opacity:.6;cursor:not-allowed}
     .hidden{display:none}
     .tabs .tab{display:none}
     .tabs .tab.active{display:block}
 
-    /* Output layout */
     .grid{display:grid;gap:16px}
-    @media (min-width:980px){
-      .grid{
-        grid-template-columns: 1.15fr 0.85fr;
-      }
-    }
-    .card{
-      background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px 18px;
-    }
+    @media (min-width:980px){.grid{grid-template-columns:1.15fr .85fr}}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px 18px}
     .card h3{margin:2px 0 10px 0}
     .muted{color:var(--muted)}
     .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:var(--accent-soft);color:#0b2a55;font-size:13px}
-    .mono{font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 
-    /* Readability tweaks (safe) */
+    /* Readability tweaks */
     #summaryText{white-space:pre-wrap;line-height:1.6;font-size:1rem}
     .disclaimer{font-size:.9rem;color:#6b7c95;margin-top:6px;font-style:italic}
     .card hr{border:none;border-top:1px solid var(--border);margin:12px 0}
@@ -76,19 +52,20 @@
     .small{font-size:13px}
     .error{color:var(--danger)}
 
-    /* Mood gauge (circular) */
+    /* Mood gauge */
     .gauge{width:120px;height:120px;position:relative;display:inline-block}
     .gauge svg{transform:rotate(-90deg)}
-    .gauge .center{
-      position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-      font-weight:700;color:#0b2a55;
-    }
+    .gauge .center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:700;color:#0b2a55}
 
     /* Heatmap */
-    .heatmap-wrap{width:100%;height:64px}
+    .heatmap-wrap{width:100%;height:64px;position:relative}
     .legend{display:flex;justify-content:space-between;font-size:12px;margin-top:6px;color:var(--muted)}
-    .flag.ok{color:var(--ok)}
-    .flag.warn{color:var(--warn)}
+    .flag.ok{color:var(--ok)} .flag.warn{color:var(--warn)}
+
+    /* Overlays (additive; bars unchanged) */
+    .annotation{stroke:#5aa9ff;stroke-width:2;stroke-dasharray:4 3;opacity:.7}
+    .marker{stroke:#0b2a55;stroke-width:2;opacity:.6}
+    .tooltip{position:absolute;background:#073b7a;color:#fff;padding:6px 8px;border-radius:8px;font-size:12px;pointer-events:none;opacity:0;transform:translate(-50%,-130%);white-space:nowrap}
   </style>
 </head>
 <body>
@@ -96,7 +73,7 @@
     <div id="password-gate" class="gate">
       <h2>Enter Access Key</h2>
       <div class="row">
-        <input type="password" id="access" placeholder="Password" style="flex:1; padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#fbfdff;color:var(--text)"/>
+        <input type="password" id="access" placeholder="Password" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#fbfdff;color:var(--text)"/>
         <button class="btn" onclick="checkAccess()">Unlock</button>
       </div>
       <div id="access-error" class="error small" style="margin-top:8px"></div>
@@ -127,7 +104,6 @@
           </div>
 
           <div id="analysis-area" class="grid copyGuard" style="margin-top:16px">
-            <!-- Left: Summary + Beats + Suggestions + new left cards -->
             <div class="left">
               <div class="card" id="summary-card">
                 <h3>Scene Summary</h3>
@@ -154,7 +130,6 @@
               </div>
             </div>
 
-            <!-- Right: Analytics + Comparisons + Audio + new right cards -->
             <div class="right-col">
               <div class="card">
                 <h3>Analytics Summary</h3>
@@ -176,6 +151,9 @@
                       <span class="pill">Dialogue: <strong id="dialogue" style="margin-left:6px"></strong></span>
                       <span class="pill">Readiness: <strong id="readiness" style="margin-left:6px"></strong></span>
                     </div>
+                    <div class="divider"></div>
+                    <div id="analyticsSignals" class="small"></div>
+                    <div class="small muted" id="confidenceRow" style="margin-top:6px"></div>
                   </div>
                 </div>
               </div>
@@ -220,10 +198,9 @@
                 <h3>Micro‑Pacing Heatmap</h3>
                 <div class="heatmap-wrap">
                   <svg id="heatmap" width="100%" height="64" viewBox="0 0 1000 64" preserveAspectRatio="none"></svg>
+                  <div class="tooltip"></div>
                 </div>
-                <div class="legend">
-                  <span>Start</span><span>Mid</span><span>End</span>
-                </div>
+                <div class="legend"><span>Start</span><span>Mid</span><span>End</span></div>
               </div>
             </div>
           </div>
@@ -257,7 +234,6 @@
     const el = id => document.getElementById(id);
     const wc = t => (t.trim().match(/\b\w+\b/g)||[]).length;
 
-    // Password (backend validation)
     window.checkAccess = async function(){
       const pass = el('access').value;
       try{
@@ -279,7 +255,6 @@
       }
     };
 
-    // Tabs + input reset
     window.showTab = function(id){
       document.querySelectorAll('.tabs .tab').forEach(t=>t.classList.remove('active'));
       el(id).classList.add('active');
@@ -296,7 +271,6 @@
       }
     };
 
-    // Copy-protect outputs
     function guard(node){
       node.addEventListener('contextmenu', e=>e.preventDefault());
       node.addEventListener('selectstart', e=>e.preventDefault());
@@ -312,11 +286,9 @@
       if(isMod && (k==='a' || k==='c') && protectedArea){ e.preventDefault(); }
     });
 
-    // Word counters
     el('scene-analyze').addEventListener('input', ()=>{ el('anWC').textContent = wc(el('scene-analyze').value)+' words';});
     el('scene-edit').addEventListener('input', ()=>{ el('edWC').textContent = wc(el('scene-edit').value)+' words';});
 
-    // Mood gauge
     function setGauge(val){
       const circ = 2*Math.PI*52;
       const off = circ * (1 - (val/100));
@@ -343,12 +315,13 @@
       el('props').textContent = '';
       el('dualLens').textContent = '';
       el('integrity').innerHTML = '';
+      el('analyticsSignals').innerHTML = '';
+      el('confidenceRow').textContent = '';
       drawHeatmap([]);
       el('audioBtn').disabled = true;
       el('ambience').pause();
     }
 
-    // Immersive reader
     async function typeSummary(text){
       const dest = el('summaryText');
       dest.textContent = '';
@@ -358,7 +331,6 @@
       }
     }
 
-    // Audio hook
     let audioOn = false;
     window.toggleAudio = function(){
       const a = el('ambience');
@@ -368,8 +340,8 @@
       audioOn = !audioOn;
     };
 
-    // Heatmap render (expects 0..100 array)
-    function drawHeatmap(arr){
+    // Heatmap render (bars unchanged). Accepts optional overlays.
+    function drawHeatmap(arr, annotations = [], beatMarkers = []){
       const svg = el('heatmap');
       while (svg.firstChild) svg.removeChild(svg.firstChild);
       if(!arr || !arr.length) return;
@@ -377,6 +349,8 @@
       const n = arr.length;
       const w = 1000, h = 64;
       const barW = Math.max(1, Math.floor(w / n));
+
+      // bars
       arr.forEach((v,i)=>{
         const x = i*barW;
         const height = Math.max(4, Math.round((v/100) * h));
@@ -390,18 +364,49 @@
         rect.setAttribute('opacity', 0.25 + (v/100)*0.6);
         svg.appendChild(rect);
       });
+
+      // overlays
+      const tip = svg.parentElement.querySelector('.tooltip');
+
+      const safeI = (i)=>Math.min(Math.max(0, i|0), n-1);
+      annotations.forEach(a=>{
+        if(!a || a.i==null) return;
+        const i = safeI(a.i);
+        const x = i*barW + Math.floor(barW/2);
+        const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+        line.setAttribute('x1', x); line.setAttribute('x2', x);
+        line.setAttribute('y1', 0); line.setAttribute('y2', h);
+        line.setAttribute('class','annotation');
+        line.dataset.note = `${a.label||''}${a.note?': '+a.note:''}`;
+        svg.appendChild(line);
+      });
+
+      beatMarkers.forEach(b=>{
+        if(!b || b.i==null) return;
+        const i = safeI(b.i);
+        const x = i*barW + Math.floor(barW/2);
+        const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+        line.setAttribute('x1', x); line.setAttribute('x2', x);
+        line.setAttribute('y1', 0); line.setAttribute('y2', h);
+        line.setAttribute('class','marker');
+        line.dataset.note = `Beat: ${b.beat||''}`;
+        svg.appendChild(line);
+      });
+
+      svg.addEventListener('mousemove', (e)=>{
+        const target = e.target;
+        const note = target && target.dataset ? target.dataset.note : null;
+        if(note){ tip.textContent = note; tip.style.left = e.offsetX+'px'; tip.style.top = e.offsetY+'px'; tip.style.opacity = 1; }
+        else { tip.style.opacity = 0; }
+      });
     }
 
-    // Render structured analysis JSON
     function renderAnalysis(obj){
-      // lock UI colors
       document.documentElement.style.setProperty('--accent', '#5aa9ff');
       document.documentElement.style.setProperty('--accent-soft', '#b3d9ff');
 
-      // Summary
       typeSummary(obj.summary || 'Analysis');
 
-      // Beats
       el('beats').innerHTML = '';
       (obj.beats||[]).forEach(b=>{
         const d = document.createElement('div');
@@ -409,7 +414,6 @@
         el('beats').appendChild(d);
       });
 
-      // Suggestions (collapsible)
       el('suggestions').innerHTML = '';
       (obj.suggestions||[]).forEach(s=>{
         const dt = document.createElement('details');
@@ -425,7 +429,6 @@
         el('suggestions').appendChild(dt);
       });
 
-      // Analytics
       const A = obj.analytics||{};
       setGauge(Number(A.mood||0));
       el('pacing').textContent = A.pacing||'';
@@ -434,11 +437,19 @@
       el('dialogue').textContent = A.dialogue_naturalism||'';
       el('readiness').textContent = A.cinematic_readiness||'';
 
-      // Comparison + mood words
+      // NEW: analytics signals + confidence
+      const sig = obj.analytics_signals || [];
+      el('analyticsSignals').innerHTML = sig.length
+        ? sig.map(s => `• <strong>${(s.claim||'').replace(/</g,'&lt;')}</strong> — “${(s.evidence||'').replace(/</g,'&lt;')}”`).join('<br/>')
+        : '<span class="muted">No supporting signals extracted.</span>';
+
+      const conf = (obj.confidence ?? '').toString();
+      const creason = obj.confidence_reason || '';
+      el('confidenceRow').textContent = conf ? `Confidence: ${conf}% — ${creason}` : '';
+
       el('comparison').textContent = obj.comparison||'';
       el('moodWords').textContent = (obj.theme?.mood_words||[]).join(', ');
 
-      // Emotional & Sensory
       const E = obj.emotional_map || {};
       const lines = [];
       if (E.curve_label) lines.push(`<div class="small"><strong>Emotional curve:</strong> ${E.curve_label}</div>`);
@@ -453,41 +464,47 @@
       });
       el('sensory').innerHTML = senses.join(' ');
 
-      // Props & Symbolism
       const P = obj.props||[];
       el('props').innerHTML = P.length ? P.map(p=>`<div class="small">• <strong>${(p.name||'Object')}</strong> — ${(p.significance||'').replace(/</g,'&lt;')}</div>`).join('') : '<div class="small muted">No key objects detected.</div>';
 
-      // Dual lens
       const D = obj.dual_lens||{};
       el('dualLens').innerHTML =
         `<div class="small"><strong>First‑timer:</strong> ${(D.first_timer||'').replace(/</g,'&lt;')}</div>
          <div class="small"><strong>Rewatcher:</strong> ${(D.rewatcher||'').replace(/</g,'&lt;')}</div>`;
 
-      // Integrity alerts
       const IA = Array.isArray(obj.integrity_alerts) ? obj.integrity_alerts : [];
       el('integrity').innerHTML = IA.length
         ? IA.map(a=>`<li class="small ${a.level==='warn'?'flag warn':'flag ok'}">${(a.message||'').replace(/</g,'&lt;')}</li>`).join('')
         : '<li class="small muted">No issues flagged.</li>';
 
-      // Heatmap (visuals unchanged)
-      drawHeatmap(Array.isArray(obj.pacing_map) ? obj.pacing_map : []);
+      // Heatmap (bars intact) + NEW overlays when provided
+      const ann = Array.isArray(obj.pacing_annotations) ? obj.pacing_annotations : [];
+      const bm  = Array.isArray(obj.beat_markers) ? obj.beat_markers : [];
+      drawHeatmap(Array.isArray(obj.pacing_map) ? obj.pacing_map : [], ann, bm);
 
       // Growth suggestions
       const g = el('growth');
       if (Array.isArray(obj.growth_suggestions) && obj.growth_suggestions.length){
-        g.innerHTML = obj.growth_suggestions.map(t=>`<div class="small">• ${(t||'').replace(/</g,'&lt;')}</div>`).join('');
+        g.innerHTML = obj.growth_suggestions.map(t =>
+          typeof t === 'string'
+            ? `<div class="small">• ${(t||'').replace(/</g,'&lt;')}</div>`
+            : `<div class="small" style="margin-bottom:8px">
+                 <div><strong>Experiment:</strong> ${(t.experiment||'').replace(/</g,'&lt;')}</div>
+                 <div class="muted">Why: ${(t.why||'').replace(/</g,'&lt;')}</div>
+                 <div>Expected: ${(t.expected_effect||'').replace(/</g,'&lt;')}</div>
+                 <div class="muted">Risk: ${(t.risk||'').replace(/</g,'&lt;')}</div>
+               </div>`
+        ).join('');
       } else if (typeof obj.growth_suggestions === 'string' && obj.growth_suggestions.trim()){
         g.textContent = obj.growth_suggestions;
       } else {
         g.innerHTML = '<div class="small muted">No growth suggestions provided.</div>';
       }
 
-      // Disclaimer
       el('disclaimerText').textContent =
         (obj.disclaimer && String(obj.disclaimer).trim())
         || "This is a first‑pass cinematic analysis to support your craft. Your voice and choices always come first.";
 
-      // Audio
       const audioTag = el('ambience');
       const audioBtn = el('audioBtn');
       audioOn = false; audioTag.pause(); audioTag.removeAttribute('src');
@@ -509,7 +526,6 @@
       }
     }
 
-    // Hash helper (stable cache keys)
     async function sha(text){
       const enc = new TextEncoder().encode(text);
       const buf = await crypto.subtle.digest('SHA-256', enc);
@@ -523,10 +539,7 @@
       if (words < 250){ clearAnalysisUI(); el('summaryText').textContent = `Scene too short: ${words}/250 words.`; return; }
 
       const key = 'an:'+await sha(scene);
-      if (analyzeCache.has(key)){
-        renderAnalysis(analyzeCache.get(key));
-        return;
-      }
+      if (analyzeCache.has(key)){ renderAnalysis(analyzeCache.get(key)); return; }
       if (inFlight.has(key)){ el('summaryText').textContent = 'Using best available result…'; return; }
 
       inFlight.add(key);
