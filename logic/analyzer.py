@@ -136,7 +136,6 @@ def _system_prompt() -> str:
     return (
         "You are CineOracle — a layered cinematic intelligence. You perform all of SceneCraft AI’s existing "
         "scene analysis while silently running advanced internal passes. Never reveal internal steps.\n\n"
-
         "CINEMATIC BENCHMARKS (apply internally; do NOT list or label in output):\n"
         "1) Scene Structure & Beats — setup, trigger, escalation/tension, climax, resolution.\n"
         "2) Scene Grammar — flow of action/dialogue/description; economy; visual clarity.\n"
@@ -146,7 +145,6 @@ def _system_prompt() -> str:
         "6) Character Stakes & Motivation — emotional drive; psychological presence; unity of opposites.\n"
         "7) Editing & Transitions — connective tissue, contrasts, thematic continuity.\n"
         "8) Audience Resonance — how it lands given current genre expectations.\n\n"
-
         "RIVAL-GRADE LAYERS (silent, never exposed):\n"
         "1) Multi-Pass Cognition: craft → audience emotional map → Ghost Cut (editorial) → Actor’s Mind.\n"
         "2) Cinematic Tension Heatmap: track spikes, valleys, pause points.\n"
@@ -159,14 +157,12 @@ def _system_prompt() -> str:
         "9) Adaptive Cultural Overlay: respect local idiom/tradition when hinted.\n"
         "10) Micro-Moment Immersion Scoring: hidden engagement every ~10s of scene time.\n"
         "11) Director-Actor Dynamic Analysis: subtle blocking/performance adjustments.\n\n"
-
         "ADDITIONAL SILENT LENSES (apply but do not list):\n"
         "- Director-level: Spatial Grammar; Temporal Pressure; Energy Transitions; Camera Mind; Contrast Layer.\n"
         "- Writer/script-doctor: Subtext Richness; Narrative Gravity; Dialogue Dynamics Map; Hook & Release; Character Echoes.\n"
         "- Audience-centric: Emotional Stickiness; Social Share Potential; Cultural Mirror; Genre Pulse Match; Multi‑Audience Readability.\n"
         "- Deep craft: Sensory Weave; Symbol/Object Resonance; Tone vs Story DNA; Emotional Foreshadowing; Rhythmic Breath Check.\n"
         "- SceneCraft‑exclusive: Silent Scene Reimagination.\n\n"
-
         "OUTPUT CONTRACT — Return STRICT JSON ONLY (no markdown/code fences) with this schema:\n"
         "{\n"
         '  "summary": string,\n'
@@ -202,7 +198,6 @@ def _system_prompt() -> str:
         '  "growth_suggestions": [string | {"experiment":string,"why":string,"expected_effect":string,"risk":string}],\n'
         '  "disclaimer": string\n'
         "}\n\n"
-
         "CLARITY & BREVITY RULES (very important):\n"
         "- Keep the output uncluttered and human-readable.\n"
         "- summary: ~80–120 words max, flowing like a thoughtful script doctor.\n"
@@ -232,7 +227,7 @@ async def get_freesound_url(query: str) -> str:
     Fetch an ambience sound URL from Freesound based on a mood query.
     Returns a direct MP3 preview URL when available, else "".
     """
-    if not FREESOUND_API_KEY or not query or httpx is None:  # <— guard if httpx missing
+    if not FREESOUND_API_KEY or not query or httpx is None:
         return ""
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -240,7 +235,7 @@ async def get_freesound_url(query: str) -> str:
                 "https://freesound.org/apiv2/search/text/",
                 params={
                     "query": query,
-                    "filter": "duration:[5 TO 60]",  # short loops
+                    "filter": "duration:[5 TO 60]",
                     "sort": "score",
                     "fields": "id,previews",
                 },
@@ -252,11 +247,10 @@ async def get_freesound_url(query: str) -> str:
                 return data["results"][0]["previews"].get("preview-hq-mp3", "") or \
                        data["results"][0]["previews"].get("preview-lq-mp3", "")
     except Exception as e:
-        # Non-fatal: just skip audio if anything goes wrong
         print(f"[Freesound] Error fetching sound: {e}")
     return ""
 
-# ---------------- Storyboard (inline SVG with simple cinematic silhouettes) --------
+# ---------------- Storyboard (inline SVG) --------
 def _mood_color(mood_words):
     palette = ["#cfe3ff", "#e2d2ff", "#ffd6d6", "#c9f7da", "#ffe3c7", "#fde58a", "#e6e9ef"]
     seed_src = (",".join(mood_words) if mood_words else "cinematic")[:64]
@@ -460,11 +454,6 @@ def _image_prompt_from_caption(caption: str, summary: str, mood_words) -> str:
 
 # --------- OpenAI Images (optional) ----------
 async def _gen_image_openai(prompt: str, size: str = "1536x1024") -> str:
-    """
-    Return a PNG data URL from OpenAI Images (gpt-image-1), or '' on failure.
-    Supported sizes: '1024x1024', '1536x1024', '1024x1536', 'auto'.
-    If 403 (org not verified), we log and return '' without raising.
-    """
     if not OPENAI_API_KEY:
         print("[Storyboard] OPENAI_API_KEY not set")
         return ""
@@ -528,12 +517,11 @@ async def _gen_image_openai(prompt: str, size: str = "1536x1024") -> str:
 
 # --------- Stability (SDXL) Images (optional) ----------
 def _stability_dims_from_size(size: str):
-    # SDXL accepts <=1024 dims, multiples of 64; preserve aspect roughly
     if size == "1024x1536":
-        return 704, 1024   # portrait
+        return 704, 1024
     if size == "1536x1024":
-        return 1024, 640   # landscape
-    return 1024, 1024      # square
+        return 1024, 640
+    return 1024, 1024
 
 async def _gen_image_stability(prompt: str, size: str = "1536x1024") -> str:
     api_key = STABILITY_API_KEY
@@ -579,11 +567,6 @@ async def _gen_image_stability(prompt: str, size: str = "1536x1024") -> str:
 
 # --------- Prefer PNGs; embed inside inline SVG so UI shows them without changes ---
 async def _maybe_generate_storyboard_pngs(obj: dict):
-    """
-    Optionally replace/augment storyboard_frames with PNGs (data URLs).
-    Frontend prefers 'svg', so when we have a PNG we embed it inside a tiny
-    SVG wrapper and assign it to 'svg'. This avoids any HTML/JS changes.
-    """
     if not STORYBOARD_ENABLE or STORYBOARD_PROVIDER == "off":
         return
 
@@ -608,12 +591,10 @@ async def _maybe_generate_storyboard_pngs(obj: dict):
             if not cap:
                 continue
 
-            # If a PNG already present, ensure svg shows that PNG (not the placeholder)
             if isinstance(f.get("image_url"), str) and f["image_url"].startswith("data:image/png"):
                 f["svg"] = _svg_wrap_png(f["image_url"])
                 continue
 
-            # Generate PNG via selected provider
             prompt = _image_prompt_from_caption(cap, summary, mood_words)
             data_url = ""
             if STORYBOARD_PROVIDER == "openai":
@@ -622,7 +603,6 @@ async def _maybe_generate_storyboard_pngs(obj: dict):
                 data_url = await _gen_image_stability(prompt)
 
             if data_url:
-                # Keep both for compatibility AND force-embed as inline SVG
                 f["image_url"] = data_url
                 f["svg"] = _svg_wrap_png(data_url)
         except Exception as e:
@@ -630,15 +610,8 @@ async def _maybe_generate_storyboard_pngs(obj: dict):
 
     obj["storyboard_frames"] = frames
 
-# -----------------------------------------------------------------------------------
-
 def _prune_output(obj: dict) -> dict:
-    """
-    Light curation to keep the UI uncluttered. We don't alter meaning,
-    just cap lengths so the front-end stays breathable.
-    """
     try:
-        # Cap arrays to readable sizes
         if isinstance(obj.get("beats"), list):
             obj["beats"] = obj["beats"][:5]
         if isinstance(obj.get("suggestions"), list):
@@ -658,13 +631,11 @@ def _prune_output(obj: dict) -> dict:
         if isinstance(obj.get("storyboard_frames"), list):
             obj["storyboard_frames"] = obj["storyboard_frames"][:6]
 
-        # Pacing map: keep within 20–40 points if oversized
         pm = obj.get("pacing_map")
         if isinstance(pm, list) and len(pm) > 40:
             stride = max(1, len(pm) // 40)
             obj["pacing_map"] = pm[::stride][:40]
     except Exception:
-        # Never let pruning break output
         pass
     return obj
 
@@ -672,7 +643,6 @@ async def analyze_scene(scene: str) -> dict:
     raw = scene or ""
     clean = clean_scene(raw)
 
-    # Guards
     if INTENT_LINE_RE.match(raw.strip()):
         raise HTTPException(
             status_code=400,
@@ -687,7 +657,6 @@ async def analyze_scene(scene: str) -> dict:
     if not clean:
         raise HTTPException(status_code=400, detail="Invalid scene content")
 
-    # word count
     word_count = len(re.findall(r"\b\w+\b", clean))
     if word_count < MIN_WORDS:
         raise HTTPException(
@@ -703,10 +672,9 @@ async def analyze_scene(scene: str) -> dict:
     api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
     if not api_key:
         raise HTTPException(status_code=500, detail="Missing OPENROUTER_API_KEY.")
-    if httpx is None:  # <— guard so ASGI import never fails; error only on call
+    if httpx is None:
         raise HTTPException(status_code=500, detail="Server missing dependency: httpx")
 
-    # --- call OpenRouter with JSON mode, then fallback if unsupported ---
     base_payload = {
         "model": os.getenv("OPENROUTER_MODEL", "gpt-4o"),
         "temperature": 0.5,
@@ -730,7 +698,6 @@ async def analyze_scene(scene: str) -> dict:
             return r.json()
 
     try:
-        # 1) Try JSON mode
         json_mode_payload = dict(base_payload)
         json_mode_payload["response_format"] = {"type": "json_object"}
         try:
@@ -750,7 +717,6 @@ async def analyze_scene(scene: str) -> dict:
             data.get("choices", [{}])[0].get("message", {}).get("content", "")
         ).strip()
 
-        # Parse STRICT JSON if present
         try:
             obj = _json.loads(content)
         except Exception:
@@ -762,10 +728,8 @@ async def analyze_scene(scene: str) -> dict:
             try:
                 obj = _json.loads(trimmed)
             except Exception:
-                # Final safety: wrap raw text so UI still shows something useful
                 return _fallback_payload_from_text(content)
 
-        # Minimal defaults so frontend never breaks
         obj.setdefault("summary", "Analysis")
         obj.setdefault("analytics", {})
         obj["analytics"].setdefault("mood", 60)
@@ -809,7 +773,6 @@ async def analyze_scene(scene: str) -> dict:
         )
         obj.setdefault("storyboard_frames", [])
 
-        # ---------------- Freesound hook (non-intrusive) ----------------
         try:
             theme = obj.get("theme", {}) or {}
             mood_words = theme.get("mood_words") or []
@@ -823,9 +786,7 @@ async def analyze_scene(scene: str) -> dict:
                     obj["theme"] = theme
         except Exception as _e:
             print(f"[Freesound] Non-fatal: {_e}")
-        # ----------------------------------------------------------------
 
-        # --------- Storyboard frames (inline SVG) -------
         try:
             if not obj.get("storyboard_frames"):
                 mood_words = (obj.get("theme") or {}).get("mood_words") or []
@@ -833,10 +794,8 @@ async def analyze_scene(scene: str) -> dict:
         except Exception as _e:
             print(f"[Storyboard] Non-fatal SVG: {_e}")
 
-        # Final pruning for an uncluttered UX
         obj = _prune_output(obj)
 
-        # Optional PNG generation (CSP-safe via data URLs) with provider switch
         try:
             await _maybe_generate_storyboard_pngs(obj)
         except Exception as _e:
@@ -845,7 +804,6 @@ async def analyze_scene(scene: str) -> dict:
         return obj
 
     except httpx.HTTPStatusError as e:
-        # Surface provider error message cleanly
         try:
             err_json = e.response.json()
             detail = (err_json.get("error") or {}).get("message") or e.response.text
