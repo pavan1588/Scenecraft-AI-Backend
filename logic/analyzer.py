@@ -452,15 +452,19 @@ def _image_prompt_from_caption(caption: str, summary: str, mood_words) -> str:
         "Style: professional storyboard artist, film pre‑viz, 3/4 view if helpful."
     )
 
-async def _gen_image_openai(prompt: str, size: str = "1792x1024") -> str:
+async def _gen_image_openai(prompt: str, size: str = "1536x1024") -> str:
     """
     Return a PNG data URL from OpenAI Images (gpt-image-1), or '' on failure.
-    NOTE: gpt-image-1 does NOT accept 'response_format'; omit it.
-    Parse b64_json if present, otherwise fetch the returned URL and convert to data URL.
+    Supported sizes (as of now): '1024x1024', '1536x1024', '1024x1536', 'auto'.
+    If 403 (org not verified), we log and return '' without raising.
     """
     if not OPENAI_API_KEY:
         print("[Storyboard] OPENAI_API_KEY not set")
         return ""
+
+    SUPPORTED = {"1024x1024", "1536x1024", "1024x1536", "auto"}
+    if size not in SUPPORTED:
+        size = "1536x1024"
 
     async def _call(sz: str) -> str:
         try:
@@ -474,18 +478,18 @@ async def _gen_image_openai(prompt: str, size: str = "1792x1024") -> str:
                     json={
                         "model": "gpt-image-1",
                         "prompt": prompt,
-                        "size": sz,          # supported: 1024x1024, 1792x1024, 1024x1792
+                        "size": sz,     # must be one of SUPPORTED
                         "n": 1,
-                        # do NOT send 'response_format' here
-                        # quality: "standard"  # optional
+                        # (Do NOT send 'response_format'; API rejects it)
                     },
                 )
+                if r.status_code == 403:
+                    # Org not verified (or other access issue) — don’t crash, just fall back.
+                    print(f"[Storyboard] OpenAI 403 (access): {r.text[:400]}")
+                    return ""
                 if r.status_code >= 400:
-                    try:
-                        print(f"[Storyboard] OpenAI error {r.status_code}: {r.text[:800]}")
-                    except Exception:
-                        print(f"[Storyboard] OpenAI error {r.status_code}: <no body>")
-                    r.raise_for_status()
+                    print(f"[Storyboard] OpenAI error {r.status_code}: {r.text[:800]}")
+                    return ""
 
                 data = r.json()
                 item = (data.get("data") or [{}])[0]
@@ -499,19 +503,22 @@ async def _gen_image_openai(prompt: str, size: str = "1792x1024") -> str:
                 url = item.get("url")
                 if url:
                     img = await client.get(url, timeout=90.0)
-                    img.raise_for_status()
+                    if img.status_code >= 400:
+                        print(f"[Storyboard] OpenAI img fetch error {img.status_code}")
+                        return ""
                     enc = base64.b64encode(img.content).decode("utf-8")
                     return f"data:image/png;base64,{enc}"
 
-                print("[Storyboard] OpenAI returned neither b64_json nor url")
+                print("[Storyboard] Image API returned neither b64_json nor url")
                 return ""
         except Exception as e:
             print(f"[Storyboard] OpenAI generation error (size {sz}): {e}")
             return ""
 
+    # Try requested/normalized size, then a safe square fallback
     out = await _call(size)
-    if not out:
-        out = await _call("1024x1024")  # safe fallback
+    if not out and size != "1024x1024":
+        out = await _call("1024x1024")
     return out
 
 async def _maybe_generate_storyboard_pngs(obj: dict):
