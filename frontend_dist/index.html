@@ -18,87 +18,49 @@
       --warn:#b58900;
     }
     *{box-sizing:border-box}
-    body{
-      margin:0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji";
-      background:var(--bg);
-      color:var(--text);
-    }
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,"Noto Sans","Apple Color Emoji","Segoe UI Emoji";background:var(--bg);color:var(--text)}
     .container{max-width:1100px;margin:0 auto;padding:24px}
     h1{margin:0 0 16px 0;font-weight:700;color:var(--text)}
     nav{display:flex;gap:10px;margin:12px 0 24px}
-    nav button{
-      background:var(--panel);border:1px solid var(--border);color:var(--text);
-      padding:10px 14px;border-radius:10px;cursor:pointer;transition:all .2s ease;
-    }
+    nav button{background:var(--panel);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:10px;cursor:pointer;transition:all .2s ease}
     nav button:hover{border-color:var(--accent)}
-    .gate, .panel{
-      background:var(--panel);border:1px solid var(--border);border-radius:16px;
-      padding:18px 16px;box-shadow:0 10px 24px rgba(30,60,120,.06);
-    }
+    .gate, .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px 16px;box-shadow:0 10px 24px rgba(30,60,120,.06)}
     .row{display:flex;gap:16px;flex-wrap:wrap}
-    textarea{
-      width:100%;min-height:220px;padding:12px 14px;border-radius:12px;border:1px solid var(--border);
-      background:#fbfdff;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;line-height:1.45;
-    }
-    .btn{
-      background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 16px;cursor:pointer;
-      box-shadow:0 6px 16px rgba(90,169,255,.25);
-    }
+    textarea{width:100%;min-height:220px;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#fbfdff;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;line-height:1.45}
+    .btn{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 16px;cursor:pointer;box-shadow:0 6px 16px rgba(90,169,255,.25)}
     .btn.secondary{background:#e9f4ff;color:var(--text)}
     .btn:disabled{opacity:.6;cursor:not-allowed}
     .hidden{display:none}
     .tabs .tab{display:none}
     .tabs .tab.active{display:block}
 
-    /* Output layout */
     .grid{display:grid;gap:16px}
-    @media (min-width:980px){
-      .grid{
-        grid-template-columns: 1.15fr 0.85fr;
-      }
-    }
-    .card{
-      background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px 18px;
-    }
+    @media (min-width:980px){.grid{grid-template-columns:1.15fr .85fr}}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px 18px}
     .card h3{margin:2px 0 10px 0}
     .muted{color:var(--muted)}
     .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:var(--accent-soft);color:#0b2a55;font-size:13px}
-    .mono{font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
     .copyGuard{user-select:none;-webkit-user-select:none}
     .divider{height:1px;background:var(--border);margin:12px 0}
     .small{font-size:13px}
     .error{color:var(--danger)}
 
-    /* Readability tweaks */
-    #summaryText{white-space:pre-wrap;line-height:1.6;font-size:1rem}
-    .disclaimer{font-size:.9rem;color:#6b7c95;margin-top:6px;font-style:italic}
-    .card hr{border:none;border-top:1px solid var(--border);margin:12px 0}
-
-    /* Mood gauge (circular) */
     .gauge{width:120px;height:120px;position:relative;display:inline-block}
     .gauge svg{transform:rotate(-90deg)}
-    .gauge .center{
-      position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-      font-weight:700;color:#0b2a55;
-    }
+    .gauge .center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:700;color:#0b2a55}
 
-    /* Heatmap */
-    .heatmap-wrap{width:100%;height:64px;position:relative}
+    .heatmap-wrap{width:100%;height:64px}
     .legend{display:flex;justify-content:space-between;font-size:12px;margin-top:6px;color:var(--muted)}
     .flag.ok{color:var(--ok)}
     .flag.warn{color:var(--warn)}
 
-    /* Heatmap overlays */
-    .annotation{stroke:#5aa9ff;stroke-width:2;stroke-dasharray:4 3;opacity:.7}
-    .marker{stroke:#0b2a55;stroke-width:2;opacity:.6}
-    .tooltip{position:absolute;background:#073b7a;color:#fff;padding:6px 8px;border-radius:8px;font-size:12px;pointer-events:none;opacity:0;transform:translate(-50%,-130%);white-space:nowrap}
-
-    /* Storyboard */
-    .storyboard-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
-    .frame{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#f7fbff;box-shadow:0 6px 16px rgba(30,60,120,.06)}
-    .thumb{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:#eaf4ff}
+    /* Storyboard grid */
+    .storyboard-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    .frame{background:#f3f8ff;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .thumb{height:120px;background:#e8eef9;display:block;width:100%;object-fit:cover}
+    .thumb.svgwrap{height:120px}
+    .thumb svg{width:100%;height:100%;display:block} /* allow inline SVG to render */
     .cap{padding:8px 10px;font-size:12px;color:#0b2a55}
   </style>
 </head>
@@ -138,7 +100,6 @@
           </div>
 
           <div id="analysis-area" class="grid copyGuard" style="margin-top:16px">
-            <!-- Left: Summary + Beats + Suggestions + Storyboard + Disclaimer -->
             <div class="left">
               <div class="card" id="summary-card">
                 <h3>Scene Summary</h3>
@@ -160,18 +121,17 @@
                 <div id="growth"></div>
               </div>
 
-              <!-- Storyboard Preview -->
+              <!-- Storyboard preview card -->
               <div class="card" id="storyboard-card">
                 <h3>Storyboard Preview</h3>
                 <div id="storyboard" class="storyboard-grid"></div>
               </div>
 
               <div class="card" id="disclaimer-card">
-                <div class="disclaimer small muted" id="disclaimerText"></div>
+                <div class="small muted" id="disclaimerText"></div>
               </div>
             </div>
 
-            <!-- Right: Analytics + Comparisons + Audio + other cards -->
             <div class="right-col">
               <div class="card">
                 <h3>Analytics Summary</h3>
@@ -193,11 +153,11 @@
                       <span class="pill">Dialogue: <strong id="dialogue" style="margin-left:6px"></strong></span>
                       <span class="pill">Readiness: <strong id="readiness" style="margin-left:6px"></strong></span>
                     </div>
-                    <div class="divider"></div>
-                    <div id="analyticsSignals" class="small"></div>
-                    <div class="small muted" id="confidenceRow" style="margin-top:6px"></div>
                   </div>
                 </div>
+                <div class="divider"></div>
+                <div id="analyticsSignals" class="small"></div>
+                <div class="small muted" id="confidenceRow" style="margin-top:6px"></div>
               </div>
 
               <div class="card">
@@ -240,7 +200,6 @@
                 <h3>Micro‑Pacing Heatmap</h3>
                 <div class="heatmap-wrap">
                   <svg id="heatmap" width="100%" height="64" viewBox="0 0 1000 64" preserveAspectRatio="none"></svg>
-                  <div class="tooltip"></div>
                 </div>
                 <div class="legend">
                   <span>Start</span><span>Mid</span><span>End</span>
@@ -350,7 +309,6 @@
       el('beats').innerHTML = '';
       el('suggestions').innerHTML = '';
       el('growth').innerHTML = '';
-      el('storyboard').innerHTML = '';
       el('disclaimerText').textContent = '';
       setGauge(0);
       el('pacing').textContent = '';
@@ -365,9 +323,10 @@
       el('props').textContent = '';
       el('dualLens').textContent = '';
       el('integrity').innerHTML = '';
+      drawHeatmap([]);
       el('analyticsSignals').innerHTML = '';
       el('confidenceRow').textContent = '';
-      drawHeatmap([]);
+      el('storyboard').innerHTML = '';
       el('audioBtn').disabled = true;
       el('ambience').pause();
     }
@@ -392,8 +351,8 @@
       audioOn = !audioOn;
     };
 
-    // Heatmap render (expects 0..100 array) + overlays
-    function drawHeatmap(arr, annotations = [], beatMarkers = []){
+    // Heatmap render (expects 0..100 array)
+    function drawHeatmap(arr){
       const svg = el('heatmap');
       while (svg.firstChild) svg.removeChild(svg.firstChild);
       if(!arr || !arr.length) return;
@@ -401,8 +360,6 @@
       const n = arr.length;
       const w = 1000, h = 64;
       const barW = Math.max(1, Math.floor(w / n));
-
-      // bars
       arr.forEach((v,i)=>{
         const x = i*barW;
         const height = Math.max(4, Math.round((v/100) * h));
@@ -415,41 +372,6 @@
         rect.setAttribute('fill', '#5aa9ff');
         rect.setAttribute('opacity', 0.25 + (v/100)*0.6);
         svg.appendChild(rect);
-      });
-
-      // overlays
-      const tip = svg.parentElement.querySelector('.tooltip');
-      const safeI = (i)=>Math.min(Math.max(0, i|0), n-1);
-
-      (Array.isArray(annotations)?annotations:[]).forEach(a=>{
-        if(!a || a.i==null) return;
-        const i = safeI(a.i);
-        const x = i*barW + Math.floor(barW/2);
-        const line = document.createElementNS('http://www.w3.org/2000/svg','line');
-        line.setAttribute('x1', x); line.setAttribute('x2', x);
-        line.setAttribute('y1', 0); line.setAttribute('y2', h);
-        line.setAttribute('class','annotation');
-        line.dataset.note = `${a.label||''}${a.note?': '+a.note:''}`;
-        svg.appendChild(line);
-      });
-
-      (Array.isArray(beatMarkers)?beatMarkers:[]).forEach(b=>{
-        if(!b || b.i==null) return;
-        const i = safeI(b.i);
-        const x = i*barW + Math.floor(barW/2);
-        const line = document.createElementNS('http://www.w3.org/2000/svg','line');
-        line.setAttribute('x1', x); line.setAttribute('x2', x);
-        line.setAttribute('y1', 0); line.setAttribute('y2', h);
-        line.setAttribute('class','marker');
-        line.dataset.note = `Beat: ${b.beat||''}`;
-        svg.appendChild(line);
-      });
-
-      svg.addEventListener('mousemove', (e)=>{
-        const target = e.target;
-        const note = target && target.dataset ? target.dataset.note : null;
-        if(note){ tip.textContent = note; tip.style.left = e.offsetX+'px'; tip.style.top = e.offsetY+'px'; tip.style.opacity = 1; }
-        else { tip.style.opacity = 0; }
       });
     }
 
@@ -539,47 +461,40 @@
         ? IA.map(a=>`<li class="small ${a.level==='warn'?'flag warn':'flag ok'}">${(a.message||'').replace(/</g,'&lt;')}</li>`).join('')
         : '<li class="small muted">No issues flagged.</li>';
 
-      // Heatmap with optional overlays
-      const ann = Array.isArray(obj.pacing_annotations) ? obj.pacing_annotations : [];
-      const bm  = Array.isArray(obj.beat_markers) ? obj.beat_markers : [];
-      drawHeatmap(Array.isArray(obj.pacing_map) ? obj.pacing_map : [], ann, bm);
+      // Heatmap
+      drawHeatmap(Array.isArray(obj.pacing_map) ? obj.pacing_map : []);
 
       // Growth suggestions
       const g = el('growth');
-      if (Array.isArray(obj.growth_suggestions) && obj.growth_suggestions.length){
-        g.innerHTML = obj.growth_suggestions.map(t =>
-          typeof t === 'string'
-            ? `<div class="small">• ${(t||'').replace(/</g,'&lt;')}</div>`
-            : `<div class="small" style="margin-bottom:8px">
-                 <div><strong>Experiment:</strong> ${(t.experiment||'').replace(/</g,'&lt;')}</div>
-                 <div class="muted">Why: ${(t.why||'').replace(/</g,'&lt;')}</div>
-                 <div>Expected: ${(t.expected_effect||'').replace(/</g,'&lt;')}</div>
-                 <div class="muted">Risk: ${(t.risk||'').replace(/</g,'&lt;')}</div>
-               </div>`
-        ).join('');
-      } else if (typeof obj.growth_suggestions === 'string' && obj.growth_suggestions.trim()){
-        g.textContent = obj.growth_suggestions;
+      const GS = obj.growth_suggestions || [];
+      if (Array.isArray(GS) && GS.length){
+        g.innerHTML = GS.map(s => {
+          if (typeof s === 'string') return `<div class="small">• ${s.replace(/</g,'&lt;')}</div>`;
+          return `<div class="small" style="margin-bottom:8px">
+            <div><strong>Experiment:</strong> ${(s.experiment||'').replace(/</g,'&lt;')}</div>
+            <div class="muted">Why: ${(s.why||'').replace(/</g,'&lt;')}</div>
+            <div>Expected: ${(s.expected_effect||'').replace(/</g,'&lt;')}</div>
+            <div class="muted">Risk: ${(s.risk||'').replace(/</g,'&lt;')}</div>
+          </div>`;
+        }).join('');
       } else {
-        g.innerHTML = '<div class="small muted">No growth suggestions provided.</div>';
+        g.innerHTML = '<div class="small muted">No growth experiments suggested.</div>';
       }
 
-      // Storyboard Preview
+      // Storyboard (prefer inline SVG; fallback to data URL)
       const sbWrap = el('storyboard');
       const frames = Array.isArray(obj.storyboard_frames) ? obj.storyboard_frames : [];
       if (frames.length){
-        sbWrap.innerHTML = frames.map(f => `
-          <div class="frame">
-            ${f.image_url
-              ? `<img class="thumb"
-                      src="${String(f.image_url)}"
-                      alt="Storyboard frame"
-                      referrerpolicy="no-referrer"
-                      loading="lazy"
-                      onerror="this.onerror=null;this.src='https://placehold.co/960x540?text=Storyboard+frame';"/>`
-              : `<div class="thumb" title="No image"></div>`}
-            <div class="cap">${(f.caption||'').replace(/</g,'&lt;')}</div>
-          </div>
-        `).join('');
+        sbWrap.innerHTML = frames.map((f) => {
+          const caption = (f.caption || '').replace(/</g,'&lt;');
+          const url = f.image_url ? String(f.image_url) : '';
+          const hasSVG = typeof f.svg === 'string' && f.svg.trim().startsWith('<svg');
+          const media = hasSVG
+            ? `<div class="thumb svgwrap">${f.svg}</div>`
+            : (url ? `<img class="thumb" src="${url}" alt="Storyboard frame" referrerpolicy="no-referrer" loading="lazy" onerror="this.onerror=null;this.src='https://placehold.co/960x540?text=Storyboard+frame';"/>`
+                   : `<div class="thumb" title="No image"></div>`);
+          return `<div class="frame">${media}<div class="cap">${caption}</div></div>`;
+        }).join('');
       } else {
         sbWrap.innerHTML = '<div class="small muted">No storyboard frames provided.</div>';
       }
@@ -611,7 +526,7 @@
       }
     }
 
-    // Hash helper (stable cache keys)
+    // Hash helper
     async function sha(text){
       const enc = new TextEncoder().encode(text);
       const buf = await crypto.subtle.digest('SHA-256', enc);
