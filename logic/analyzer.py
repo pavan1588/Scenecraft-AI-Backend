@@ -185,12 +185,12 @@ async def get_freesound_url(query: str) -> str:
 
 # ---------------- Storyboard (inline SVG with simple pictograms) -------------------
 def _mood_color(mood_words):
-    palette = ["#dbeafe", "#e9d5ff", "#fee2e2", "#dcfce7", "#ffedd5", "#fde68a", "#e5e7eb"]
+    palette = ["#cfe3ff", "#e2d2ff", "#ffd6d6", "#c9f7da", "#ffe3c7", "#fde58a", "#e6e9ef"]
     seed_src = (",".join(mood_words) if mood_words else "cinematic")[:64]
     idx = int(hashlib.sha256(seed_src.encode("utf-8")).hexdigest(), 16) % len(palette)
     return palette[idx]
 
-def _wrap_lines(text: str, max_len: int = 38):
+def _wrap_lines(text: str, max_len: int = 42):
     words = str(text).split()
     lines, cur = [], ""
     for w in words:
@@ -205,96 +205,144 @@ def _wrap_lines(text: str, max_len: int = 38):
 def _infer_layout(caption: str):
     t = caption.lower()
     # shot size
-    if any(k in t for k in ["close-up", "close up", "closeup", "cu"]): size = "cu"
-    elif any(k in t for k in ["medium", "mid-shot", "mid shot", "ms"]): size = "ms"
-    else: size = "ws"  # default wide
+    if any(k in t for k in ["close-up","close up","closeup","cu"]): size = "cu"
+    elif any(k in t for k in ["medium","mid","two-shot","two shot","ms"]): size = "ms"
+    else: size = "ws"
+    # subject positions
+    two = any(k in t for k in ["conversation","talk","speaks","argue","confront","dialogue","both","two","exchange"])
+    pos_primary = 0.25 if "left" in t else (0.75 if "right" in t else 0.5)
+    pos_secondary = 0.75 if pos_primary < 0.5 else 0.25
+    # horizon
+    if any(k in t for k in ["low angle","looks up","towering"]): horizon = 0.68
+    elif any(k in t for k in ["high angle","overhead","looks down"]): horizon = 0.38
+    else: horizon = 0.52
+    # subject / prop type
+    subj = "person" if any(k in t for k in ["man","woman","figure","person","kid","child","driver","stranger","guard","worker"]) else \
+           "car" if "car" in t or "vehicle" in t else \
+           "door" if "door" in t or "exit" in t or "gate" in t else \
+           "glass" if "glass" in t or "cup" in t or "wine" in t or "flute" in t else \
+           "table" if "table" in t or "desk" in t else "shape"
+    # ambiance hints
+    bg = "city" if any(k in t for k in ["city","skyline","rooftop"]) else \
+         "garage" if "garage" in t else \
+         "train" if any(k in t for k in ["train","carriage","compartment"]) else \
+         "room"
+    return size, two, pos_primary, pos_secondary, horizon, subj, bg
 
-    # subject position
-    if "left" in t: pos = 0.25
-    elif "right" in t: pos = 0.75
-    else: pos = 0.5
-
-    # horizon hint
-    if any(k in t for k in ["low angle", "looks up", "towering"]): horizon = 0.65
-    elif any(k in t for k in ["high angle", "overhead", "looks down"]): horizon = 0.35
-    else: horizon = 0.5
-
-    # subject type (icon)
-    subj = "person" if any(k in t for k in ["man","woman","figure","person","kid","child","driver","nikhil","elena","isabel","marcus"]) else \
-           "car" if "car" in t else \
-           "door" if "door" in t or "exit" in t else \
-           "glass" if "glass" in t or "cup" in t or "wine" in t else "shape"
-
-    return size, pos, horizon, subj
+def _subject_silhouette(cx, baseline, scale=1.0):
+    """Simple person: head, torso, arms, legs — higher contrast than before."""
+    r = int(11*scale)
+    torso_w = int(26*scale); torso_h = int(40*scale)
+    arm = int(18*scale); leg = int(18*scale)
+    head_y = baseline - torso_h - r*2
+    parts = [
+        f'<circle cx="{cx}" cy="{head_y+r}" r="{r}" fill="#0a2150" opacity="0.95"/>',
+        f'<rect x="{cx-torso_w//2}" y="{baseline-torso_h}" width="{torso_w}" height="{torso_h}" rx="5" fill="#0a2150" opacity="0.9"/>',
+        f'<rect x="{cx-torso_w//2 - arm}" y="{baseline-int(torso_h*0.75)}" width="{arm}" height="{8*scale:.0f}" rx="3" fill="#0a2150" opacity="0.9"/>',
+        f'<rect x="{cx+torso_w//2}" y="{baseline-int(torso_h*0.75)}" width="{arm}" height="{8*scale:.0f}" rx="3" fill="#0a2150" opacity="0.9"/>',
+        f'<rect x="{cx-9*scale:.0f}" y="{baseline-6*scale:.0f}" width="{8*scale:.0f}" height="{leg}" rx="3" fill="#0a2150" opacity="0.9"/>',
+        f'<rect x="{cx+1*scale:.0f}" y="{baseline-6*scale:.0f}" width="{8*scale:.0f}" height="{leg}" rx="3" fill="#0a2150" opacity="0.9"/>',
+    ]
+    return "\n".join(parts)
 
 def _draw_subject(subj, size, pos, w, h):
     cx = int(w * pos)
-    baseline = int(h*0.72)
+    base = int(h*0.73)
     elems = []
     if subj == "person":
-        # simple head + torso; scale by size
-        scale = 1.0 if size=="ws" else (1.4 if size=="ms" else 2.0)
-        r = int(10*scale)
-        torso_w = int(26*scale); torso_h = int(34*scale)
-        head_y = baseline - torso_h - r*2
-        elems.append(f'<circle cx="{cx}" cy="{head_y+r}" r="{r}" fill="#0b2a55" opacity="0.85"/>')
-        elems.append(f'<rect x="{cx-torso_w//2}" y="{baseline-torso_h}" width="{torso_w}" height="{torso_h}" rx="4" fill="#0b2a55" opacity="0.75"/>')
+        scale = 0.95 if size=="ws" else (1.3 if size=="ms" else 1.8)
+        elems.append(_subject_silhouette(cx, base, scale))
     elif subj == "car":
-        elems.append(f'<rect x="{cx-38}" y="{baseline-18}" width="76" height="22" rx="4" fill="#0b2a55" opacity="0.75"/>')
-        elems.append(f'<circle cx="{cx-24}" cy="{baseline+4}" r="6" fill="#0b2a55" opacity="0.85"/>')
-        elems.append(f'<circle cx="{cx+24}" cy="{baseline+4}" r="6" fill="#0b2a55" opacity="0.85"/>')
+        elems += [
+          f'<rect x="{cx-52}" y="{base-26}" width="104" height="30" rx="6" fill="#0a2150" opacity="0.85"/>',
+          f'<rect x="{cx-36}" y="{base-40}" width="72" height="20" rx="4" fill="#0a2150" opacity="0.55"/>',
+          f'<circle cx="{cx-30}" cy="{base+6}" r="8" fill="#0a2150"/>',
+          f'<circle cx="{cx+30}" cy="{base+6}" r="8" fill="#0a2150"/>'
+        ]
     elif subj == "door":
-        elems.append(f'<rect x="{cx-20}" y="{baseline-60}" width="40" height="60" fill="#0b2a55" opacity="0.2" stroke="#0b2a55" stroke-width="2"/>')
-        elems.append(f'<circle cx="{cx+12}" cy="{baseline-32}" r="2.5" fill="#0b2a55"/>')
+        elems += [
+          f'<rect x="{cx-26}" y="{base-88}" width="52" height="88" fill="#eaf1ff" stroke="#0a2150" stroke-width="3" opacity="0.9"/>',
+          f'<circle cx="{cx+18}" cy="{base-50}" r="3" fill="#0a2150"/>'
+        ]
     elif subj == "glass":
-        elems.append(f'<rect x="{cx-8}" y="{baseline-28}" width="16" height="24" rx="2" fill="#0b2a55" opacity="0.7"/>')
-        elems.append(f'<rect x="{cx-12}" y="{baseline-32}" width="24" height="4" rx="2" fill="#0b2a55" opacity="0.4"/>')
+        elems += [
+          f'<rect x="{cx-10}" y="{base-30}" width="20" height="26" rx="3" fill="#0a2150" opacity="0.85"/>',
+          f'<rect x="{cx-14}" y="{base-34}" width="28" height="5" rx="2" fill="#0a2150" opacity="0.4"/>'
+        ]
+    elif subj == "table":
+        elems += [
+          f'<rect x="{cx-60}" y="{base-12}" width="120" height="12" fill="#0a2150" opacity="0.55"/>',
+          f'<rect x="{cx-56}" y="{base-10}" width="8" height="24" fill="#0a2150" opacity="0.8"/>',
+          f'<rect x="{cx+48}" y="{base-10}" width="8" height="24" fill="#0a2150" opacity="0.8"/>'
+        ]
     else:
-        elems.append(f'<rect x="{cx-18}" y="{baseline-24}" width="36" height="28" rx="4" fill="#0b2a55" opacity="0.5"/>')
+        elems.append(f'<rect x="{cx-20}" y="{base-28}" width="40" height="32" rx="6" fill="#0a2150" opacity="0.6"/>')
     return "\n".join(elems)
 
+def _draw_background(bg, w, h, horizon_y):
+    # Soft depth lines + simple setting hints, high contrast
+    lines = []
+    # Depth/ground
+    for y in (horizon_y+8, horizon_y+22, horizon_y+36):
+        lines.append(f'<line x1="0" y1="{y}" x2="{w}" y2="{y}" stroke="#0a2150" stroke-width="2" opacity="0.15"/>')
+    # Setting
+    if bg == "city":
+        for x in range(40, w, 80):
+            height = 40 + ((x*37) % 80)
+            lines.append(f'<rect x="{x}" y="{h-80-height}" width="24" height="{height}" fill="#0a2150" opacity="0.12"/>')
+    elif bg == "garage":
+        for x in range(0, w, 160):
+            lines.append(f'<rect x="{x}" y="{horizon_y-4}" width="14" height="{h-horizon_y+4}" fill="#0a2150" opacity="0.12"/>')
+    elif bg == "train":
+        lines.append(f'<rect x="20" y="{horizon_y-50}" width="{w-40}" height="8" rx="4" fill="#0a2150" opacity="0.2"/>')
+        lines.append(f'<rect x="24" y="{horizon_y-42}" width="{w-48}" height="{h-horizon_y-50}" rx="6" fill="#0a2150" opacity="0.06"/>')
+    # room default: keep subtle
+    return "\n".join(lines)
+
 def _svg_storyboard_strings(caption: str, mood_words):
-    bg = _mood_color(mood_words)
+    bgcol = _mood_color(mood_words)
     lines = _wrap_lines(caption, 46)
-    size, pos, horizon, subj = _infer_layout(caption)
+    size, two, pos1, pos2, horizon, subj, bg = _infer_layout(caption)
 
     w, h = 960, 540
-    thirds_x = [w/3, 2*w/3]
-    thirds_y = [h/3, 2*h/3]
     horizon_y = int(h * horizon)
 
-    # subtle vignette + stronger frame + thirds grid
-    grid = (
-        f'<line x1="{thirds_x[0]}" y1="0" x2="{thirds_x[0]}" y2="{h}" stroke="#8fb3ff" stroke-width="1" opacity="0.35"/>'
-        f'<line x1="{thirds_x[1]}" y1="0" x2="{thirds_x[1]}" y2="{h}" stroke="#8fb3ff" stroke-width="1" opacity="0.35"/>'
-        f'<line x1="0" y1="{thirds_y[0]}" x2="{w}" y2="{thirds_y[0]}" stroke="#8fb3ff" stroke-width="1" opacity="0.35"/>'
-        f'<line x1="0" y1="{thirds_y[1]}" x2="{w}" y2="{thirds_y[1]}" stroke="#8fb3ff" stroke-width="1" opacity="0.35"/>'
-        f'<line x1="0" y1="{horizon_y}" x2="{w}" y2="{horizon_y}" stroke="#0b2a55" stroke-width="2" opacity="0.25"/>'
+    thirds = (
+        f'<line x1="{w/3}" y1="0" x2="{w/3}" y2="{h}" stroke="#7aa6ff" stroke-width="1" opacity="0.35"/>'
+        f'<line x1="{2*w/3}" y1="0" x2="{2*w/3}" y2="{h}" stroke="#7aa6ff" stroke-width="1" opacity="0.35"/>'
+        f'<line x1="0" y1="{h/3}" x2="{w}" y2="{h/3}" stroke="#7aa6ff" stroke-width="1" opacity="0.35"/>'
+        f'<line x1="0" y1="{2*h/3}" x2="{w}" y2="{2*h/3}" stroke="#7aa6ff" stroke-width="1" opacity="0.35"/>'
     )
 
-    subject = _draw_subject(subj, size, pos, w, h)
+    background = _draw_background(bg, w, h, horizon_y)
+
+    subjects = _draw_subject(subj, size, pos1 if not two else pos1, w, h)
+    if two and subj == "person":
+        subjects += _draw_subject(subj, size, pos2, w, h)
 
     svg_markup = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="{bg}"/>
+      <stop offset="0%" stop-color="{bgcol}"/>
       <stop offset="100%" stop-color="#ffffff"/>
     </linearGradient>
     <radialGradient id="v" cx="50%" cy="50%" r="70%">
       <stop offset="60%" stop-color="rgba(0,0,0,0)"/>
-      <stop offset="100%" stop-color="rgba(0,0,0,0.12)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.18)"/>
     </radialGradient>
   </defs>
   <rect x="0" y="0" width="{w}" height="{h}" fill="url(#g)"/>
-  <rect x="8" y="8" width="{w-16}" height="{h-16}" fill="none" stroke="#7aa6ff" stroke-width="3" rx="12"/>
+  <rect x="8" y="8" width="{w-16}" height="{h-16}" fill="none" stroke="#0a2150" stroke-width="3" rx="12"/>
   <rect x="0" y="0" width="{w}" height="{h}" fill="url(#v)"/>
-  <g>{grid}</g>
-  <g>{subject}</g>
+  <g>{thirds}</g>
+  <line x1="0" y1="{horizon_y}" x2="{w}" y2="{horizon_y}" stroke="#0a2150" stroke-width="2" opacity="0.28"/>
+  <g>{background}</g>
+  <g>{subjects}</g>
   <g font-family="ui-sans-serif,system-ui,Segoe UI,Roboto" fill="#0b2a55">
-    <text x="24" y="40" font-size="26" font-weight="700">Storyboard</text>
-    <text x="24" y="80" font-size="22">{(lines[0] if len(lines)>0 else "")}</text>
-    <text x="24" y="110" font-size="22">{(lines[1] if len(lines)>1 else "")}</text>
-    <text x="24" y="140" font-size="22">{(lines[2] if len(lines)>2 else "")}</text>
+    <text x="24" y="42" font-size="26" font-weight="700">Storyboard</text>
+    <text x="24" y="82" font-size="22">{(lines[0] if len(lines)>0 else "")}</text>
+    <text x="24" y="112" font-size="22">{(lines[1] if len(lines)>1 else "")}</text>
+    <text x="24" y="142" font-size="22">{(lines[2] if len(lines)>2 else "")}</text>
   </g>
 </svg>'''
     data_url = "data:image/svg+xml;utf8," + quote(svg_markup, safe=":/,%#[]@!$&'()*+;=")
