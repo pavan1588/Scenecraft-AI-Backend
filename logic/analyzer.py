@@ -4,7 +4,13 @@ import json as _json
 import hashlib
 import base64
 from urllib.parse import quote
-import httpx
+
+# httpx is optional at import time; we only use it inside functions.
+try:
+    import httpx  # type: ignore
+except Exception:  # keep import-time safe even if deps missing
+    httpx = None  # will be checked before use
+
 from fastapi import HTTPException
 
 # ---- Generation-command filtering -------------------------------------------------
@@ -40,11 +46,23 @@ MIN_WORDS = 250
 MAX_WORDS = 3500
 
 # ---------------- Optional storyboard image generation (server-side) ---------------
-STORYBOARD_ENABLE = os.getenv("SC_STORYBOARD_ENABLE", "false").lower() in {"1", "true", "yes"}
-STORYBOARD_PROVIDER = os.getenv("SC_STORYBOARD_PROVIDER", "openai")  # "openai" | "off"
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
-STORYBOARD_MAX_FRAMES = int(os.getenv("SC_STORYBOARD_MAX_FRAMES", "4"))
+# NOTE: we only *read* env values when needed (inside functions) to avoid import errors.
+def _storyboard_flags():
+    enable = os.getenv("SC_STORYBOARD_ENABLE", "false").lower() in {"1", "true", "yes"}
+    provider = os.getenv("SC_STORYBOARD_PROVIDER", "openai")  # "openai" | "stability" | "off"
+    max_frames = int(os.getenv("SC_STORYBOARD_MAX_FRAMES", "4") or "4")
+    return enable, provider, max_frames
 
+def _env_keys():
+    return (
+        (os.getenv("OPENAI_API_KEY") or "").strip(),
+        (os.getenv("STABILITY_API_KEY") or "").strip(),
+        (os.getenv("FREESOUND_API_KEY") or "").strip(),
+        (os.getenv("OPENROUTER_API_KEY") or "").strip(),
+        os.getenv("OPENROUTER_MODEL", "gpt-4o"),
+    )
+
+# -----------------------------------------------------------------------------------
 def _normalize(text: str) -> str:
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     lines = [ln.strip() for ln in text.split("\n")]
@@ -219,14 +237,10 @@ def _system_prompt() -> str:
     )
 
 # ------------------------ Freesound integration (optional) -------------------------
-FREESOUND_API_KEY = os.getenv("FREESOUND_API_KEY")
-
 async def get_freesound_url(query: str) -> str:
-    """
-    Fetch an ambience sound URL from Freesound based on a mood query.
-    Returns a direct MP3 preview URL when available, else "".
-    """
-    if not FREESOUND_API_KEY or not query:
+    api_key, _, freesound_key, _, _ = _env_keys()
+    # (api_key unused here; kept for parity)
+    if not freesound_key or not query or httpx is None:
         return ""
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -234,11 +248,11 @@ async def get_freesound_url(query: str) -> str:
                 "https://freesound.org/apiv2/search/text/",
                 params={
                     "query": query,
-                    "filter": "duration:[5 TO 60]",  # short loops
+                    "filter": "duration:[5 TO 60]",
                     "sort": "score",
                     "fields": "id,previews",
                 },
-                headers={"Authorization": f"Token {FREESOUND_API_KEY}"},
+                headers={"Authorization": f"Token {freesound_key}"},
             )
             r.raise_for_status()
             data = r.json()
@@ -246,7 +260,6 @@ async def get_freesound_url(query: str) -> str:
                 return data["results"][0]["previews"].get("preview-hq-mp3", "") or \
                        data["results"][0]["previews"].get("preview-lq-mp3", "")
     except Exception as e:
-        # Non-fatal: just skip audio if anything goes wrong
         print(f"[Freesound] Error fetching sound: {e}")
     return ""
 
@@ -296,15 +309,7 @@ def _infer_layout(caption: str):
     if any(k in t for k in ["city","skyline","rooftop","terrace"]): bg = "city"
     elif "garage" in t: bg = "garage"
     elif any(k in t for k in ["train","carriage","compartment"]): bg = "train"
-    props = {
-        "chandelier": any(k in t for k in ["chandelier", "ceiling light"]),
-        "table": any(k in t for k in ["table","desk","bar","counter"]),
-        "sofa": any(k in t for k in ["sofa","couch","booth"]),
-        "door": any(k in t for k in ["door","exit","archway"]),
-        "window": any(k in t for k in ["window","balcony","pane"]),
-    }
-    action_scan = any(k in t for k in ["scan","scans","survey","looks around","glance around","observes"])
-    return size, two, pos_primary, pos_secondary, horizon, subj, bg, props, action_scan
+    return size, two, pos_primary, pos_secondary, horizon, subj, bg, {}, any(k in t for k in ["scan","scans","survey","looks around","glance around","observes"])
 
 def _female_silhouette(cx, baseline, scale=1.0, scan_pose=False):
     dark = "#081c44"
@@ -433,7 +438,7 @@ def _svg_storyboard_strings(caption: str, mood_words):
 
 def _storyboard_from_beats(beats, mood_words, max_frames=4):
     frames = []
-    for b in beats[:max_frames]:
+    for b in (beats or [])[:max_frames]:
         cap = (b.get("insight") or "").strip()
         if not cap:
             continue
@@ -452,44 +457,110 @@ def _image_prompt_from_caption(caption: str, summary: str, mood_words) -> str:
         "Style: professional storyboard artist, film pre‑viz, 3/4 view if helpful."
     )
 
-async def _gen_image_openai(prompt: str, size: str = "768x432") -> str:
-    """Return data-url PNG or '' on failure (OpenAI Images)."""
-    if not OPENAI_API_KEY:
+# --------- OpenAI Images (optional) ----------
+async def _gen_image_openai(prompt: str, size: str = "1536x1024") -> str:
+    OPENAI_API_KEY, _, _, _, _ = _env_keys()
+    if not OPENAI_API_KEY or httpx is None:
         return ""
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            r = await client.post(
-                "https://api.openai.com/v1/images/generations",
-                headers={
-                    "Authorization": f"Bearer {OPENAI_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "gpt-image-1",
-                    "prompt": prompt,
-                    "size": size,
-                    "response_format": "b64_json",
-                    "quality": "standard",
-                    "n": 1,
-                },
-            )
-            r.raise_for_status()
-            data = r.json()
-            b64 = (data.get("data") or [{}])[0].get("b64_json") or ""
-            if not b64:
+    SUPPORTED = {"1024x1024", "1536x1024", "1024x1536", "auto"}
+    if size not in SUPPORTED:
+        size = "1536x1024"
+
+    async def _call(sz: str) -> str:
+        try:
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                r = await client.post(
+                    "https://api.openai.com/v1/images/generations",
+                    headers={
+                        "Authorization": f"Bearer {OPENAI_API_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json={"model": "gpt-image-1", "prompt": prompt, "size": sz, "n": 1},
+                )
+                if r.status_code == 403:
+                    print(f"[Storyboard] OpenAI 403 (access): {r.text[:400]}")
+                    return ""
+                if r.status_code >= 400:
+                    print(f"[Storyboard] OpenAI error {r.status_code}: {r.text[:800]}")
+                    return ""
+
+                data = r.json()
+                item = (data.get("data") or [{}])[0]
+
+                b64 = item.get("b64_json")
+                if b64:
+                    return f"data:image/png;base64,{b64}"
+
+                url = item.get("url")
+                if url:
+                    img = await client.get(url, timeout=90.0)
+                    if img.status_code >= 400:
+                        print(f"[Storyboard] OpenAI img fetch error {img.status_code}")
+                        return ""
+                    enc = base64.b64encode(img.content).decode("utf-8")
+                    return f"data:image/png;base64,{enc}"
+
+                print("[Storyboard] Image API returned neither b64_json nor url")
                 return ""
-            return f"data:image/png;base64,{b64}"
+        except Exception as e:
+            print(f"[Storyboard] OpenAI generation error (size {sz}): {e}")
+            return ""
+
+    out = await _call(size)
+    if not out and size != "1024x1024":
+        out = await _call("1024x1024")
+    return out
+
+# --------- Stability (SDXL) Images (optional) ----------
+def _stability_dims_from_size(size: str):
+    if size == "1024x1536":
+        return 704, 1024   # portrait
+    if size == "1536x1024":
+        return 1024, 640   # landscape
+    return 1024, 1024      # square
+
+async def _gen_image_stability(prompt: str, size: str = "1536x1024") -> str:
+    _, STABILITY_API_KEY, _, _, _ = _env_keys()
+    if not STABILITY_API_KEY or httpx is None:
+        return ""
+    w, h = _stability_dims_from_size(size)
+    payload = {
+        "text_prompts": [{"text": prompt}],
+        "cfg_scale": 7.0,
+        "samples": 1,
+        "steps": 30,
+        "clip_guidance_preset": "FAST_GREEN",
+        "width": w,
+        "height": h,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            r = await client.post(
+                "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image",
+                headers={
+                    "Authorization": f"Bearer {STABILITY_API_KEY}",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+                json=payload,
+            )
+            if r.status_code >= 400:
+                print(f"[Storyboard] Stability error {r.status_code}: {r.text[:800]}")
+                return ""
+            data = r.json()
+            arts = data.get("artifacts") or []
+            if not arts or not arts[0].get("base64"):
+                print("[Storyboard] Stability returned no image")
+                return ""
+            return f"data:image/png;base64,{arts[0]['base64']}"
     except Exception as e:
-        print(f"[Storyboard] OpenAI generation error: {e}")
+        print(f"[Storyboard] Stability generation error: {e}")
         return ""
 
+# --------- Prefer PNGs; embed inside inline SVG so UI shows them without changes ---
 async def _maybe_generate_storyboard_pngs(obj: dict):
-    """
-    Optionally replace/augment storyboard_frames with PNGs (data URLs).
-    Frontend prefers 'svg', so when we have a PNG we embed it inside a tiny
-    SVG wrapper and assign it to 'svg'. This avoids any HTML/JS changes.
-    """
-    if not STORYBOARD_ENABLE or STORYBOARD_PROVIDER == "off":
+    enable, provider, max_frames = _storyboard_flags()
+    if not enable or provider == "off":
         return
 
     frames = obj.get("storyboard_frames") or []
@@ -498,35 +569,33 @@ async def _maybe_generate_storyboard_pngs(obj: dict):
 
     summary = obj.get("summary", "") or ""
     mood_words = (obj.get("theme") or {}).get("mood_words") or []
-    targets = frames[: max(0, min(STORYBOARD_MAX_FRAMES, len(frames)))]
 
     def _svg_wrap_png(png_data_url: str, w: int = 960, h: int = 540) -> str:
-        # Inline SVG that displays the PNG; CSP-safe, renders where 'svg' is used.
         return (
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">'
             f'<image href="{png_data_url}" x="0" y="0" width="{w}" height="{h}" preserveAspectRatio="xMidYMid slice"/>'
             '</svg>'
         )
 
-    for f in targets:
+    for f in frames[: max(0, min(max_frames, len(frames)))]:
         try:
             cap = (f.get("caption") or "").strip()
             if not cap:
                 continue
 
-            # If a PNG is already present, ensure svg shows that PNG (not the placeholder)
+            # If PNG already present, ensure svg uses it
             if isinstance(f.get("image_url"), str) and f["image_url"].startswith("data:image/png"):
                 f["svg"] = _svg_wrap_png(f["image_url"])
                 continue
 
-            # Generate PNG via provider
             prompt = _image_prompt_from_caption(cap, summary, mood_words)
             data_url = ""
-            if STORYBOARD_PROVIDER == "openai":
+            if provider == "openai":
                 data_url = await _gen_image_openai(prompt)
+            elif provider == "stability":
+                data_url = await _gen_image_stability(prompt)
 
             if data_url:
-                # Keep for compatibility AND force-embed as inline SVG
                 f["image_url"] = data_url
                 f["svg"] = _svg_wrap_png(data_url)
         except Exception as e:
@@ -535,14 +604,8 @@ async def _maybe_generate_storyboard_pngs(obj: dict):
     obj["storyboard_frames"] = frames
 
 # -----------------------------------------------------------------------------------
-
 def _prune_output(obj: dict) -> dict:
-    """
-    Light curation to keep the UI uncluttered. We don't alter meaning,
-    just cap lengths so the front-end stays breathable.
-    """
     try:
-        # Cap arrays to readable sizes
         if isinstance(obj.get("beats"), list):
             obj["beats"] = obj["beats"][:5]
         if isinstance(obj.get("suggestions"), list):
@@ -562,16 +625,15 @@ def _prune_output(obj: dict) -> dict:
         if isinstance(obj.get("storyboard_frames"), list):
             obj["storyboard_frames"] = obj["storyboard_frames"][:6]
 
-        # Pacing map: keep within 20–40 points if oversized
         pm = obj.get("pacing_map")
         if isinstance(pm, list) and len(pm) > 40:
             stride = max(1, len(pm) // 40)
             obj["pacing_map"] = pm[::stride][:40]
     except Exception:
-        # Never let pruning break output
         pass
     return obj
 
+# ================================ PUBLIC ENTRYPOINT ================================
 async def analyze_scene(scene: str) -> dict:
     raw = scene or ""
     clean = clean_scene(raw)
@@ -587,7 +649,6 @@ async def analyze_scene(scene: str) -> dict:
             status_code=400,
             detail="SceneCraft does not generate scenes. Please submit your own scene or script for analysis.",
         )
-
     if not clean:
         raise HTTPException(status_code=400, detail="Invalid scene content")
 
@@ -604,13 +665,15 @@ async def analyze_scene(scene: str) -> dict:
             detail=f"Scene is too long for a single-pass analysis (> {MAX_WORDS} words). Consider splitting it.",
         )
 
-    api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
-    if not api_key:
+    # OpenRouter call (lazy env read; httpx checked at call time)
+    OPENAI_KEY, STAB_KEY, FREE_KEY, OPENROUTER_API_KEY, OPENROUTER_MODEL = _env_keys()
+    if not OPENROUTER_API_KEY:
         raise HTTPException(status_code=500, detail="Missing OPENROUTER_API_KEY.")
+    if httpx is None:
+        raise HTTPException(status_code=500, detail="httpx not installed.")
 
-    # --- call OpenRouter with JSON mode, then fallback if unsupported ---
     base_payload = {
-        "model": os.getenv("OPENROUTER_MODEL", "gpt-4o"),
+        "model": OPENROUTER_MODEL,
         "temperature": 0.5,
         "messages": [
             {"role": "system", "content": _system_prompt()},
@@ -623,7 +686,7 @@ async def analyze_scene(scene: str) -> dict:
             r = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {api_key}",
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
                     "Content-Type": "application/json",
                 },
                 json=payload,
@@ -632,7 +695,7 @@ async def analyze_scene(scene: str) -> dict:
             return r.json()
 
     try:
-        # 1) Try JSON mode
+        # 1) Try JSON mode, fallback if provider rejects response_format
         json_mode_payload = dict(base_payload)
         json_mode_payload["response_format"] = {"type": "json_object"}
         try:
@@ -664,7 +727,6 @@ async def analyze_scene(scene: str) -> dict:
             try:
                 obj = _json.loads(trimmed)
             except Exception:
-                # Final safety: wrap raw text so UI still shows something useful
                 return _fallback_payload_from_text(content)
 
         # Minimal defaults so frontend never breaks
@@ -725,20 +787,22 @@ async def analyze_scene(scene: str) -> dict:
                     obj["theme"] = theme
         except Exception as _e:
             print(f"[Freesound] Non-fatal: {_e}")
-        # ----------------------------------------------------------------
 
-        # --------- Storyboard frames (inline SVG) + optional PNGs -------
+        # --------- Storyboard frames (inline SVG) -------
         try:
             if not obj.get("storyboard_frames"):
                 mood_words = (obj.get("theme") or {}).get("mood_words") or []
-                obj["storyboard_frames"] = _storyboard_from_beats(obj.get("beats") or [], mood_words, max_frames=4)
+                enable, _, max_frames = _storyboard_flags()
+                obj["storyboard_frames"] = _storyboard_from_beats(
+                    obj.get("beats") or [], mood_words, max_frames=max_frames or 4
+                )
         except Exception as _e:
             print(f"[Storyboard] Non-fatal SVG: {_e}")
 
         # Final pruning for an uncluttered UX
         obj = _prune_output(obj)
 
-        # Optional PNG generation (CSP-safe via data URLs)
+        # Optional PNG generation (CSP-safe via data URLs) with provider switch
         try:
             await _maybe_generate_storyboard_pngs(obj)
         except Exception as _e:
@@ -747,7 +811,6 @@ async def analyze_scene(scene: str) -> dict:
         return obj
 
     except httpx.HTTPStatusError as e:
-        # Surface provider error message cleanly
         try:
             err_json = e.response.json()
             detail = (err_json.get("error") or {}).get("message") or e.response.text
@@ -755,4 +818,5 @@ async def analyze_scene(scene: str) -> dict:
             detail = e.response.text
         raise HTTPException(status_code=e.response.status_code, detail=detail)
     except Exception as e:
+        # Never let unexpected exceptions bubble up as import-time failures
         raise HTTPException(status_code=500, detail=str(e))
