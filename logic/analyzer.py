@@ -486,8 +486,8 @@ async def _gen_image_openai(prompt: str, size: str = "768x432") -> str:
 async def _maybe_generate_storyboard_pngs(obj: dict):
     """
     Optionally replace/augment storyboard_frames with PNGs (data URLs).
-    IMPORTANT: Frontend prefers inline SVG when present, so when we have a PNG,
-    we clear the 'svg' field to force the UI to use image_url.
+    Frontend prefers 'svg', so when we have a PNG we embed it inside a tiny
+    SVG wrapper and assign it to 'svg'. This avoids any HTML/JS changes.
     """
     if not STORYBOARD_ENABLE or STORYBOARD_PROVIDER == "off":
         return
@@ -500,27 +500,35 @@ async def _maybe_generate_storyboard_pngs(obj: dict):
     mood_words = (obj.get("theme") or {}).get("mood_words") or []
     targets = frames[: max(0, min(STORYBOARD_MAX_FRAMES, len(frames)))]
 
+    def _svg_wrap_png(png_data_url: str, w: int = 960, h: int = 540) -> str:
+        # Inline SVG that displays the PNG; CSP-safe, renders where 'svg' is used.
+        return (
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">'
+            f'<image href="{png_data_url}" x="0" y="0" width="{w}" height="{h}" preserveAspectRatio="xMidYMid slice"/>'
+            '</svg>'
+        )
+
     for f in targets:
         try:
             cap = (f.get("caption") or "").strip()
             if not cap:
                 continue
 
-            # If a real PNG is already there, ensure we prefer it
-            if f.get("image_url", "").startswith("data:image/png"):
-                f["svg"] = ""  # force frontend to use the PNG
+            # If a PNG is already present, ensure svg shows that PNG (not the placeholder)
+            if isinstance(f.get("image_url"), str) and f["image_url"].startswith("data:image/png"):
+                f["svg"] = _svg_wrap_png(f["image_url"])
                 continue
 
-            # Generate PNG
+            # Generate PNG via provider
             prompt = _image_prompt_from_caption(cap, summary, mood_words)
             data_url = ""
             if STORYBOARD_PROVIDER == "openai":
                 data_url = await _gen_image_openai(prompt)
 
-            # If we got a PNG, wire it in and clear SVG so UI uses it
             if data_url:
+                # Keep for compatibility AND force-embed as inline SVG
                 f["image_url"] = data_url
-                f["svg"] = ""  # <- critical: prefer PNG over inline SVG
+                f["svg"] = _svg_wrap_png(data_url)
         except Exception as e:
             print(f"[Storyboard] Frame error: {e}")
 
